@@ -1,0 +1,29 @@
+{
+  "name": "nexus-workflow-app",
+  "version": "0.1.0",
+  "description": "Host application for the nexus-workflow-core engine — HTTP API, PostgreSQL persistence, task worker",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "hono": "^4.7.7",
+    "nexus-workflow-core": "file:../nexus-workflow-core",
+    "postgres": "^3.4.5",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.5",
+    "@vitest/coverage-v8": "^3.0.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
