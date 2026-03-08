@@ -12,6 +12,8 @@ import type {
   TokenStatus,
   VariableScope,
   VariableValue,
+  WaitCondition,
+  WaitConditionType,
   ProcessInstance,
   GatewayJoinState,
   ParallelGatewayJoinState,
@@ -22,6 +24,8 @@ import type {
   EndEventElement,
   UserTaskElement,
   ScriptTaskElement,
+  IntermediateCatchEventElement,
+  BoundaryEventElement,
 } from '../model/types.js'
 import type { ExecutionEvent } from '../interfaces/EventBus.js'
 
@@ -40,6 +44,11 @@ export type EngineCommand =
   | { type: 'FailServiceTask'; tokenId: string; error: { code: string; message: string } }
   | { type: 'CompleteUserTask'; tokenId: string; completedBy: string; outputVariables?: Record<string, VariableValue> }
   | { type: 'FireTimer'; tokenId: string }
+  | { type: 'DeliverMessage'; messageName: string; variables?: Record<string, VariableValue> }
+  | { type: 'BroadcastSignal'; signalName: string; variables?: Record<string, VariableValue> }
+  | { type: 'SuspendInstance' }
+  | { type: 'ResumeInstance' }
+  | { type: 'CancelInstance' }
 
 export interface EngineResult {
   newState: EngineState
@@ -73,13 +82,28 @@ export function execute(
       handleCompleteTask(ctx, command.tokenId, command.outputVariables, definition)
       break
     case 'FailServiceTask':
-      handleFailServiceTask(ctx, command)
+      handleFailServiceTask(ctx, command, definition)
       break
     case 'CompleteUserTask':
       handleCompleteTask(ctx, command.tokenId, command.outputVariables, definition)
       break
     case 'FireTimer':
-      handleCompleteTask(ctx, command.tokenId, undefined, definition)
+      handleFireTimer(ctx, command.tokenId, definition)
+      break
+    case 'DeliverMessage':
+      handleDeliverMessage(ctx, command, definition)
+      break
+    case 'BroadcastSignal':
+      handleBroadcastSignal(ctx, command, definition)
+      break
+    case 'SuspendInstance':
+      handleSuspendInstance(ctx)
+      break
+    case 'ResumeInstance':
+      handleResumeInstance(ctx)
+      break
+    case 'CancelInstance':
+      handleCancelInstance(ctx)
       break
   }
 
@@ -138,15 +162,23 @@ function handleCompleteTask(
     )
   }
 
+  // Auto-resume a suspended instance when an admin completes a task
+  if (ctx.instance!.status === 'suspended') {
+    ctx.instance = { ...ctx.instance!, status: 'active' }
+    ctx.emit({ type: 'ProcessInstanceResumed', instanceId: ctx.instance.id })
+  }
+
   // Merge output variables into the token's scope
   if (outputVariables && Object.keys(outputVariables).length > 0) {
     ctx.mergeVariables(token.scopeId, outputVariables)
   }
 
   const element = getElement(definition, token.elementId)
-  const elementType = element.type
 
   ctx.emit({ type: 'ServiceTaskCompleted', instanceId: ctx.instance!.id, tokenId, elementId: token.elementId, durationMs: 0 })
+
+  // Cancel any waiting boundary tokens attached to this task
+  cancelBoundaryTokensFor(ctx, token.elementId)
 
   // Advance through outgoing flows
   advanceToken(ctx, token, element, definition)
@@ -156,6 +188,7 @@ function handleCompleteTask(
 function handleFailServiceTask(
   ctx: ExecutionContext,
   command: Extract<EngineCommand, { type: 'FailServiceTask' }>,
+  definition: ProcessDefinition,
 ): void {
   const token = ctx.requireToken(command.tokenId)
   if (token.status !== 'waiting') {
@@ -164,26 +197,104 @@ function handleFailServiceTask(
     )
   }
 
-  const cancelled: Token = { ...token, status: 'cancelled', updatedAt: ctx.now() }
-  ctx.updateToken(cancelled)
-
-  ctx.instance = {
-    ...ctx.instance!,
-    status: 'error',
-    errorInfo: {
-      code: command.error.code,
-      message: command.error.message,
-      tokenId: token.id,
-      elementId: token.elementId,
-    },
-  }
-
   ctx.emit({
-    type: 'ProcessInstanceFaulted',
-    instanceId: ctx.instance.id,
-    errorCode: command.error.code,
-    message: command.error.message,
+    type: 'ServiceTaskFailed',
+    instanceId: ctx.instance!.id,
+    tokenId: token.id,
+    elementId: token.elementId,
+    error: command.error.message,
+    attempt: 1,
   })
+
+  // Check for a matching error boundary event on this task
+  const errorBoundary = findMatchingErrorBoundary(definition, token.elementId, command.error.code)
+
+  if (errorBoundary) {
+    // Cancel the task token and any sibling boundary tokens
+    ctx.updateToken({ ...token, status: 'cancelled', updatedAt: ctx.now() })
+    ctx.emit({ type: 'TokenCancelled', instanceId: token.instanceId, tokenId: token.id, elementId: token.elementId })
+    cancelHostTaskAndBoundaries(ctx, token.elementId, '')
+
+    ctx.emit({
+      type: 'ErrorThrown',
+      instanceId: ctx.instance!.id,
+      tokenId: token.id,
+      errorCode: command.error.code,
+      caught: true,
+    })
+    ctx.emit({
+      type: 'BoundaryEventTriggered',
+      instanceId: ctx.instance!.id,
+      tokenId: token.id,
+      boundaryEventId: errorBoundary.id,
+      interrupting: errorBoundary.cancelActivity,
+    })
+
+    // Route through boundary outgoing flows and continue
+    for (const flowId of errorBoundary.outgoingFlows) {
+      moveTokenToFlow(ctx, token, flowId, definition)
+    }
+    runLoop(ctx, definition)
+  } else {
+    // No matching boundary — suspend the instance, keep token waiting for admin action
+    ctx.instance = {
+      ...ctx.instance!,
+      status: 'suspended',
+      errorInfo: {
+        code: command.error.code,
+        message: command.error.message,
+        tokenId: token.id,
+        elementId: token.elementId,
+      },
+    }
+    ctx.emit({
+      type: 'ProcessInstanceSuspended',
+      instanceId: ctx.instance.id,
+    })
+    ctx.emit({
+      type: 'ErrorThrown',
+      instanceId: ctx.instance.id,
+      tokenId: token.id,
+      errorCode: command.error.code,
+      caught: false,
+    })
+  }
+}
+
+function handleSuspendInstance(ctx: ExecutionContext): void {
+  const status = ctx.instance!.status
+  if (status !== 'active') {
+    throw new RuntimeError(
+      `Cannot suspend instance — status is "${status}", expected "active"`,
+      ctx.instance?.id,
+    )
+  }
+  ctx.instance = { ...ctx.instance!, status: 'suspended' }
+  ctx.emit({ type: 'ProcessInstanceSuspended', instanceId: ctx.instance.id })
+}
+
+function handleResumeInstance(ctx: ExecutionContext): void {
+  const status = ctx.instance!.status
+  if (status !== 'suspended') {
+    throw new RuntimeError(
+      `Cannot resume instance — status is "${status}", expected "suspended"`,
+      ctx.instance?.id,
+    )
+  }
+  ctx.instance = { ...ctx.instance!, status: 'active' }
+  ctx.emit({ type: 'ProcessInstanceResumed', instanceId: ctx.instance.id })
+}
+
+function handleCancelInstance(ctx: ExecutionContext): void {
+  const now = ctx.now()
+  for (const t of ctx.getAllTokens()) {
+    if (t.status === 'active' || t.status === 'waiting') {
+      ctx.updateToken({ ...t, status: 'cancelled', updatedAt: now })
+      ctx.emit({ type: 'TokenCancelled', instanceId: t.instanceId, tokenId: t.id, elementId: t.elementId })
+    }
+  }
+  ctx.instance = { ...ctx.instance!, status: 'terminated' }
+  ctx.emit({ type: 'ProcessInstanceTerminated', instanceId: ctx.instance.id, reason: 'cancelled by admin' })
 }
 
 // ─── Execution loop ───────────────────────────────────────────────────────────
@@ -207,10 +318,10 @@ function processToken(ctx: ExecutionContext, token: Token, definition: ProcessDe
       handleEndEvent(ctx, token, element as EndEventElement, definition)
       break
     case 'serviceTask':
-      handleServiceTask(ctx, token, element as ServiceTaskElement)
+      handleServiceTask(ctx, token, element as ServiceTaskElement, definition)
       break
     case 'userTask':
-      handleUserTask(ctx, token, element as UserTaskElement)
+      handleUserTask(ctx, token, element as UserTaskElement, definition)
       break
     case 'scriptTask':
       // Script tasks are synchronous — treat like service tasks for now
@@ -219,6 +330,12 @@ function processToken(ctx: ExecutionContext, token: Token, definition: ProcessDe
     case 'manualTask':
       // Manual tasks auto-complete
       advanceToken(ctx, token, element, definition)
+      break
+    case 'intermediateCatchEvent':
+      handleIntermediateCatchEvent(ctx, token, element as IntermediateCatchEventElement)
+      break
+    case 'boundaryEvent':
+      handleBoundaryEventWait(ctx, token, element as BoundaryEventElement, definition)
       break
     case 'exclusiveGateway':
       handleExclusiveGateway(ctx, token, element as GatewayElement, definition)
@@ -265,7 +382,12 @@ function handleEndEvent(
   }
 }
 
-function handleServiceTask(ctx: ExecutionContext, token: Token, element: ServiceTaskElement): void {
+function handleServiceTask(
+  ctx: ExecutionContext,
+  token: Token,
+  element: ServiceTaskElement,
+  definition: ProcessDefinition,
+): void {
   ctx.emit({
     type: 'ServiceTaskStarted',
     instanceId: ctx.instance!.id,
@@ -274,10 +396,209 @@ function handleServiceTask(ctx: ExecutionContext, token: Token, element: Service
     taskType: element.taskType ?? 'unknown',
   })
   suspendToken(ctx, token, 'external')
+  spawnBoundaryTokens(ctx, token, element.id, definition)
 }
 
-function handleUserTask(ctx: ExecutionContext, token: Token, _element: UserTaskElement): void {
+function handleUserTask(
+  ctx: ExecutionContext,
+  token: Token,
+  element: UserTaskElement,
+  definition: ProcessDefinition,
+): void {
   suspendToken(ctx, token, 'user-task')
+  spawnBoundaryTokens(ctx, token, element.id, definition)
+}
+
+function handleIntermediateCatchEvent(
+  ctx: ExecutionContext,
+  token: Token,
+  element: IntermediateCatchEventElement,
+): void {
+  const { type } = element.eventDefinition
+  if (type === 'timer') {
+    suspendTokenWithCondition(ctx, token, { type: 'timer' })
+  } else if (type === 'message') {
+    const messageName = element.eventDefinition.messageName ?? ''
+    suspendTokenWithCondition(ctx, token, { type: 'message', correlationData: { messageName } })
+  } else if (type === 'signal') {
+    const signalName = element.eventDefinition.signalName ?? ''
+    suspendTokenWithCondition(ctx, token, { type: 'signal', correlationData: { signalName } })
+  } else {
+    throw new RuntimeError(`Unsupported intermediateCatchEvent definition type: "${type}"`)
+  }
+}
+
+function handleBoundaryEventWait(
+  ctx: ExecutionContext,
+  token: Token,
+  element: BoundaryEventElement,
+  _definition: ProcessDefinition,
+): void {
+  const { type } = element.eventDefinition
+  const base = { hostTaskId: element.attachedToRef }
+  if (type === 'timer') {
+    suspendTokenWithCondition(ctx, token, { type: 'timer', correlationData: base })
+  } else if (type === 'message') {
+    const messageName = element.eventDefinition.messageName ?? ''
+    suspendTokenWithCondition(ctx, token, { type: 'message', correlationData: { ...base, messageName } })
+  } else if (type === 'signal') {
+    const signalName = element.eventDefinition.signalName ?? ''
+    suspendTokenWithCondition(ctx, token, { type: 'signal', correlationData: { ...base, signalName } })
+  } else if (type === 'error') {
+    // Error boundary tokens wait passively — they fire via FailServiceTask, not via a command
+    suspendTokenWithCondition(ctx, token, { type: 'external', correlationData: base })
+  } else {
+    throw new RuntimeError(`Unsupported boundaryEvent definition type: "${type}"`)
+  }
+}
+
+function handleFireTimer(
+  ctx: ExecutionContext,
+  tokenId: string,
+  definition: ProcessDefinition,
+): void {
+  const token = ctx.requireToken(tokenId)
+  if (token.status !== 'waiting') {
+    throw new RuntimeError(
+      `Cannot fire timer for token "${tokenId}" — status is "${token.status}", expected "waiting"`,
+      ctx.instance?.id,
+    )
+  }
+
+  if (token.elementType === 'boundaryEvent') {
+    const element = getElement(definition, token.elementId) as BoundaryEventElement
+    // Complete the boundary token
+    ctx.updateToken({ ...token, status: 'completed', updatedAt: ctx.now() })
+    // Cancel host task token if this is an interrupting boundary
+    if (element.cancelActivity) {
+      cancelHostTaskAndBoundaries(ctx, element.attachedToRef, tokenId)
+    }
+    // Route through boundary outgoing flows
+    for (const flowId of element.outgoingFlows) {
+      moveTokenToFlow(ctx, token, flowId, definition)
+    }
+    runLoop(ctx, definition)
+  } else {
+    // Intermediate timer catch event — advance normally
+    handleCompleteTask(ctx, tokenId, undefined, definition)
+  }
+}
+
+function handleDeliverMessage(
+  ctx: ExecutionContext,
+  command: Extract<EngineCommand, { type: 'DeliverMessage' }>,
+  definition: ProcessDefinition,
+): void {
+  const targets = ctx.getAllTokens().filter(
+    t => t.status === 'waiting' &&
+      t.waitingFor?.type === 'message' &&
+      t.waitingFor.correlationData?.['messageName'] === command.messageName,
+  )
+
+  for (const token of targets) {
+    if (command.variables && Object.keys(command.variables).length > 0) {
+      ctx.mergeVariables(token.scopeId, command.variables)
+    }
+    ctx.updateToken({ ...token, status: 'completed', updatedAt: ctx.now() })
+    advanceTokenFlows(ctx, token, definition)
+  }
+
+  runLoop(ctx, definition)
+}
+
+function handleBroadcastSignal(
+  ctx: ExecutionContext,
+  command: Extract<EngineCommand, { type: 'BroadcastSignal' }>,
+  definition: ProcessDefinition,
+): void {
+  const targets = ctx.getAllTokens().filter(
+    t => t.status === 'waiting' &&
+      t.waitingFor?.type === 'signal' &&
+      t.waitingFor.correlationData?.['signalName'] === command.signalName,
+  )
+
+  for (const token of targets) {
+    if (command.variables && Object.keys(command.variables).length > 0) {
+      ctx.mergeVariables(token.scopeId, command.variables)
+    }
+    ctx.updateToken({ ...token, status: 'completed', updatedAt: ctx.now() })
+    advanceTokenFlows(ctx, token, definition)
+  }
+
+  runLoop(ctx, definition)
+}
+
+/** Spawn waiting tokens for all boundary events attached to the given task element. */
+function spawnBoundaryTokens(
+  ctx: ExecutionContext,
+  hostToken: Token,
+  taskElementId: string,
+  definition: ProcessDefinition,
+): void {
+  const boundaries = definition.elements.filter(
+    (e): e is BoundaryEventElement =>
+      e.type === 'boundaryEvent' && (e as BoundaryEventElement).attachedToRef === taskElementId,
+  )
+  for (const boundary of boundaries) {
+    const bToken = ctx.createToken(hostToken.instanceId, boundary.id, 'boundaryEvent', hostToken.scopeId)
+    ctx.enqueuePending(bToken)
+  }
+}
+
+/**
+ * Find the best matching error boundary on a task for a given error code.
+ * Prefers exact errorCode match; falls back to catch-all (no errorCode).
+ */
+function findMatchingErrorBoundary(
+  definition: ProcessDefinition,
+  taskElementId: string,
+  errorCode: string,
+): BoundaryEventElement | null {
+  const boundaries = definition.elements.filter(
+    (e): e is BoundaryEventElement =>
+      e.type === 'boundaryEvent' &&
+      (e as BoundaryEventElement).attachedToRef === taskElementId &&
+      (e as BoundaryEventElement).eventDefinition.type === 'error',
+  )
+  const exact = boundaries.find(b => b.eventDefinition.errorCode === errorCode)
+  if (exact) return exact
+  const catchAll = boundaries.find(b => !b.eventDefinition.errorCode)
+  return catchAll ?? null
+}
+
+/** Cancel any waiting boundary tokens whose host task just completed normally. */
+function cancelBoundaryTokensFor(ctx: ExecutionContext, taskElementId: string): void {
+  const now = ctx.now()
+  for (const t of ctx.getAllTokens()) {
+    if (t.status !== 'waiting' || t.elementType !== 'boundaryEvent') continue
+    // A boundary token is attached to taskElementId if its element's attachedToRef matches.
+    // We track this by checking elementType (boundary tokens always sit at a boundaryEvent element)
+    // and cross-referencing via the stored elementId — but we don't have the definition here.
+    // Instead we tag boundary tokens with the host task id in correlationData.
+    if (t.waitingFor?.correlationData?.['hostTaskId'] === taskElementId) {
+      ctx.updateToken({ ...t, status: 'cancelled', updatedAt: now })
+      ctx.emit({ type: 'TokenCancelled', instanceId: t.instanceId, tokenId: t.id, elementId: t.elementId })
+    }
+  }
+}
+
+/** Cancel the host task token and any sibling boundary tokens (except the one that fired). */
+function cancelHostTaskAndBoundaries(
+  ctx: ExecutionContext,
+  attachedToRef: string,
+  firingBoundaryTokenId: string,
+): void {
+  const now = ctx.now()
+  for (const t of ctx.getAllTokens()) {
+    if (t.id === firingBoundaryTokenId) continue
+    if (t.status !== 'waiting') continue
+    const isHostTask = t.elementId === attachedToRef
+    const isSiblingBoundary = t.waitingFor?.correlationData?.['hostTaskId'] === attachedToRef
+    if (isHostTask || isSiblingBoundary) {
+      ctx.updateToken({ ...t, status: 'cancelled', updatedAt: now })
+      ctx.emit({ type: 'TokenCancelled', instanceId: t.instanceId, tokenId: t.id, elementId: t.elementId })
+    }
+  }
 }
 
 function handleExclusiveGateway(
@@ -287,12 +608,6 @@ function handleExclusiveGateway(
   definition: ProcessDefinition,
 ): void {
   const outgoing = getOutgoingFlows(definition, element.id)
-  const incomingFlows = getIncomingFlows(definition, element.id)
-
-  // Join: if multiple incoming flows, this is a join — pass through immediately (XOR semantics)
-  // Split: select one outgoing flow
-  const isJoin = incomingFlows.length > 1
-  const isSplit = outgoing.length > 1 || (outgoing.length === 1 && !isJoin)
 
   // For XOR, joining is always pass-through — just consume the token and advance
   const scope = ctx.resolveScope(token.scopeId)
@@ -318,7 +633,6 @@ function handleParallelGateway(
   const outgoing = getOutgoingFlows(definition, element.id)
   const incoming = getIncomingFlows(definition, element.id)
 
-  const isSplit = outgoing.length > 1
   const isJoin = incoming.length > 1
 
   if (isJoin) {
@@ -469,11 +783,15 @@ function moveTokenToFlow(
   ctx.enqueuePending(newToken)
 }
 
-function suspendToken(ctx: ExecutionContext, token: Token, waitType: Token['waitingFor'] extends { type: infer T } ? T : never): void {
+function suspendToken(ctx: ExecutionContext, token: Token, waitType: WaitConditionType): void {
+  suspendTokenWithCondition(ctx, token, { type: waitType })
+}
+
+function suspendTokenWithCondition(ctx: ExecutionContext, token: Token, condition: WaitCondition): void {
   const waiting: Token = {
     ...token,
     status: 'waiting',
-    waitingFor: { type: waitType },
+    waitingFor: condition,
     updatedAt: ctx.now(),
   }
   ctx.updateToken(waiting)
@@ -482,8 +800,16 @@ function suspendToken(ctx: ExecutionContext, token: Token, waitType: Token['wait
     instanceId: token.instanceId,
     tokenId: token.id,
     elementId: token.elementId,
-    waitingFor: { type: waitType },
+    waitingFor: condition,
   })
+}
+
+/** Enqueue new tokens on every outgoing flow of the given token's element. */
+function advanceTokenFlows(ctx: ExecutionContext, token: Token, definition: ProcessDefinition): void {
+  const element = getElement(definition, token.elementId)
+  for (const flowId of element.outgoingFlows) {
+    moveTokenToFlow(ctx, token, flowId, definition)
+  }
 }
 
 function completeInstance(ctx: ExecutionContext): void {
@@ -513,14 +839,7 @@ function findInclusiveJoinIncoming(
   definition: ProcessDefinition,
   activatedFlowIds: string[],
 ): { joinGatewayId: string; incomingFlows: string[] } | null {
-  // Find the target elements of the activated flows
-  const targets = new Set(
-    activatedFlowIds
-      .map(fid => definition.sequenceFlows.find(f => f.id === fid)?.targetRef)
-      .filter((t): t is string => t !== undefined),
-  )
-
-  // Follow flows forward from each target until we find a common inclusive join gateway
+  // Look for an inclusive gateway downstream that has multiple incoming flows
   // Simple approach: look for an inclusive gateway downstream that has multiple incoming flows
   // whose sources are all reachable from the activated paths
   for (const element of definition.elements) {

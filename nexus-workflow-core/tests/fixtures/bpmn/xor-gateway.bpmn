@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  xor-gateway.bpmn
+  Elements: StartEvent → ExclusiveGateway → [ServiceTask A | ServiceTask B (default)] → EndEvent
+  Conditions: flow_a = "amount > 100", flow_b = default
+  Used by: src/parser/BpmnXmlParser.test.ts
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_3"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="proc_xor" name="XOR Gateway Process" isExecutable="true">
+    <bpmn:startEvent id="start_1">
+      <bpmn:outgoing>flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:exclusiveGateway id="gw_xor" name="Amount Check" default="flow_b">
+      <bpmn:incoming>flow_1</bpmn:incoming>
+      <bpmn:outgoing>flow_a</bpmn:outgoing>
+      <bpmn:outgoing>flow_b</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="task_a" name="High Value Handler">
+      <bpmn:incoming>flow_a</bpmn:incoming>
+      <bpmn:outgoing>flow_end_a</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="task_b" name="Standard Handler">
+      <bpmn:incoming>flow_b</bpmn:incoming>
+      <bpmn:outgoing>flow_end_b</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_1">
+      <bpmn:incoming>flow_end_a</bpmn:incoming>
+      <bpmn:incoming>flow_end_b</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_1"     sourceRef="start_1" targetRef="gw_xor"/>
+    <bpmn:sequenceFlow id="flow_a"     sourceRef="gw_xor"  targetRef="task_a">
+      <bpmn:conditionExpression>amount &gt; 100</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_b"     sourceRef="gw_xor"  targetRef="task_b"/>
+    <bpmn:sequenceFlow id="flow_end_a" sourceRef="task_a"   targetRef="end_1"/>
+    <bpmn:sequenceFlow id="flow_end_b" sourceRef="task_b"   targetRef="end_1"/>
+  </bpmn:process>
+
+</bpmn:definitions>

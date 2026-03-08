@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  parallel-gateway.bpmn
+  Elements: StartEvent → AND split → [TaskA, TaskB, TaskC] → AND join → EndEvent
+  Used by: src/parser/BpmnXmlParser.test.ts
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_4"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="proc_parallel" name="Parallel Gateway Process" isExecutable="true">
+    <bpmn:startEvent id="start_1">
+      <bpmn:outgoing>flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:parallelGateway id="gw_split" name="Split">
+      <bpmn:incoming>flow_1</bpmn:incoming>
+      <bpmn:outgoing>flow_a</bpmn:outgoing>
+      <bpmn:outgoing>flow_b</bpmn:outgoing>
+      <bpmn:outgoing>flow_c</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:serviceTask id="task_a" name="Branch A">
+      <bpmn:incoming>flow_a</bpmn:incoming>
+      <bpmn:outgoing>flow_join_a</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="task_b" name="Branch B">
+      <bpmn:incoming>flow_b</bpmn:incoming>
+      <bpmn:outgoing>flow_join_b</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="task_c" name="Branch C">
+      <bpmn:incoming>flow_c</bpmn:incoming>
+      <bpmn:outgoing>flow_join_c</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:parallelGateway id="gw_join" name="Join">
+      <bpmn:incoming>flow_join_a</bpmn:incoming>
+      <bpmn:incoming>flow_join_b</bpmn:incoming>
+      <bpmn:incoming>flow_join_c</bpmn:incoming>
+      <bpmn:outgoing>flow_end</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:endEvent id="end_1">
+      <bpmn:incoming>flow_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_1"      sourceRef="start_1"  targetRef="gw_split"/>
+    <bpmn:sequenceFlow id="flow_a"      sourceRef="gw_split" targetRef="task_a"/>
+    <bpmn:sequenceFlow id="flow_b"      sourceRef="gw_split" targetRef="task_b"/>
+    <bpmn:sequenceFlow id="flow_c"      sourceRef="gw_split" targetRef="task_c"/>
+    <bpmn:sequenceFlow id="flow_join_a" sourceRef="task_a"   targetRef="gw_join"/>
+    <bpmn:sequenceFlow id="flow_join_b" sourceRef="task_b"   targetRef="gw_join"/>
+    <bpmn:sequenceFlow id="flow_join_c" sourceRef="task_c"   targetRef="gw_join"/>
+    <bpmn:sequenceFlow id="flow_end"    sourceRef="gw_join"  targetRef="end_1"/>
+  </bpmn:process>
+
+</bpmn:definitions>

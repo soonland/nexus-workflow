@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  intermediate-timer.bpmn
+  Elements: StartEvent → IntermediateCatchEvent(timer PT30M) → EndEvent
+  Used by: src/engine/ExecutionEngine.events.test.ts
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_6"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="proc_timer" name="Intermediate Timer" isExecutable="true">
+    <bpmn:startEvent id="start_1">
+      <bpmn:outgoing>flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:intermediateCatchEvent id="timer_catch" name="Wait 30 Minutes">
+      <bpmn:incoming>flow_1</bpmn:incoming>
+      <bpmn:outgoing>flow_2</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT30M</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:endEvent id="end_1">
+      <bpmn:incoming>flow_2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_1" sourceRef="start_1"    targetRef="timer_catch"/>
+    <bpmn:sequenceFlow id="flow_2" sourceRef="timer_catch" targetRef="end_1"/>
+  </bpmn:process>
+
+</bpmn:definitions>

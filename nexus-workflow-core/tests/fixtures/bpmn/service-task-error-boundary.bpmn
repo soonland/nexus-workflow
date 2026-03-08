@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  service-task-error-boundary.bpmn
+  Elements: StartEvent → ServiceTask "Send Notification"
+              [success]                  → EndEvent "Notified"
+              [error: NOTIFY_FAILED]     → ServiceTask "Log Failure" → EndEvent "Logged"
+              [error: catch-all]         (second boundary, no errorCode)
+  Used by: src/engine/ExecutionEngine.admin.test.ts
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_10"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="proc_error_boundary" name="Error Boundary Process" isExecutable="true">
+    <bpmn:startEvent id="start_1">
+      <bpmn:outgoing>flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="task_notify" name="Send Notification">
+      <bpmn:incoming>flow_1</bpmn:incoming>
+      <bpmn:outgoing>flow_ok</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Interrupting error boundary — catches NOTIFY_FAILED specifically -->
+    <bpmn:boundaryEvent id="boundary_error" attachedToRef="task_notify" cancelActivity="true">
+      <bpmn:outgoing>flow_error</bpmn:outgoing>
+      <bpmn:errorEventDefinition errorRef="NOTIFY_FAILED"/>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="task_log" name="Log Failure">
+      <bpmn:incoming>flow_error</bpmn:incoming>
+      <bpmn:outgoing>flow_logged</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_ok" name="Notified">
+      <bpmn:incoming>flow_ok</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_logged" name="Logged">
+      <bpmn:incoming>flow_logged</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_1"      sourceRef="start_1"       targetRef="task_notify"/>
+    <bpmn:sequenceFlow id="flow_ok"     sourceRef="task_notify"    targetRef="end_ok"/>
+    <bpmn:sequenceFlow id="flow_error"  sourceRef="boundary_error" targetRef="task_log"/>
+    <bpmn:sequenceFlow id="flow_logged" sourceRef="task_log"       targetRef="end_logged"/>
+  </bpmn:process>
+
+</bpmn:definitions>

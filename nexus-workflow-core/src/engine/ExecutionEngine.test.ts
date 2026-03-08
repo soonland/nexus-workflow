@@ -189,11 +189,11 @@ describe('ExecutionEngine — ServiceTask', () => {
     ).toThrow(RuntimeError)
   })
 
-  it('marks instance as error on FailServiceTask', () => {
+  it('suspends the instance on FailServiceTask when no error boundary matches', () => {
     const def = buildServiceTaskDefinition()
-    const { newState: suspended } = execute(def, { type: 'StartProcess' }, null, options)
+    const { newState: s0 } = execute(def, { type: 'StartProcess' }, null, options)
 
-    const taskToken = suspended.tokens.find(t => t.status === 'waiting')!
+    const taskToken = s0.tokens.find(t => t.status === 'waiting')!
     const { newState } = execute(
       def,
       {
@@ -201,11 +201,11 @@ describe('ExecutionEngine — ServiceTask', () => {
         tokenId: taskToken.id,
         error: { code: 'TIMEOUT', message: 'Request timed out' },
       },
-      suspended,
+      s0,
       options,
     )
 
-    expect(newState.instance.status).toBe('error')
+    expect(newState.instance.status).toBe('suspended')
     expect(newState.instance.errorInfo?.code).toBe('TIMEOUT')
   })
 })

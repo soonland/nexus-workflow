@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  intermediate-message.bpmn
+  Elements: StartEvent → IntermediateCatchEvent(message "OrderShipped") → EndEvent
+  Used by: src/engine/ExecutionEngine.events.test.ts
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_7"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="proc_message" name="Intermediate Message" isExecutable="true">
+    <bpmn:startEvent id="start_1">
+      <bpmn:outgoing>flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:intermediateCatchEvent id="msg_catch" name="Wait for Order Shipped">
+      <bpmn:incoming>flow_1</bpmn:incoming>
+      <bpmn:outgoing>flow_2</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="OrderShipped"/>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:endEvent id="end_1">
+      <bpmn:incoming>flow_2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_1" sourceRef="start_1"  targetRef="msg_catch"/>
+    <bpmn:sequenceFlow id="flow_2" sourceRef="msg_catch" targetRef="end_1"/>
+  </bpmn:process>
+
+</bpmn:definitions>

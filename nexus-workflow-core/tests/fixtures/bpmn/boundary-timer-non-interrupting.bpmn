@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  boundary-timer-non-interrupting.bpmn
+  Elements: StartEvent → UserTask (with non-interrupting timer boundary) → EndEvent "Completed"
+            Timer boundary → ServiceTask "Send Reminder" → EndEvent "Reminded"
+  cancelActivity="false" — host task token is NOT cancelled when boundary fires
+  Used by: src/engine/ExecutionEngine.events.test.ts
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_9"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="proc_boundary_ni" name="Non-Interrupting Boundary Timer" isExecutable="true">
+    <bpmn:startEvent id="start_1">
+      <bpmn:outgoing>flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="task_1" name="Review Request">
+      <bpmn:incoming>flow_1</bpmn:incoming>
+      <bpmn:outgoing>flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Non-interrupting boundary: does NOT cancel task_1 -->
+    <bpmn:boundaryEvent id="boundary_timer" attachedToRef="task_1" cancelActivity="false">
+      <bpmn:outgoing>flow_reminder</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT24H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="reminder_task" name="Send Reminder">
+      <bpmn:incoming>flow_reminder</bpmn:incoming>
+      <bpmn:outgoing>flow_reminder_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_ok">
+      <bpmn:incoming>flow_2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_reminder">
+      <bpmn:incoming>flow_reminder_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_1"          sourceRef="start_1"      targetRef="task_1"/>
+    <bpmn:sequenceFlow id="flow_2"          sourceRef="task_1"        targetRef="end_ok"/>
+    <bpmn:sequenceFlow id="flow_reminder"   sourceRef="boundary_timer" targetRef="reminder_task"/>
+    <bpmn:sequenceFlow id="flow_reminder_end" sourceRef="reminder_task" targetRef="end_reminder"/>
+  </bpmn:process>
+
+</bpmn:definitions>

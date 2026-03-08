@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  simple-sequence.bpmn
+  Elements: None StartEvent → SequenceFlow → None EndEvent
+  Used by: src/parser/BpmnXmlParser.test.ts
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_1"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="proc_simple" name="Simple Sequence" isExecutable="true">
+    <bpmn:startEvent id="start_1" name="Start">
+      <bpmn:outgoing>flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:endEvent id="end_1" name="End">
+      <bpmn:incoming>flow_1</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_1" sourceRef="start_1" targetRef="end_1"/>
+  </bpmn:process>
+
+</bpmn:definitions>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  intermediate-signal.bpmn
+  Elements: StartEvent → IntermediateCatchEvent(signal "EmergencyStop") → EndEvent
+  Used by: src/engine/ExecutionEngine.events.test.ts
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_8"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="proc_signal" name="Intermediate Signal" isExecutable="true">
+    <bpmn:startEvent id="start_1">
+      <bpmn:outgoing>flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:intermediateCatchEvent id="sig_catch" name="Wait for Emergency Stop">
+      <bpmn:incoming>flow_1</bpmn:incoming>
+      <bpmn:outgoing>flow_2</bpmn:outgoing>
+      <bpmn:signalEventDefinition signalRef="EmergencyStop"/>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:endEvent id="end_1">
+      <bpmn:incoming>flow_2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_1" sourceRef="start_1"  targetRef="sig_catch"/>
+    <bpmn:sequenceFlow id="flow_2" sourceRef="sig_catch" targetRef="end_1"/>
+  </bpmn:process>
+
+</bpmn:definitions>

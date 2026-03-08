@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  service-task.bpmn
+  Elements: StartEvent → ServiceTask (type=http-call) → EndEvent
+  Used by: src/parser/BpmnXmlParser.test.ts
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:nexus="http://nexus-workflow/extensions"
+  id="Definitions_2"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="proc_service" name="Service Task Process" isExecutable="true">
+    <bpmn:startEvent id="start_1">
+      <bpmn:outgoing>flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="task_1" name="Call External API" nexus:type="http-call">
+      <bpmn:incoming>flow_1</bpmn:incoming>
+      <bpmn:outgoing>flow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_1">
+      <bpmn:incoming>flow_2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_1" sourceRef="start_1" targetRef="task_1"/>
+    <bpmn:sequenceFlow id="flow_2" sourceRef="task_1" targetRef="end_1"/>
+  </bpmn:process>
+
+</bpmn:definitions>

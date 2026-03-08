@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  editorial-approval.bpmn
+  Models a realistic article review workflow:
+
+  Start → Assign to Editor (serviceTask)
+        → Editor Review (userTask)
+            [boundary timer PT48H, non-interrupting] → Send Reminder (serviceTask) → end_reminder
+        → XOR Gateway "Decision" (default: rejected)
+            [decision === 'approved'] → Send Notification (serviceTask)
+                [error boundary: NOTIFY_FAILED] → Log Failure (serviceTask) → end_published
+                → end_published
+            [default]                → end_rejected
+
+  Used by: tests/scenarios/editorial-approval.scenario.test.ts
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_11"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="editorial_approval" name="Editorial Approval" isExecutable="true">
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_assign</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="task_assign" name="Assign to Editor">
+      <bpmn:incoming>flow_to_assign</bpmn:incoming>
+      <bpmn:outgoing>flow_to_review</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:userTask id="task_review" name="Editor Review">
+      <bpmn:incoming>flow_to_review</bpmn:incoming>
+      <bpmn:outgoing>flow_to_decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Non-interrupting timer: send a reminder if editor hasn't reviewed in 48h -->
+    <bpmn:boundaryEvent id="boundary_reminder" attachedToRef="task_review" cancelActivity="false">
+      <bpmn:outgoing>flow_to_reminder</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT48H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="task_reminder" name="Send Reminder">
+      <bpmn:incoming>flow_to_reminder</bpmn:incoming>
+      <bpmn:outgoing>flow_reminder_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Reminder path ends here; main review task continues independently -->
+    <bpmn:endEvent id="end_reminder" name="Reminder Sent">
+      <bpmn:incoming>flow_reminder_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:exclusiveGateway id="gw_decision" name="Decision" default="flow_rejected">
+      <bpmn:incoming>flow_to_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Approved path -->
+    <bpmn:serviceTask id="task_notify" name="Send Acceptance Notification">
+      <bpmn:incoming>flow_approved</bpmn:incoming>
+      <bpmn:outgoing>flow_to_published</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Interrupting error boundary: catches notification failures gracefully -->
+    <bpmn:boundaryEvent id="boundary_notify_error" attachedToRef="task_notify" cancelActivity="true">
+      <bpmn:outgoing>flow_to_log</bpmn:outgoing>
+      <bpmn:errorEventDefinition errorRef="NOTIFY_FAILED"/>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="task_log" name="Log Notification Failure">
+      <bpmn:incoming>flow_to_log</bpmn:incoming>
+      <bpmn:outgoing>flow_log_to_published</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Published end: reached either via successful notification or logged failure -->
+    <bpmn:endEvent id="end_published" name="Article Published">
+      <bpmn:incoming>flow_to_published</bpmn:incoming>
+      <bpmn:incoming>flow_log_to_published</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Rejected path -->
+    <bpmn:endEvent id="end_rejected" name="Article Rejected">
+      <bpmn:incoming>flow_rejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── Sequence flows ─────────────────────────────────────────────────── -->
+    <bpmn:sequenceFlow id="flow_to_assign"       sourceRef="start"                targetRef="task_assign"/>
+    <bpmn:sequenceFlow id="flow_to_review"       sourceRef="task_assign"           targetRef="task_review"/>
+    <bpmn:sequenceFlow id="flow_to_decision"     sourceRef="task_review"           targetRef="gw_decision"/>
+    <bpmn:sequenceFlow id="flow_to_reminder"     sourceRef="boundary_reminder"     targetRef="task_reminder"/>
+    <bpmn:sequenceFlow id="flow_reminder_end"    sourceRef="task_reminder"         targetRef="end_reminder"/>
+    <bpmn:sequenceFlow id="flow_approved"        sourceRef="gw_decision"           targetRef="task_notify">
+      <bpmn:conditionExpression>decision === 'approved'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_rejected"        sourceRef="gw_decision"           targetRef="end_rejected"/>
+    <bpmn:sequenceFlow id="flow_to_log"          sourceRef="boundary_notify_error" targetRef="task_log"/>
+    <bpmn:sequenceFlow id="flow_to_published"    sourceRef="task_notify"           targetRef="end_published"/>
+    <bpmn:sequenceFlow id="flow_log_to_published" sourceRef="task_log"             targetRef="end_published"/>
+  </bpmn:process>
+
+</bpmn:definitions>

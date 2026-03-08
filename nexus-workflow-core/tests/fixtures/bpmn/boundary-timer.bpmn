@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  boundary-timer.bpmn
+  Elements: StartEvent → UserTask (with interrupting timer boundary) → EndEvent
+            Timer boundary → EscalationEndEvent
+  Used by: src/parser/BpmnXmlParser.test.ts
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_5"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="proc_boundary" name="Boundary Timer Process" isExecutable="true">
+    <bpmn:startEvent id="start_1">
+      <bpmn:outgoing>flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="task_1" name="Review Request">
+      <bpmn:incoming>flow_1</bpmn:incoming>
+      <bpmn:outgoing>flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Interrupting timer boundary: cancels task_1 after 1 hour -->
+    <bpmn:boundaryEvent id="boundary_timer" attachedToRef="task_1" cancelActivity="true">
+      <bpmn:outgoing>flow_timeout</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT1H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:endEvent id="end_ok">
+      <bpmn:incoming>flow_2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_timeout" name="Timed Out">
+      <bpmn:incoming>flow_timeout</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_1"       sourceRef="start_1"      targetRef="task_1"/>
+    <bpmn:sequenceFlow id="flow_2"       sourceRef="task_1"        targetRef="end_ok"/>
+    <bpmn:sequenceFlow id="flow_timeout" sourceRef="boundary_timer" targetRef="end_timeout"/>
+  </bpmn:process>
+
+</bpmn:definitions>
