@@ -31,6 +31,8 @@ export interface Token {
   elementType: BpmnElementType
   status: TokenStatus
   scopeId: string
+  /** The sequence flow through which this token arrived at its current element. */
+  arrivedViaFlowId?: string
   parentTokenId?: string
   subProcessInstanceId?: string
   waitingFor?: WaitCondition
