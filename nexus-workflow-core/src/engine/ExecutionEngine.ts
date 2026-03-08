@@ -2,6 +2,8 @@ import { DefinitionError, RuntimeError } from '../model/errors.js'
 import { evaluateExclusiveSplit } from '../gateways/ExclusiveGateway.js'
 import { evaluateParallelSplit, evaluateParallelJoin } from '../gateways/ParallelGateway.js'
 import { evaluateInclusiveSplit, evaluateInclusiveJoin } from '../gateways/InclusiveGateway.js'
+import { JsEvaluator } from '../expression/JsEvaluator.js'
+import type { ExpressionEvaluator } from '../interfaces/ExpressionEvaluator.js'
 import type {
   ProcessDefinition,
   BpmnFlowElement,
@@ -47,7 +49,11 @@ export interface EngineResult {
 export interface ExecuteOptions {
   generateId?: () => string
   now?: () => Date
+  /** Expression evaluator used for gateway conditions. Defaults to JsEvaluator. */
+  expressionEvaluator?: ExpressionEvaluator
 }
+
+const defaultEvaluator = new JsEvaluator()
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
@@ -294,7 +300,7 @@ function handleExclusiveGateway(
     element.id,
     outgoing,
     element.defaultFlow,
-    (expr) => evaluateExpression(expr, scope),
+    (expr) => evaluateExpression(expr, scope, ctx.expressionEvaluator),
   )
 
   const completedToken: Token = { ...token, status: 'completed', updatedAt: ctx.now() }
@@ -397,7 +403,7 @@ function handleInclusiveGateway(
     element.id,
     outgoing,
     element.defaultFlow,
-    (expr) => evaluateExpression(expr, scope),
+    (expr) => evaluateExpression(expr, scope, ctx.expressionEvaluator),
   )
 
   // Record the join state so the corresponding join knows which paths to wait for
@@ -491,14 +497,12 @@ function completeInstance(ctx: ExecutionContext): void {
   })
 }
 
-/**
- * Minimal expression evaluator for MVP — evaluates simple JS expressions
- * using the variable scope as context. Replaced by a proper sandboxed evaluator later.
- */
-function evaluateExpression(expression: string, scope: Record<string, VariableValue>): boolean {
-  const vars = Object.fromEntries(Object.entries(scope).map(([k, v]) => [k, v.value]))
-  // eslint-disable-next-line no-new-func
-  return Boolean(new Function(...Object.keys(vars), `return (${expression})`)(...Object.values(vars)))
+function evaluateExpression(
+  expression: string,
+  scope: Record<string, VariableValue>,
+  evaluator: ExpressionEvaluator,
+): boolean {
+  return Boolean(evaluator.evaluate(expression, { variables: scope }))
 }
 
 /**
@@ -580,10 +584,12 @@ class ExecutionContext {
   private pendingQueue: Token[] = []
   private readonly _generateId: () => string
   private readonly _now: () => Date
+  readonly expressionEvaluator: ExpressionEvaluator
 
   constructor(state: EngineState | null, options: ExecuteOptions) {
     this._generateId = options.generateId ?? (() => crypto.randomUUID())
     this._now = options.now ?? (() => new Date())
+    this.expressionEvaluator = options.expressionEvaluator ?? defaultEvaluator
 
     if (state !== null) {
       this.instance = state.instance
