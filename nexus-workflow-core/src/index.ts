@@ -9,7 +9,15 @@ export type { Scheduler, TimerFiredCallback } from './interfaces/Scheduler.js'
 export type { ServiceTaskHandler, TaskContext, TaskResult, TaskError } from './interfaces/ServiceTaskHandler.js'
 export type { ExpressionEvaluator, ExpressionContext } from './interfaces/ExpressionEvaluator.js'
 
+// Parser
+export { parseBpmn } from './parser/BpmnXmlParser.js'
+export type { ParseResult, ValidationError } from './parser/BpmnXmlParser.js'
+
 // In-memory adapters
 export { InMemoryStateStore } from './adapters/InMemoryStateStore.js'
 export { InMemoryEventBus } from './adapters/InMemoryEventBus.js'
 export { InMemoryScheduler } from './adapters/InMemoryScheduler.js'
+
+// Engine
+export { execute } from './engine/ExecutionEngine.js'
+export type { EngineState, EngineCommand, EngineResult, ExecuteOptions } from './engine/ExecutionEngine.js'

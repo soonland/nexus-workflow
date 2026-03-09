@@ -237,6 +237,10 @@ export class InMemoryStateStore implements StateStore {
     this.gatewayStates.delete(gatewayKey(gatewayId, instanceId))
   }
 
+  async listGatewayStates(instanceId: string): Promise<GatewayJoinState[]> {
+    return [...this.gatewayStates.values()].filter(s => s.instanceId === instanceId)
+  }
+
   // ─── History ─────────────────────────────────────────────────────────────────
 
   async appendHistory(entry: HistoryEntry): Promise<void> {

@@ -117,6 +117,7 @@ export interface StateStore {
   saveGatewayState(state: GatewayJoinState): Promise<void>
   getGatewayState(gatewayId: string, instanceId: string): Promise<GatewayJoinState | null>
   deleteGatewayState(gatewayId: string, instanceId: string): Promise<void>
+  listGatewayStates(instanceId: string): Promise<GatewayJoinState[]>
 
   // History
   appendHistory(entry: HistoryEntry): Promise<void>
