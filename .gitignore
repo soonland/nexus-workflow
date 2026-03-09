@@ -2,3 +2,9 @@
 **/dist/
 **/coverage/
 **/*.tsbuildinfo
+**/.env
+**/.env.local
+**/.env.*.local
+**/.DS_Store
+**/Thumbs.db
+**/.next/

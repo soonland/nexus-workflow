@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  timesheet-approval.bpmn
+  Process: Start → userTask (Manager Review, assignee=${managerId})
+         → XOR Gateway
+             [decision === 'approved'] → EndEvent (Approved)
+             [default]                 → EndEvent (Rejected)
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_timesheet"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="timesheet-approval" name="Timesheet Approval" isExecutable="true">
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_review</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="task_manager_review" name="Manager Review" assignee="${managerId}">
+      <bpmn:incoming>flow_to_review</bpmn:incoming>
+      <bpmn:outgoing>flow_to_decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="gw_decision" name="Decision" default="flow_rejected">
+      <bpmn:incoming>flow_to_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="end_approved" name="Approved">
+      <bpmn:incoming>flow_approved</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_rejected" name="Rejected">
+      <bpmn:incoming>flow_rejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_to_review"   sourceRef="start"       targetRef="task_manager_review"/>
+    <bpmn:sequenceFlow id="flow_to_decision" sourceRef="task_manager_review" targetRef="gw_decision"/>
+    <bpmn:sequenceFlow id="flow_approved"    sourceRef="gw_decision" targetRef="end_approved">
+      <bpmn:conditionExpression>decision === 'approved'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_rejected"    sourceRef="gw_decision" targetRef="end_rejected"/>
+  </bpmn:process>
+
+</bpmn:definitions>

@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  employee
+  manager
+}
+
+enum TimesheetStatus {
+  draft
+  submitted
+  approved
+  rejected
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  role         Role
+  createdAt    DateTime  @default(now()) @map("created_at")
+  employee     Employee?
+
+  @@map("users")
+}
+
+model Employee {
+  id         String      @id @default(cuid())
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String      @unique @map("user_id")
+  fullName   String      @map("full_name")
+  department String
+  hireDate   DateTime    @map("hire_date") @db.Date
+  manager    Employee?   @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: SetNull)
+  managerId  String?     @map("manager_id")
+  reports    Employee[]  @relation("EmployeeManager")
+  timesheets Timesheet[]
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  @@map("employees")
+}
+
+model Timesheet {
+  id                 String          @id @default(cuid())
+  employee           Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId         String          @map("employee_id")
+  weekStart          DateTime        @map("week_start") @db.Date
+  totalHours         Decimal         @map("total_hours") @db.Decimal(5, 2)
+  notes              String?
+  status             TimesheetStatus @default(draft)
+  workflowInstanceId String?         @map("workflow_instance_id")
+  submittedAt        DateTime?       @map("submitted_at")
+  decidedAt          DateTime?       @map("decided_at")
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  @@unique([employeeId, weekStart])
+  @@index([status])
+  @@index([workflowInstanceId])
+  @@map("timesheets")
+}

@@ -6,6 +6,7 @@ import type {
   ExecutionEvent,
   UserTaskRecord,
   ProcessDefinition,
+  EventSubscription,
 } from 'nexus-workflow-core'
 
 // ─── Engine State ─────────────────────────────────────────────────────────────
@@ -26,31 +27,81 @@ export async function loadEngineState(store: StateStore, instanceId: string): Pr
 
 // ─── Store Operations ─────────────────────────────────────────────────────────
 
+/**
+ * Computes the full set of store operations needed to persist an engine result.
+ *
+ * Includes instance/token/scope/gateway diffs and subscription management.
+ * Subscription IDs use the deterministic scheme `sub-${tokenId}` so they can
+ * be created and deleted without a database lookup.
+ */
 export function computeStoreOps(
   isNew: boolean,
   oldState: EngineState | null,
   newState: EngineState,
 ): StoreOperation[] {
   const ops: StoreOperation[] = []
+  const now = new Date()
 
+  // Instance
   ops.push(isNew
     ? { op: 'createInstance', instance: newState.instance }
     : { op: 'updateInstance', instance: newState.instance }
   )
+
+  // Tokens + scopes
   ops.push({ op: 'saveTokens', tokens: newState.tokens })
   for (const scope of newState.scopes) {
     ops.push({ op: 'saveScope', scope })
   }
 
-  const newGwKeys = new Set(
-    newState.gatewayJoinStates.map(gs => `${gs.gatewayId}::${gs.instanceId}`)
-  )
+  // Gateway join state diffs
+  const newGwKeys = new Set(newState.gatewayJoinStates.map(gs => `${gs.gatewayId}::${gs.instanceId}`))
   for (const gs of newState.gatewayJoinStates) {
     ops.push({ op: 'saveGatewayState', state: gs })
   }
   for (const gs of (oldState?.gatewayJoinStates ?? [])) {
     if (!newGwKeys.has(`${gs.gatewayId}::${gs.instanceId}`)) {
       ops.push({ op: 'deleteGatewayState', gatewayId: gs.gatewayId, instanceId: gs.instanceId })
+    }
+  }
+
+  // Subscription diffs (message/signal waiting tokens)
+  // The engine is pure and does not manage subscriptions; the app layer maintains
+  // the EventSubscription index so that POST /messages and POST /signals can do
+  // an O(1) store lookup rather than scanning all active tokens.
+  const oldTokenMap = new Map((oldState?.tokens ?? []).map(t => [t.id, t]))
+  const newTokenMap = new Map(newState.tokens.map(t => [t.id, t]))
+
+  for (const token of newState.tokens) {
+    if (token.status !== 'waiting') continue
+    const waitType = token.waitingFor?.type
+    if (waitType !== 'message' && waitType !== 'signal') continue
+
+    const oldToken = oldTokenMap.get(token.id)
+    if (oldToken?.status === 'waiting') continue // subscription already exists
+
+    const data = token.waitingFor!.correlationData ?? {}
+    const sub: EventSubscription = {
+      id: `sub-${token.id}`,
+      instanceId: token.instanceId,
+      tokenId: token.id,
+      type: waitType,
+      ...(waitType === 'message' && data['messageName'] ? { messageName: data['messageName'] as string } : {}),
+      ...(waitType === 'signal' && data['signalName'] ? { signalName: data['signalName'] as string } : {}),
+      status: 'active',
+      createdAt: now,
+    }
+    ops.push({ op: 'saveSubscription', subscription: sub })
+  }
+
+  for (const oldToken of (oldState?.tokens ?? [])) {
+    if (oldToken.status !== 'waiting') continue
+    const waitType = oldToken.waitingFor?.type
+    if (waitType !== 'message' && waitType !== 'signal') continue
+
+    const newToken = newTokenMap.get(oldToken.id)
+    if (!newToken || newToken.status !== 'waiting') {
+      ops.push({ op: 'deleteSubscription', id: `sub-${oldToken.id}` })
     }
   }
 
@@ -78,12 +129,12 @@ export function buildUserTaskCreationOps(
       tokenId: event.tokenId,
       elementId: event.elementId,
       name: element.name ?? event.elementId,
-      assignee: element.assignee,
-      candidateGroups: element.candidateGroups,
-      dueDate: element.dueDate ? new Date(element.dueDate) : undefined,
+      ...(element.assignee !== undefined ? { assignee: element.assignee } : {}),
+      ...(element.candidateGroups !== undefined ? { candidateGroups: element.candidateGroups } : {}),
+      ...(element.dueDate !== undefined ? { dueDate: new Date(element.dueDate) } : {}),
+      ...(element.formKey !== undefined ? { formKey: element.formKey } : {}),
       priority: element.priority ?? 50,
       inputVariables: {},
-      formKey: element.formKey,
       status: 'open',
       createdAt: new Date(),
     }

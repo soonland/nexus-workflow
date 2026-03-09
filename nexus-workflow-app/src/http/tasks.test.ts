@@ -327,7 +327,7 @@ describe('tasks HTTP API', () => {
     it('200: events published include ProcessInstanceCompleted', async () => {
       const { taskId } = await startUserTaskProcess(app, store)
       const emitted: ExecutionEvent[] = []
-      eventBus.subscribe(e => emitted.push(e))
+      eventBus.subscribe(e => { emitted.push(e) })
 
       await app.fetch(
         new Request(`http://localhost/tasks/${taskId}/complete`, {

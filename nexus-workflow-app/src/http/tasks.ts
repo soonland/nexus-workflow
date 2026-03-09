@@ -95,7 +95,7 @@ export function createTasksRouter(store: StateStore, eventBus: EventBus): Hono {
         type: 'CompleteUserTask',
         tokenId: task.tokenId,
         completedBy,
-        outputVariables,
+        ...(outputVariables !== undefined ? { outputVariables } : {}),
       }, state)
     } catch (e) {
       if (e instanceof RuntimeError) return c.json({ error: 'RUNTIME_ERROR', message: e.message }, 422)
@@ -147,7 +147,8 @@ export function createTasksRouter(store: StateStore, eventBus: EventBus): Hono {
     const task = await store.getUserTask(id)
     if (!task) return c.json({ error: 'NOT_FOUND', message: `Task '${id}' not found` }, 404)
 
-    const updatedTask = { ...task, status: 'open' as const, assignee: undefined, claimedAt: undefined }
+    const { assignee: _a, claimedAt: _c, ...taskBase } = task
+    const updatedTask = { ...taskBase, status: 'open' as const }
     await store.executeTransaction([{ op: 'updateUserTask', task: updatedTask }])
     await eventBus.publish({ type: 'UserTaskReleased', taskId: id })
 

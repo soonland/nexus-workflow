@@ -5,7 +5,7 @@
 | Project | Status |
 |---------|--------|
 | `nexus-workflow-core` | ✅ Phase 1 complete — 217 tests |
-| `nexus-workflow-app` | 🚧 Steps 1–6 complete — 220 tests |
+| `nexus-workflow-app` | ✅ Phase 2 complete — 174 tests |
 
 ---
 
@@ -127,28 +127,39 @@ Dedicated endpoints for human task management.
 
 ---
 
-### Step 7 — Admin API (`src/http/admin/`)
+### Step 7 — Admin API (`src/http/admin/`) ✅
 
 Operator interventions exposed via HTTP.
 
-- [ ] `POST /instances/:id/suspend` — suspend an active instance
-- [ ] `POST /instances/:id/resume` — resume a suspended instance
-- [ ] `POST /instances/:id/cancel` — cancel an instance
-- [ ] `POST /instances/:id/tasks/:tokenId/skip` — force-complete a stuck task
+- [x] `POST /instances/:id/suspend` — suspend an active instance
+- [x] `POST /instances/:id/resume` — resume a suspended instance
+- [x] `POST /messages` — deliver a message to the subscribed instance (1-to-1 by correlation)
+- [x] `POST /signals` — broadcast a signal to all subscribed instances (fan-out)
+- [x] `GET /instances/:id/history` — execution history for an instance
+
+**Implementation notes:**
+- `EventSubscription` index is maintained by `computeStoreOps` (not the engine) — token `waitingFor` diffs drive create/delete ops; IDs are deterministic `sub-${tokenId}`
+- Message/signal endpoints use `store.findSubscriptions()` for O(1) instance lookup
 
 ---
 
-### Step 8 — Observability
+### Step 8 — Observability ✅
 
 Events stored for audit trail and UI display.
 
-- [ ] `execution_events` table — append-only log of all `ExecutionEvent` records
-- [ ] `GET /instances/:id/events` — full audit trail for an instance
-- [ ] Basic metrics endpoint — active instances, suspended instances, task queue depth
+- [x] `execution_events` table — append-only log of all `ExecutionEvent` records (migration `003`)
+- [x] `GET /instances/:id/events` — full chronological audit trail for an instance
+- [x] `GET /metrics` — `{ instances: { active, suspended }, tasks: { pending } }`
+
+**Implementation notes:**
+- `EventLog` is app-level (`src/db/EventLog.ts`), not part of `StateStore` — observability is not engine state
+- `InMemoryEventLog` for unit tests; `PostgresEventLog` for production
+- Events without `instanceId` (e.g. `SignalBroadcast`) stored with `instance_id = NULL`
+- Metrics derived from existing `findInstances`/`queryUserTasks` totals — no new interface methods
 
 ---
 
-## nexus-workflow-core — Phase 2 (future)
+## nexus-workflow-core — Phase 3 (future)
 
 Engine features not yet implemented:
 
