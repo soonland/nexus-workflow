@@ -5,7 +5,7 @@
 | Project | Status |
 |---------|--------|
 | `nexus-workflow-core` | ✅ Phase 1 complete — 217 tests |
-| `nexus-workflow-app` | 🚧 Steps 1–5 complete — 191 tests |
+| `nexus-workflow-app` | 🚧 Steps 1–6 complete — 220 tests |
 
 ---
 
@@ -108,15 +108,22 @@ Turns wall-clock time into `FireTimer` commands at the right moment.
 
 ---
 
-### Step 6 — User task API (`src/http/tasks/`)
+### Step 6 — User task API (`src/http/tasks/`) ✅
 
 Dedicated endpoints for human task management.
 
-- [ ] `GET /tasks` — list open user tasks (filterable by assignee, process)
-- [ ] `GET /tasks/:id` — get task details + variables in scope
-- [ ] `POST /tasks/:id/complete` — submit completion with output variables
-- [ ] `POST /tasks/:id/claim` — assign task to a user
-- [ ] `POST /tasks/:id/release` — unassign
+- [x] `GET /tasks` — list open user tasks (filterable by assignee, process)
+- [x] `GET /tasks/:id` — get task details + variables in scope
+- [x] `POST /tasks/:id/complete` — submit completion with output variables
+- [x] `POST /tasks/:id/claim` — assign task to a user
+- [x] `POST /tasks/:id/release` — unassign
+
+**Implementation notes:**
+- `UserTaskRecord` is created atomically in the same transaction as the engine state, triggered by `TokenWaiting(user-task)` events from `execute()`
+- Shared helpers extracted to `src/http/engineHelpers.ts`: `loadEngineState`, `computeStoreOps`, `buildUserTaskCreationOps`
+- Completing a task calls `execute(CompleteUserTask)` + updates the record in one transaction
+- Claim/release are pure metadata ops on `UserTaskRecord` — no engine call needed
+- Sequential user tasks: completing task N creates task N+1 in the same transaction
 
 ---
 

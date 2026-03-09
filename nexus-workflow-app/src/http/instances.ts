@@ -2,66 +2,13 @@ import { Hono } from 'hono'
 import { execute, RuntimeError, DefinitionError } from 'nexus-workflow-core'
 import type {
   StateStore,
-  EngineState,
   EngineCommand,
-  StoreOperation,
   InstanceQuery,
   InstanceStatus,
-} from 'nexus-workflow-core'
-import type {
-  VariableScope,
-  GatewayJoinState,
   VariableValue,
 } from 'nexus-workflow-core'
 import type { EventBus } from 'nexus-workflow-core'
-
-// ─── Shared helpers ───────────────────────────────────────────────────────────
-
-async function loadEngineState(store: StateStore, instanceId: string): Promise<EngineState | null> {
-  const instance = await store.getInstance(instanceId)
-  if (!instance) return null
-  const tokens = await store.getAllTokens(instanceId)
-  const gatewayJoinStates = await store.listGatewayStates(instanceId)
-  const scopeIds = new Set<string>([instance.rootScopeId, ...tokens.map(t => t.scopeId)])
-  const scopes: VariableScope[] = []
-  for (const id of scopeIds) {
-    const scope = await store.getScope(id)
-    if (scope) scopes.push(scope)
-  }
-  return { instance, tokens, scopes, gatewayJoinStates }
-}
-
-function computeStoreOps(
-  isNew: boolean,
-  oldState: EngineState | null,
-  newState: EngineState,
-): StoreOperation[] {
-  const ops: StoreOperation[] = []
-
-  ops.push(isNew
-    ? { op: 'createInstance', instance: newState.instance }
-    : { op: 'updateInstance', instance: newState.instance }
-  )
-  ops.push({ op: 'saveTokens', tokens: newState.tokens })
-  for (const scope of newState.scopes) {
-    ops.push({ op: 'saveScope', scope })
-  }
-
-  // Gateway state diffing
-  const newGwKeys = new Set(
-    newState.gatewayJoinStates.map(gs => `${gs.gatewayId}::${gs.instanceId}`)
-  )
-  for (const gs of newState.gatewayJoinStates) {
-    ops.push({ op: 'saveGatewayState', state: gs })
-  }
-  for (const gs of (oldState?.gatewayJoinStates ?? [])) {
-    if (!newGwKeys.has(`${gs.gatewayId}::${gs.instanceId}`)) {
-      ops.push({ op: 'deleteGatewayState', gatewayId: gs.gatewayId, instanceId: gs.instanceId })
-    }
-  }
-
-  return ops
-}
+import { loadEngineState, computeStoreOps, buildUserTaskCreationOps } from './engineHelpers.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -131,7 +78,10 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
       throw e
     }
 
-    const ops = computeStoreOps(true, null, result.newState)
+    const ops = [
+      ...computeStoreOps(true, null, result.newState),
+      ...buildUserTaskCreationOps(result.events, definition),
+    ]
     await store.executeTransaction(ops)
     await eventBus.publishMany(result.events)
 
@@ -223,7 +173,10 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
       throw e
     }
 
-    const ops = computeStoreOps(false, state, result.newState)
+    const ops = [
+      ...computeStoreOps(false, state, result.newState),
+      ...buildUserTaskCreationOps(result.events, definition),
+    ]
     await store.executeTransaction(ops)
     await eventBus.publishMany(result.events)
 
@@ -252,7 +205,10 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
       throw e
     }
 
-    const ops = computeStoreOps(false, state, result.newState)
+    const ops = [
+      ...computeStoreOps(false, state, result.newState),
+      ...buildUserTaskCreationOps(result.events, definition),
+    ]
     await store.executeTransaction(ops)
     await eventBus.publishMany(result.events)
 

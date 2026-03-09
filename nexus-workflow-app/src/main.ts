@@ -6,6 +6,7 @@ import { PostgresStateStore } from './db/PostgresStateStore.js'
 import { runMigrations } from './db/migrate.js'
 import { createDefinitionsRouter } from './http/definitions.js'
 import { createInstancesRouter } from './http/instances.js'
+import { createTasksRouter } from './http/tasks.js'
 import { TaskWorker } from './worker/TaskWorker.js'
 import { HttpCallHandler } from './worker/handlers/HttpCallHandler.js'
 import { LogHandler } from './worker/handlers/LogHandler.js'
@@ -29,6 +30,7 @@ const app = new Hono()
 app.get('/health', (c) => c.json({ status: 'ok' }))
 app.route('/definitions', createDefinitionsRouter(store))
 app.route('/', createInstancesRouter(store, eventBus))
+app.route('/', createTasksRouter(store, eventBus))
 
 await runMigrations(config.databaseUrl)
 serve({ fetch: app.fetch, port: config.port }, () => {
