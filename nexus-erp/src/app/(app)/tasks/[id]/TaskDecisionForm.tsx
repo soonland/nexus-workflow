@@ -2,6 +2,15 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Button from '@mui/material/Button'
+import TextField from '@mui/material/TextField'
+import Alert from '@mui/material/Alert'
+import Stack from '@mui/material/Stack'
+import CircularProgress from '@mui/material/CircularProgress'
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded'
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 
 export default function TaskDecisionForm({
   taskId,
@@ -40,54 +49,60 @@ export default function TaskDecisionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <h2 className="text-lg font-semibold">Your Decision</h2>
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{error}</div>}
-      <div className="flex space-x-3">
-        <button
-          type="button"
-          onClick={() => setDecision('approved')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium border ${
-            decision === 'approved'
-              ? 'bg-green-600 text-white border-green-600'
-              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-          }`}
-        >
-          Approve
-        </button>
-        <button
-          type="button"
-          onClick={() => setDecision('rejected')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium border ${
-            decision === 'rejected'
-              ? 'bg-red-600 text-white border-red-600'
-              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-          }`}
-        >
-          Reject
-        </button>
-      </div>
-      {decision === 'rejected' && (
-        <div>
-          <label htmlFor="reason" className="block text-sm font-medium text-gray-700">
-            Rejection Reason (optional)
-          </label>
-          <textarea
-            id="reason"
+    <Box component="form" onSubmit={handleSubmit}>
+      <Stack spacing={2.5}>
+        <Typography variant="h6">Your Decision</Typography>
+
+        {error && (
+          <Alert severity="error">{error}</Alert>
+        )}
+
+        {/* Approve / Reject toggle buttons */}
+        <Stack direction="row" spacing={2}>
+          <Button
+            type="button"
+            variant={decision === 'approved' ? 'contained' : 'outlined'}
+            color="success"
+            startIcon={<CheckRoundedIcon />}
+            onClick={() => setDecision('approved')}
+            sx={{ flex: 1 }}
+          >
+            Approve
+          </Button>
+          <Button
+            type="button"
+            variant={decision === 'rejected' ? 'contained' : 'outlined'}
+            color="error"
+            startIcon={<CloseRoundedIcon />}
+            onClick={() => setDecision('rejected')}
+            sx={{ flex: 1 }}
+          >
+            Reject
+          </Button>
+        </Stack>
+
+        {/* Rejection reason — only visible when rejected */}
+        {decision === 'rejected' && (
+          <TextField
+            label="Rejection Reason (optional)"
+            multiline
             rows={3}
+            fullWidth
             value={rejectionReason}
             onChange={(e) => setRejectionReason(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
           />
-        </div>
-      )}
-      <button
-        type="submit"
-        disabled={!decision || loading}
-        className="w-full py-2 px-4 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
-      >
-        {loading ? 'Submitting...' : 'Submit Decision'}
-      </button>
-    </form>
+        )}
+
+        <Button
+          type="submit"
+          variant="contained"
+          fullWidth
+          disabled={!decision || loading}
+          startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
+        >
+          {loading ? 'Submitting…' : 'Submit Decision'}
+        </Button>
+      </Stack>
+    </Box>
   )
 }

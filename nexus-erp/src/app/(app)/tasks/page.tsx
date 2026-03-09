@@ -1,6 +1,18 @@
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
+import NextLink from 'next/link'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Button from '@mui/material/Button'
+import Card from '@mui/material/Card'
+import Chip from '@mui/material/Chip'
+import Table from '@mui/material/Table'
+import TableHead from '@mui/material/TableHead'
+import TableBody from '@mui/material/TableBody'
+import TableRow from '@mui/material/TableRow'
+import TableCell from '@mui/material/TableCell'
+import Stack from '@mui/material/Stack'
+import InboxRoundedIcon from '@mui/icons-material/InboxRounded'
 
 interface Task {
   id: string
@@ -21,47 +33,72 @@ export default async function TasksPage() {
   )
   const data = res.ok ? await res.json() : { items: [], total: 0 }
   const tasks: Task[] = data.items ?? []
+  const total: number = data.total ?? tasks.length
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Task Inbox</h1>
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        {tasks.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">No pending tasks.</div>
-        ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                {['Task', 'Status', 'Created', ''].map((h) => (
-                  <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {tasks.map((task) => (
-                <tr key={task.id}>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{task.name}</td>
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded">
-                      {task.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {new Date(task.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <Link href={`/tasks/${task.id}`} className="text-indigo-600 hover:underline">
-                      Review
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <Box>
+      {/* Page header */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+        <Typography variant="h2">Task Inbox</Typography>
+        {total > 0 && (
+          <Chip label={total} size="small" color="primary" />
         )}
-      </div>
-    </div>
+      </Box>
+
+      <Card>
+        {tasks.length === 0 ? (
+          <Stack alignItems="center" spacing={2} sx={{ py: 8 }}>
+            <InboxRoundedIcon sx={{ fontSize: 56, color: 'text.disabled' }} />
+            <Typography variant="body1" color="text.secondary">
+              No pending tasks. You are all caught up!
+            </Typography>
+          </Stack>
+        ) : (
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Task Name</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Created</TableCell>
+                <TableCell align="right" />
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {tasks.map((task) => (
+                <TableRow
+                  key={task.id}
+                  sx={{ '&:hover': { backgroundColor: 'action.hover' } }}
+                >
+                  <TableCell>
+                    <Typography variant="body2" fontWeight={500}>
+                      {task.name}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip label={task.status} size="small" color="warning" />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" color="text.secondary">
+                      {new Date(task.createdAt).toLocaleDateString()}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Button
+                      component={NextLink}
+                      href={`/tasks/${task.id}`}
+                      size="small"
+                      variant="contained"
+                      color="primary"
+                    >
+                      Review
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+    </Box>
   )
 }

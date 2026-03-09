@@ -1,7 +1,36 @@
 import { auth } from '@/auth'
 import { redirect, notFound } from 'next/navigation'
 import { db } from '@/db/client'
+import NextLink from 'next/link'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Card from '@mui/material/Card'
+import CardContent from '@mui/material/CardContent'
+import Chip from '@mui/material/Chip'
+import Stack from '@mui/material/Stack'
+import IconButton from '@mui/material/IconButton'
+import Grid from '@mui/material/Grid'
+import Alert from '@mui/material/Alert'
+import Divider from '@mui/material/Divider'
+
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 import TaskDecisionForm from './TaskDecisionForm'
+
+interface DetailRowProps {
+  label: string
+  children: React.ReactNode
+}
+
+function DetailRow({ label, children }: DetailRowProps) {
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        {label}
+      </Typography>
+      {children}
+    </Box>
+  )
+}
 
 export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -16,7 +45,6 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
 
   const { task, variables } = await res.json()
 
-  // Look up the timesheet for context
   const timesheet = variables.timesheetId
     ? await db.timesheet.findUnique({
         where: { id: variables.timesheetId as string },
@@ -24,49 +52,87 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
       })
     : null
 
+  const isOpen = task.status === 'open' || task.status === 'claimed'
+
   return (
-    <div className="max-w-lg">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Review Task</h1>
-      <div className="bg-white rounded-lg shadow p-6 space-y-6">
-        <div>
-          <h2 className="text-lg font-semibold mb-3">Task Details</h2>
-          <dl className="space-y-2">
-            <div>
-              <dt className="text-sm text-gray-500">Task</dt>
-              <dd className="text-sm font-medium text-gray-900">{task.name}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-gray-500">Status</dt>
-              <dd className="text-sm font-medium text-gray-900">{task.status}</dd>
-            </div>
-          </dl>
-        </div>
+    <Box sx={{ maxWidth: 640 }}>
+      {/* Page header */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+        <IconButton component={NextLink} href="/tasks" size="small">
+          <ArrowBackRoundedIcon />
+        </IconButton>
+        <Typography variant="h3">Review Task</Typography>
+      </Box>
 
+      <Stack spacing={3}>
+        {/* Task Details card */}
+        <Card>
+          <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
+            <Typography variant="h5" sx={{ mb: 1 }}>{task.name}</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+              <Chip label={task.status} size="small" color="warning" />
+              <Typography variant="caption" color="text.secondary">
+                Created {new Date(task.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </Typography>
+            </Box>
+
+            {!isOpen && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                This task has already been completed.
+              </Alert>
+            )}
+
+            {isOpen && (
+              <TaskDecisionForm taskId={id} managerId={session!.user.id} />
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Timesheet card */}
         {timesheet && (
-          <div>
-            <h2 className="text-lg font-semibold mb-3">Timesheet</h2>
-            <dl className="space-y-2">
-              {[
-                { label: 'Employee', value: timesheet.employee.user.email },
-                { label: 'Week Start', value: timesheet.weekStart.toISOString().split('T')[0] },
-                { label: 'Total Hours', value: `${timesheet.totalHours}h` },
-                { label: 'Notes', value: timesheet.notes ?? '-' },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <dt className="text-sm text-gray-500">{label}</dt>
-                  <dd className="text-sm font-medium text-gray-900">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        )}
+          <Card
+            sx={{
+              borderLeft: '3px solid',
+              borderColor: 'primary.main',
+            }}
+          >
+            <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
+              <Typography variant="h5" sx={{ mb: 2.5 }}>Timesheet</Typography>
 
-        {task.status === 'open' || task.status === 'claimed' ? (
-          <TaskDecisionForm taskId={id} managerId={session!.user.id} />
-        ) : (
-          <p className="text-sm text-gray-500">This task has already been completed.</p>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Stack spacing={2.5} divider={<Divider />}>
+                    <DetailRow label="Employee">
+                      <Typography variant="body2" fontWeight={500}>
+                        {timesheet.employee.user.email}
+                      </Typography>
+                    </DetailRow>
+                    <DetailRow label="Week Start">
+                      <Typography variant="body2" fontWeight={500}>
+                        {timesheet.weekStart.toISOString().split('T')[0]}
+                      </Typography>
+                    </DetailRow>
+                  </Stack>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Stack spacing={2.5} divider={<Divider />}>
+                    <DetailRow label="Total Hours">
+                      <Typography variant="body2" fontWeight={500}>
+                        {timesheet.totalHours.toString()}h
+                      </Typography>
+                    </DetailRow>
+                    <DetailRow label="Notes">
+                      <Typography variant="body2" fontWeight={500}>
+                        {timesheet.notes ?? '-'}
+                      </Typography>
+                    </DetailRow>
+                  </Stack>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
         )}
-      </div>
-    </div>
+      </Stack>
+    </Box>
   )
 }

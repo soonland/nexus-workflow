@@ -2,6 +2,18 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import NextLink from 'next/link'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Card from '@mui/material/Card'
+import CardContent from '@mui/material/CardContent'
+import TextField from '@mui/material/TextField'
+import Button from '@mui/material/Button'
+import Alert from '@mui/material/Alert'
+import Stack from '@mui/material/Stack'
+import IconButton from '@mui/material/IconButton'
+import CircularProgress from '@mui/material/CircularProgress'
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 
 export default function NewTimesheetPage() {
   const router = useRouter()
@@ -38,72 +50,77 @@ export default function NewTimesheetPage() {
   }
 
   return (
-    <div className="max-w-lg">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">New Timesheet</h1>
-      <div className="bg-white rounded-lg shadow p-6">
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{error}</div>
-          )}
-          <div>
-            <label htmlFor="weekStart" className="block text-sm font-medium text-gray-700">
-              Week Start Date
-            </label>
-            <input
-              id="weekStart"
-              type="date"
-              required
-              value={form.weekStart}
-              onChange={update('weekStart')}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="totalHours" className="block text-sm font-medium text-gray-700">
-              Total Hours
-            </label>
-            <input
-              id="totalHours"
-              type="number"
-              min="0"
-              max="168"
-              step="0.5"
-              required
-              value={form.totalHours}
-              onChange={update('totalHours')}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
-              Notes (optional)
-            </label>
-            <textarea
-              id="notes"
-              rows={3}
-              value={form.notes}
-              onChange={update('notes')}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-          <div className="flex space-x-3">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 py-2 px-4 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {loading ? 'Creating...' : 'Create Timesheet'}
-            </button>
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="py-2 px-4 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Box sx={{ maxWidth: 560 }}>
+      {/* Page header */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+        <IconButton component={NextLink} href="/timesheets" size="small">
+          <ArrowBackRoundedIcon />
+        </IconButton>
+        <Typography variant="h3">New Timesheet</Typography>
+      </Box>
+
+      <Card>
+        <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
+          <Box component="form" onSubmit={handleSubmit}>
+            <Stack spacing={3}>
+              {error && (
+                <Alert severity="error">{error}</Alert>
+              )}
+
+              <TextField
+                id="weekStart"
+                label="Week Start Date"
+                type="date"
+                required
+                value={form.weekStart}
+                onChange={update('weekStart')}
+                slotProps={{ inputLabel: { shrink: true } }}
+                fullWidth
+              />
+
+              <TextField
+                id="totalHours"
+                label="Total Hours"
+                type="number"
+                required
+                value={form.totalHours}
+                onChange={update('totalHours')}
+                slotProps={{ htmlInput: { min: 0, max: 168, step: 0.5 } }}
+                fullWidth
+              />
+
+              <TextField
+                id="notes"
+                label="Notes (optional)"
+                multiline
+                rows={3}
+                value={form.notes}
+                onChange={update('notes')}
+                fullWidth
+              />
+
+              <Stack direction="row" spacing={2}>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={loading}
+                  startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
+                  sx={{ flex: 1 }}
+                >
+                  {loading ? 'Creating…' : 'Create Timesheet'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outlined"
+                  onClick={() => router.back()}
+                >
+                  Cancel
+                </Button>
+              </Stack>
+            </Stack>
+          </Box>
+        </CardContent>
+      </Card>
+    </Box>
   )
 }

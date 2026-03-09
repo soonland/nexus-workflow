@@ -1,7 +1,26 @@
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { db } from '@/db/client'
-import Link from 'next/link'
+import NextLink from 'next/link'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Button from '@mui/material/Button'
+import Card from '@mui/material/Card'
+import Chip from '@mui/material/Chip'
+import Table from '@mui/material/Table'
+import TableHead from '@mui/material/TableHead'
+import TableBody from '@mui/material/TableBody'
+import TableRow from '@mui/material/TableRow'
+import TableCell from '@mui/material/TableCell'
+import AddRoundedIcon from '@mui/icons-material/AddRounded'
+import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded'
+
+const STATUS_COLOR: Record<string, 'default' | 'warning' | 'success' | 'error'> = {
+  draft: 'default',
+  submitted: 'warning',
+  approved: 'success',
+  rejected: 'error',
+}
 
 export default async function TimesheetsPage() {
   const session = await auth()
@@ -12,60 +31,90 @@ export default async function TimesheetsPage() {
     orderBy: { weekStart: 'desc' },
   })
 
-  const statusColors: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-800',
-    submitted: 'bg-yellow-100 text-yellow-800',
-    approved: 'bg-green-100 text-green-800',
-    rejected: 'bg-red-100 text-red-800',
-  }
-
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">My Timesheets</h1>
-        <Link
+    <Box>
+      {/* Page header */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Typography variant="h2">My Timesheets</Typography>
+        <Button
+          variant="contained"
+          startIcon={<AddRoundedIcon />}
+          component={NextLink}
           href="/timesheets/new"
-          className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700"
         >
           New Timesheet
-        </Link>
-      </div>
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+        </Button>
+      </Box>
+
+      <Card>
         {timesheets.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">No timesheets yet. Create your first one!</div>
+          <Box sx={{ py: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <ReceiptLongRoundedIcon sx={{ fontSize: 48, color: 'text.disabled' }} />
+            <Typography variant="body1" color="text.secondary">
+              No timesheets yet. Create your first one!
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<AddRoundedIcon />}
+              component={NextLink}
+              href="/timesheets/new"
+            >
+              New Timesheet
+            </Button>
+          </Box>
         ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                {['Week Start', 'Hours', 'Notes', 'Status', ''].map((h) => (
-                  <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Week Start</TableCell>
+                <TableCell>Hours</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Notes</TableCell>
+                <TableCell align="right" />
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {timesheets.map((ts) => (
-                <tr key={ts.id}>
-                  <td className="px-6 py-4 text-sm text-gray-900">{ts.weekStart.toISOString().split('T')[0]}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{ts.totalHours.toString()}h</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{ts.notes ?? '-'}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-xs rounded ${statusColors[ts.status] ?? ''}`}>
-                      {ts.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <Link href={`/timesheets/${ts.id}`} className="text-indigo-600 hover:underline">
+                <TableRow
+                  key={ts.id}
+                  sx={{ '&:hover': { backgroundColor: 'action.hover' } }}
+                >
+                  <TableCell>
+                    <Typography variant="body2" fontWeight={500}>
+                      {ts.weekStart.toISOString().split('T')[0]}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">{ts.totalHours.toString()}h</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={ts.status}
+                      size="small"
+                      color={STATUS_COLOR[ts.status] ?? 'default'}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" color="text.secondary">
+                      {ts.notes ?? '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Button
+                      component={NextLink}
+                      href={`/timesheets/${ts.id}`}
+                      size="small"
+                      variant="text"
+                    >
                       View
-                    </Link>
-                  </td>
-                </tr>
+                    </Button>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
-      </div>
-    </div>
+      </Card>
+    </Box>
   )
 }

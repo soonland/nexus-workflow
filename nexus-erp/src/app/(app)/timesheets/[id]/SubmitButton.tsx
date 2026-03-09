@@ -2,6 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Button from '@mui/material/Button'
+import Alert from '@mui/material/Alert'
+import CircularProgress from '@mui/material/CircularProgress'
+import Box from '@mui/material/Box'
 
 export default function SubmitButton({ timesheetId }: { timesheetId: string }) {
   const router = useRouter()
@@ -22,15 +26,22 @@ export default function SubmitButton({ timesheetId }: { timesheetId: string }) {
   }
 
   return (
-    <div>
-      {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
-      <button
+    <Box>
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
+      <Button
+        variant="contained"
+        color="primary"
+        fullWidth
         onClick={handleSubmit}
         disabled={loading}
-        className="w-full py-2 px-4 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+        startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
       >
-        {loading ? 'Submitting...' : 'Submit for Approval'}
-      </button>
-    </div>
+        {loading ? 'Submitting…' : 'Submit for Approval'}
+      </Button>
+    </Box>
   )
 }

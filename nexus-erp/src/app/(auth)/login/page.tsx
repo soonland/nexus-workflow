@@ -3,7 +3,17 @@
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import NextLink from 'next/link'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import TextField from '@mui/material/TextField'
+import Button from '@mui/material/Button'
+import Alert from '@mui/material/Alert'
+import Card from '@mui/material/Card'
+import CardContent from '@mui/material/CardContent'
+import Stack from '@mui/material/Stack'
+import CircularProgress from '@mui/material/CircularProgress'
+import Link from '@mui/material/Link'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -30,56 +40,79 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
-        <h2 className="text-3xl font-bold text-center text-gray-900">Sign in to Nexus ERP</h2>
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-              {error}
-            </div>
-          )}
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none disabled:opacity-50"
-          >
-            {loading ? 'Signing in...' : 'Sign in'}
-          </button>
-        </form>
-        <p className="text-center text-sm text-gray-600">
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'background.default',
+        px: 2,
+      }}
+    >
+      <Box sx={{ width: '100%', maxWidth: 420 }}>
+        {/* Logo / title */}
+        <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <Typography variant="h3" sx={{ fontWeight: 700, color: 'primary.main', mb: 0.5 }}>
+            Nexus ERP
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Sign in to your account
+          </Typography>
+        </Box>
+
+        <Card>
+          <CardContent sx={{ p: 4, '&:last-child': { pb: 4 } }}>
+            <Box component="form" onSubmit={handleSubmit}>
+              <Stack spacing={3}>
+                {error && (
+                  <Alert severity="error">{error}</Alert>
+                )}
+
+                <TextField
+                  id="email"
+                  label="Email"
+                  type="email"
+                  required
+                  fullWidth
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+
+                <TextField
+                  id="password"
+                  label="Password"
+                  type="password"
+                  required
+                  fullWidth
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+
+                <Button
+                  type="submit"
+                  variant="contained"
+                  fullWidth
+                  size="large"
+                  disabled={loading}
+                  startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
+                >
+                  {loading ? 'Signing in…' : 'Sign in'}
+                </Button>
+              </Stack>
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Typography variant="body2" sx={{ textAlign: 'center', mt: 3, color: 'text.secondary' }}>
           Don&apos;t have an account?{' '}
-          <Link href="/register" className="text-indigo-600 hover:underline">
+          <Link component={NextLink} href="/register" underline="hover" color="primary">
             Register
           </Link>
-        </p>
-      </div>
-    </div>
+        </Typography>
+      </Box>
+    </Box>
   )
 }
