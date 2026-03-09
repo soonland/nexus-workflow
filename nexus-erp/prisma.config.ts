@@ -1,7 +1,8 @@
 import { defineConfig } from 'prisma/config'
 import { config } from 'dotenv'
+import path from 'node:path'
 
-config({ path: '.env' })
+config({ path: path.resolve(__dirname, '.env') })
 
 export default defineConfig({
   migrations: {

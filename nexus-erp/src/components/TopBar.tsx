@@ -9,17 +9,23 @@ import Avatar from '@mui/material/Avatar'
 import Chip from '@mui/material/Chip'
 import Tooltip from '@mui/material/Tooltip'
 import IconButton from '@mui/material/IconButton'
+import Menu from '@mui/material/Menu'
+import MenuItem from '@mui/material/MenuItem'
+import ListItemIcon from '@mui/material/ListItemIcon'
+import Divider from '@mui/material/Divider'
 import Breadcrumbs from '@mui/material/Breadcrumbs'
 import Link from '@mui/material/Link'
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
+import PersonRoundedIcon from '@mui/icons-material/PersonRounded'
 import NavigateNextRoundedIcon from '@mui/icons-material/NavigateNextRounded'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useSidebar } from './SidebarContext'
 import { SIDEBAR_EXPANDED_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './AppSidebar'
 
 interface TopBarProps {
   email: string
   role: 'employee' | 'manager'
+  employeeId: string | null
   signOutAction: () => Promise<void>
 }
 
@@ -53,11 +59,15 @@ function stringToColor(str: string) {
   return colors[Math.abs(hash) % colors.length]
 }
 
-export default function TopBar({ email, role, signOutAction }: TopBarProps) {
+export default function TopBar({ email, role, employeeId, signOutAction }: TopBarProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const { collapsed } = useSidebar()
   const crumbs = buildBreadcrumbs(pathname)
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
+
+  const [anchor, setAnchor] = React.useState<null | HTMLElement>(null)
+  const open = Boolean(anchor)
 
   return (
     <AppBar
@@ -112,32 +122,63 @@ export default function TopBar({ email, role, signOutAction }: TopBarProps) {
               textTransform: 'capitalize',
             }}
           />
+
           <Tooltip title={email} placement="bottom">
-            <Avatar
-              sx={{
-                width: 32,
-                height: 32,
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                bgcolor: stringToColor(email),
-                cursor: 'default',
-              }}
+            <IconButton
+              size="small"
+              onClick={(e) => setAnchor(e.currentTarget)}
+              aria-label="Account menu"
+              aria-controls={open ? 'account-menu' : undefined}
+              aria-haspopup="true"
+              aria-expanded={open ? 'true' : undefined}
+              sx={{ p: 0 }}
             >
-              {stringToInitials(email)}
-            </Avatar>
-          </Tooltip>
-          <Tooltip title="Sign out" placement="bottom">
-            <form action={signOutAction}>
-              <IconButton
-                type="submit"
-                size="small"
-                aria-label="Sign out"
-                sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+              <Avatar
+                sx={{
+                  width: 32,
+                  height: 32,
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  bgcolor: stringToColor(email),
+                }}
               >
-                <LogoutRoundedIcon fontSize="small" />
-              </IconButton>
-            </form>
+                {stringToInitials(email)}
+              </Avatar>
+            </IconButton>
           </Tooltip>
+
+          <Menu
+            id="account-menu"
+            anchorEl={anchor}
+            open={open}
+            onClose={() => setAnchor(null)}
+            slotProps={{ paper: { elevation: 2, sx: { minWidth: 200, mt: 1 } } }}
+            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+          >
+            <Box sx={{ px: 2, py: 1.5 }}>
+              <Typography variant="body2" fontWeight={600} noWrap>{email}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>{role}</Typography>
+            </Box>
+            <Divider />
+            {employeeId && (
+              <MenuItem
+                onClick={() => {
+                  setAnchor(null)
+                  router.push(`/employees/${employeeId}`)
+                }}
+              >
+                <ListItemIcon><PersonRoundedIcon fontSize="small" /></ListItemIcon>
+                My Profile
+              </MenuItem>
+            )}
+            <form action={signOutAction}>
+              <MenuItem component="button" type="submit" sx={{ width: '100%', color: 'error.main' }}>
+                <ListItemIcon sx={{ color: 'error.main' }}><LogoutRoundedIcon fontSize="small" /></ListItemIcon>
+                Sign out
+              </MenuItem>
+            </form>
+          </Menu>
         </Box>
       </Toolbar>
     </AppBar>

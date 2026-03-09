@@ -28,7 +28,10 @@ export default async function EmployeesPage() {
   if (session?.user.role !== 'manager') redirect('/dashboard')
 
   const employees = await db.employee.findMany({
-    include: { user: { select: { email: true, role: true } } },
+    include: {
+      user: { select: { email: true, role: true } },
+      department: { select: { name: true } },
+    },
     orderBy: { fullName: 'asc' },
   })
 
@@ -74,7 +77,7 @@ export default async function EmployeesPage() {
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2" color="text.secondary">
-                    {emp.department}
+                    {emp.department?.name ?? '—'}
                   </Typography>
                 </TableCell>
                 <TableCell>

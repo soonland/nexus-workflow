@@ -8,7 +8,7 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   fullName: z.string().min(1),
-  department: z.string().min(1),
+  departmentId: z.string().optional(),
   hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 })
 
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.errors[0]?.message ?? 'Invalid input' }, { status: 400 })
   }
 
-  const { email, password, fullName, department, hireDate } = parsed.data
+  const { email, password, fullName, departmentId, hireDate } = parsed.data
 
   const existing = await db.user.findUnique({ where: { email } })
   if (existing) {
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       employee: {
         create: {
           fullName,
-          department,
+          ...(departmentId ? { departmentId } : {}),
           hireDate: new Date(hireDate),
         },
       },

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  update-profile-info.bpmn
+  Process: Start → userTask (HR Review, assignee=${hrManagerId})
+         → XOR Gateway
+             [decision === 'approved'] → EndEvent (Approved)
+             [default]                 → EndEvent (Denied)
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_profile_update"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="update-profile-info" name="Update Profile Info" isExecutable="true">
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_review</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="task_hr_review" name="HR Review" assignee="${hrManagerId}">
+      <bpmn:incoming>flow_to_review</bpmn:incoming>
+      <bpmn:outgoing>flow_to_decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="gw_decision" name="Decision" default="flow_denied">
+      <bpmn:incoming>flow_to_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_denied</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="end_approved" name="Approved">
+      <bpmn:incoming>flow_approved</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_denied" name="Denied">
+      <bpmn:incoming>flow_denied</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_to_review"   sourceRef="start"         targetRef="task_hr_review"/>
+    <bpmn:sequenceFlow id="flow_to_decision" sourceRef="task_hr_review" targetRef="gw_decision"/>
+    <bpmn:sequenceFlow id="flow_approved"    sourceRef="gw_decision"    targetRef="end_approved">
+      <bpmn:conditionExpression>decision === 'approved'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_denied"      sourceRef="gw_decision"    targetRef="end_denied"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

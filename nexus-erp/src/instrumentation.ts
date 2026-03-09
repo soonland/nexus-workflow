@@ -1,9 +1,11 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    const { ensureTimesheetDefinitionDeployed } = await import('@/lib/bpmn/deploy')
+    const { ensureTimesheetDefinitionDeployed, ensureProfileUpdateDefinitionDeployed } =
+      await import('@/lib/bpmn/deploy')
 
     try {
       await ensureTimesheetDefinitionDeployed()
+      await ensureProfileUpdateDefinitionDeployed()
     } catch (err) {
       console.error('[instrumentation] Failed to deploy BPMN definition:', err)
     }

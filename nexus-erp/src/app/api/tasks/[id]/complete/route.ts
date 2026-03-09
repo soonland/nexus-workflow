@@ -42,19 +42,55 @@ export async function POST(
 
   await completeTask(id, managerId, outputVariables)
 
-  // Update local timesheet status
-  const timesheet = await db.timesheet.findFirst({
-    where: { workflowInstanceId: taskData.task.instanceId },
-  })
+  const instanceId = taskData.task.instanceId
+  const variables = taskData.variables as Record<string, unknown>
 
-  if (timesheet) {
-    await db.timesheet.update({
-      where: { id: timesheet.id },
-      data: {
-        status: decision,
-        decidedAt: new Date(),
-      },
+  // Sync local timesheet status
+  if (variables.timesheetId) {
+    const timesheet = await db.timesheet.findFirst({
+      where: { workflowInstanceId: instanceId },
     })
+    if (timesheet) {
+      await db.timesheet.update({
+        where: { id: timesheet.id },
+        data: { status: decision, decidedAt: new Date() },
+      })
+    }
+  }
+
+  // Sync profile update request status
+  if (variables.updateRequestId) {
+    const request = await db.employeeProfileUpdateRequest.findUnique({
+      where: { id: variables.updateRequestId as string },
+    })
+    if (request && request.status === 'PENDING') {
+      if (decision === 'approved') {
+        await db.employee.update({
+          where: { id: request.employeeId },
+          data: {
+            ...(request.phone !== null ? { phone: request.phone } : {}),
+            ...(request.street !== null ? { street: request.street } : {}),
+            ...(request.city !== null ? { city: request.city } : {}),
+            ...(request.state !== null ? { state: request.state } : {}),
+            ...(request.postalCode !== null ? { postalCode: request.postalCode } : {}),
+            ...(request.country !== null ? { country: request.country } : {}),
+          },
+        })
+        await db.employeeProfileUpdateRequest.update({
+          where: { id: request.id },
+          data: { status: 'APPROVED', resolvedById: managerId },
+        })
+      } else {
+        await db.employeeProfileUpdateRequest.update({
+          where: { id: request.id },
+          data: {
+            status: 'DENIED',
+            resolvedById: managerId,
+            rejectionReason: rejectionReason ?? null,
+          },
+        })
+      }
+    }
   }
 
   return NextResponse.json({ success: true, decision })

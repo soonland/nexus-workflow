@@ -29,6 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <TopBar
             email={session.user.email ?? ''}
             role={session.user.role}
+            employeeId={session.user.employeeId ?? null}
             signOutAction={signOutAction}
           />
 

@@ -103,3 +103,110 @@ export async function completeTask(
     body: JSON.stringify({ completedBy, ...(outputVariables ? { outputVariables } : {}) }),
   })
 }
+
+export interface WorkflowDefinition {
+  id: string
+  version: number
+  name: string | null
+  deployedAt: string
+  isDeployable: boolean
+}
+
+export interface BpmnElement {
+  id: string
+  type: string
+  name?: string
+  incomingFlows: string[]
+  outgoingFlows: string[]
+  [key: string]: unknown
+}
+
+export interface BpmnSequenceFlow {
+  id: string
+  sourceRef: string
+  targetRef: string
+  conditionExpression?: string
+  isDefault?: boolean
+}
+
+export interface FullProcessDefinition extends WorkflowDefinition {
+  elements: BpmnElement[]
+  sequenceFlows: BpmnSequenceFlow[]
+  startEventId: string
+}
+
+export async function getFullDefinition(id: string, version?: number): Promise<FullProcessDefinition | null> {
+  const qs = version !== undefined ? `?version=${version}` : ''
+  const res = await fetch(`${BASE_URL}/definitions/${id}${qs}`, { cache: 'no-store' })
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`Workflow API error ${res.status}`)
+  return res.json() as Promise<FullProcessDefinition>
+}
+
+export interface WorkflowToken {
+  id: string
+  instanceId: string
+  elementId: string
+  elementType: string
+  status: string
+  waitingFor?: { type: string; correlationData?: Record<string, unknown> }
+  createdAt: string
+  updatedAt: string
+}
+
+export interface StoredExecutionEvent {
+  id: string
+  instanceId: string | null
+  type: string
+  occurredAt: string
+  data: Record<string, unknown>
+}
+
+export interface InstanceListResult {
+  items: WorkflowInstance[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export async function listInstances(params?: {
+  status?: string
+  definitionId?: string
+  page?: number
+  pageSize?: number
+}): Promise<InstanceListResult> {
+  const qs = new URLSearchParams()
+  if (params?.status) qs.set('status', params.status)
+  if (params?.definitionId) qs.set('definitionId', params.definitionId)
+  if (params?.page !== undefined) qs.set('page', String(params.page))
+  if (params?.pageSize !== undefined) qs.set('pageSize', String(params.pageSize))
+  return request<InstanceListResult>(`/instances?${qs.toString()}`, { cache: 'no-store' } as RequestInit)
+}
+
+export async function getInstance(id: string): Promise<{ instance: WorkflowInstance; tokens: WorkflowToken[]; variables: Record<string, unknown> } | null> {
+  const res = await fetch(`${BASE_URL}/instances/${id}`, { cache: 'no-store' })
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`Workflow API error ${res.status}`)
+  return res.json()
+}
+
+export async function listDefinitions(): Promise<WorkflowDefinition[]> {
+  return request<WorkflowDefinition[]>('/definitions', { cache: 'no-store' } as RequestInit)
+}
+
+export async function getInstanceEvents(id: string): Promise<StoredExecutionEvent[]> {
+  const data = await request<{ events: StoredExecutionEvent[] }>(`/instances/${id}/events`, { cache: 'no-store' } as RequestInit)
+  return data.events
+}
+
+export async function suspendInstance(id: string): Promise<{ instance: WorkflowInstance }> {
+  return request(`/instances/${id}/suspend`, { method: 'POST' })
+}
+
+export async function resumeInstance(id: string): Promise<{ instance: WorkflowInstance }> {
+  return request(`/instances/${id}/resume`, { method: 'POST' })
+}
+
+export async function cancelInstance(id: string): Promise<{ instance: WorkflowInstance }> {
+  return request(`/instances/${id}`, { method: 'DELETE' })
+}

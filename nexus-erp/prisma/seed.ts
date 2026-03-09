@@ -6,6 +6,19 @@ const db = new PrismaClient()
 async function main() {
   console.log('Seeding nexus_erp...')
 
+  // ── Departments ────────────────────────────────────────────────────────────
+  const deptEngineering = await db.department.upsert({
+    where: { name: 'Engineering' },
+    update: {},
+    create: { name: 'Engineering' },
+  })
+  const deptDesign = await db.department.upsert({
+    where: { name: 'Design' },
+    update: {},
+    create: { name: 'Design' },
+  })
+  console.log('  departments: Engineering, Design')
+
   // ── Manager ────────────────────────────────────────────────────────────────
   const managerUser = await db.user.upsert({
     where: { email: 'manager@nexus.local' },
@@ -17,7 +30,7 @@ async function main() {
       employee: {
         create: {
           fullName: 'Alice Martin',
-          department: 'Engineering',
+          departmentId: deptEngineering.id,
           hireDate: new Date('2020-01-15'),
         },
       },
@@ -28,9 +41,9 @@ async function main() {
 
   // ── Employees ──────────────────────────────────────────────────────────────
   const employees = [
-    { email: 'bob@nexus.local', fullName: 'Bob Smith',   department: 'Engineering', hireDate: '2021-03-01' },
-    { email: 'carol@nexus.local', fullName: 'Carol Jones', department: 'Engineering', hireDate: '2022-06-15' },
-    { email: 'dave@nexus.local', fullName: 'Dave Lee',    department: 'Design',      hireDate: '2023-01-10' },
+    { email: 'bob@nexus.local',   fullName: 'Bob Smith',   departmentId: deptEngineering.id, hireDate: '2021-03-01' },
+    { email: 'carol@nexus.local', fullName: 'Carol Jones', departmentId: deptEngineering.id, hireDate: '2022-06-15' },
+    { email: 'dave@nexus.local',  fullName: 'Dave Lee',    departmentId: deptDesign.id,      hireDate: '2023-01-10' },
   ]
 
   const createdEmployees = []
@@ -45,7 +58,7 @@ async function main() {
         employee: {
           create: {
             fullName: e.fullName,
-            department: e.department,
+            departmentId: e.departmentId,
             hireDate: new Date(e.hireDate),
             managerId: managerUser.employee!.id,
           },

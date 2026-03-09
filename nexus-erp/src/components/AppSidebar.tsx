@@ -27,6 +27,7 @@ import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded'
 import PlayCircleRoundedIcon from '@mui/icons-material/PlayCircleRounded'
 import SchemaRoundedIcon from '@mui/icons-material/SchemaRounded'
 import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded'
+import CorporateFareRoundedIcon from '@mui/icons-material/CorporateFareRounded'
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
 import ManageSearchRoundedIcon from '@mui/icons-material/ManageSearchRounded'
 import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded'
@@ -87,8 +88,9 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Admin',
     managerOnly: true,
     items: [
-      { label: 'Settings',  href: '/admin/settings',   icon: <SettingsRoundedIcon fontSize="small" /> },
-      { label: 'Audit Log', href: '/admin/audit-log',  icon: <ManageSearchRoundedIcon fontSize="small" /> },
+      { label: 'Departments', href: '/departments',      icon: <CorporateFareRoundedIcon fontSize="small" /> },
+      { label: 'Settings',    href: '/admin/settings',   icon: <SettingsRoundedIcon fontSize="small" /> },
+      { label: 'Audit Log',   href: '/admin/audit-log',  icon: <ManageSearchRoundedIcon fontSize="small" /> },
     ],
   },
 ]

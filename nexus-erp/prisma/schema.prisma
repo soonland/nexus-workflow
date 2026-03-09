@@ -30,21 +30,68 @@ model User {
   @@map("users")
 }
 
+model Department {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  employees Employee[]
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  @@map("departments")
+}
+
 model Employee {
-  id         String      @id @default(cuid())
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId     String      @unique @map("user_id")
-  fullName   String      @map("full_name")
-  department String
-  hireDate   DateTime    @map("hire_date") @db.Date
+  id           String      @id @default(cuid())
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String      @unique @map("user_id")
+  fullName     String      @map("full_name")
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  departmentId String?     @map("department_id")
+  hireDate     DateTime    @map("hire_date") @db.Date
   manager    Employee?   @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: SetNull)
   managerId  String?     @map("manager_id")
-  reports    Employee[]  @relation("EmployeeManager")
-  timesheets Timesheet[]
+  phone      String?
+  street     String?
+  city       String?
+  state      String?
+  postalCode String?     @map("postal_code")
+  country    String?
+  reports               Employee[]                     @relation("EmployeeManager")
+  timesheets            Timesheet[]
+  profileUpdateRequests EmployeeProfileUpdateRequest[]
   createdAt  DateTime    @default(now()) @map("created_at")
   updatedAt  DateTime    @updatedAt @map("updated_at")
 
   @@map("employees")
+}
+
+enum EmployeeProfileUpdateRequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+  CANCELLED
+
+  @@map("employee_profile_update_request_status")
+}
+
+model EmployeeProfileUpdateRequest {
+  id                 String                              @id @default(cuid())
+  employee           Employee                            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId         String                              @map("employee_id")
+  phone              String?
+  street             String?
+  city               String?
+  state              String?
+  postalCode         String?                             @map("postal_code")
+  country            String?
+  status             EmployeeProfileUpdateRequestStatus  @default(PENDING)
+  rejectionReason    String?                             @map("rejection_reason")
+  resolvedById       String?                             @map("resolved_by_id")
+  workflowInstanceId String?                             @map("workflow_instance_id")
+  createdAt          DateTime                            @default(now()) @map("created_at")
+  updatedAt          DateTime                            @updatedAt @map("updated_at")
+
+  @@map("employee_profile_update_requests")
 }
 
 model Timesheet {
