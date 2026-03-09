@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:nexus="http://nexus-workflow/extensions"
+  id="Definitions_purchase_order"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="purchase-order-approval" name="Purchase Order Approval" isExecutable="true">
+
+    <!-- ── Start ──────────────────────────────────────────────────────────── -->
+
+    <bpmn:startEvent id="start" name="PO Submitted">
+      <bpmn:outgoing>flow_to_manager_review</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- ── Manager Review ────────────────────────────────────────────────── -->
+
+    <bpmn:userTask id="task_manager_review" name="Review Purchase Order" assignee="${managerId}">
+      <bpmn:incoming>flow_to_manager_review</bpmn:incoming>
+      <bpmn:outgoing>flow_to_manager_decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!--
+      Interrupting signal boundary: fires when PO_CANCELLED signal is broadcast.
+      Cancels the manager review task immediately.
+    -->
+    <bpmn:boundaryEvent id="boundary_cancel_mgr" attachedToRef="task_manager_review" cancelActivity="true">
+      <bpmn:outgoing>flow_mgr_cancel</bpmn:outgoing>
+      <bpmn:signalEventDefinition signalRef="PO_CANCELLED"/>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="task_notify_cancel_mgr" name="Notify PO Cancellation" nexus:type="po.notify-cancellation">
+      <bpmn:incoming>flow_mgr_cancel</bpmn:incoming>
+      <bpmn:outgoing>flow_mgr_cancel_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_cancelled_mgr" name="PO Cancelled">
+      <bpmn:incoming>flow_mgr_cancel_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── Manager Decision XOR ──────────────────────────────────────────── -->
+
+    <bpmn:exclusiveGateway id="gw_manager_decision" name="Manager Decision?" default="flow_manager_rejected">
+      <bpmn:incoming>flow_to_manager_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_manager_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_manager_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="task_notify_mgr_rejection" name="Notify PO Rejection" nexus:type="po.notify-rejection">
+      <bpmn:incoming>flow_manager_rejected</bpmn:incoming>
+      <bpmn:outgoing>flow_mgr_reject_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_rejected_mgr" name="PO Rejected">
+      <bpmn:incoming>flow_mgr_reject_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── High-Value Finance Gate ────────────────────────────────────────── -->
+
+    <bpmn:exclusiveGateway id="gw_high_value" name="High Value PO?" default="flow_standard_po">
+      <bpmn:incoming>flow_manager_approved</bpmn:incoming>
+      <bpmn:outgoing>flow_high_value_po</bpmn:outgoing>
+      <bpmn:outgoing>flow_standard_po</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ── Finance Approval (> $10k only) ────────────────────────────────── -->
+
+    <bpmn:userTask id="task_finance_approval" name="Finance Approval" assignee="${financeId}">
+      <bpmn:incoming>flow_high_value_po</bpmn:incoming>
+      <bpmn:outgoing>flow_to_finance_decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!--
+      Second cancellation boundary — scoped to the finance task.
+      Same PO_CANCELLED signal, separate boundary event element.
+    -->
+    <bpmn:boundaryEvent id="boundary_cancel_fin" attachedToRef="task_finance_approval" cancelActivity="true">
+      <bpmn:outgoing>flow_fin_cancel</bpmn:outgoing>
+      <bpmn:signalEventDefinition signalRef="PO_CANCELLED"/>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="task_notify_cancel_fin" name="Notify PO Cancellation" nexus:type="po.notify-cancellation">
+      <bpmn:incoming>flow_fin_cancel</bpmn:incoming>
+      <bpmn:outgoing>flow_fin_cancel_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_cancelled_fin" name="PO Cancelled">
+      <bpmn:incoming>flow_fin_cancel_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:exclusiveGateway id="gw_finance_decision" name="Finance Decision?" default="flow_finance_rejected">
+      <bpmn:incoming>flow_to_finance_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_finance_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_finance_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="task_notify_fin_rejection" name="Notify Finance Rejection" nexus:type="po.notify-rejection">
+      <bpmn:incoming>flow_finance_rejected</bpmn:incoming>
+      <bpmn:outgoing>flow_fin_reject_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_rejected_fin" name="PO Rejected by Finance">
+      <bpmn:incoming>flow_fin_reject_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── Approval Merge XOR ─────────────────────────────────────────────── -->
+
+    <!--
+      XOR merge: fires on first arrival — either from finance path or standard path.
+      No join coordination needed since only one path is active at a time.
+    -->
+    <bpmn:exclusiveGateway id="gw_approved_merge" name="Approved Merge">
+      <bpmn:incoming>flow_finance_approved</bpmn:incoming>
+      <bpmn:incoming>flow_standard_po</bpmn:incoming>
+      <bpmn:outgoing>flow_to_vendor_notify</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ── Vendor Notification + Fulfillment ─────────────────────────────── -->
+
+    <bpmn:serviceTask id="task_notify_vendor" name="Send Vendor Notification" nexus:type="po.notify-vendor">
+      <bpmn:incoming>flow_to_vendor_notify</bpmn:incoming>
+      <bpmn:outgoing>flow_to_fulfillment</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:userTask id="task_track_fulfillment" name="Track Fulfillment" assignee="${requesterId}">
+      <bpmn:incoming>flow_to_fulfillment</bpmn:incoming>
+      <bpmn:outgoing>flow_to_fulfilled_end</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="end_fulfilled" name="PO Fulfilled">
+      <bpmn:incoming>flow_to_fulfilled_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── Sequence Flows ─────────────────────────────────────────────────── -->
+
+    <bpmn:sequenceFlow id="flow_to_manager_review"    sourceRef="start"                     targetRef="task_manager_review"/>
+    <bpmn:sequenceFlow id="flow_to_manager_decision"  sourceRef="task_manager_review"       targetRef="gw_manager_decision"/>
+    <bpmn:sequenceFlow id="flow_mgr_cancel"           sourceRef="boundary_cancel_mgr"       targetRef="task_notify_cancel_mgr"/>
+    <bpmn:sequenceFlow id="flow_mgr_cancel_end"       sourceRef="task_notify_cancel_mgr"    targetRef="end_cancelled_mgr"/>
+    <bpmn:sequenceFlow id="flow_manager_approved"     sourceRef="gw_manager_decision"       targetRef="gw_high_value">
+      <bpmn:conditionExpression>managerDecision === 'approved'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_manager_rejected"     sourceRef="gw_manager_decision"       targetRef="task_notify_mgr_rejection"/>
+    <bpmn:sequenceFlow id="flow_mgr_reject_end"       sourceRef="task_notify_mgr_rejection" targetRef="end_rejected_mgr"/>
+    <bpmn:sequenceFlow id="flow_high_value_po"        sourceRef="gw_high_value"             targetRef="task_finance_approval">
+      <bpmn:conditionExpression>amount > 10000</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_standard_po"          sourceRef="gw_high_value"             targetRef="gw_approved_merge"/>
+    <bpmn:sequenceFlow id="flow_to_finance_decision"  sourceRef="task_finance_approval"     targetRef="gw_finance_decision"/>
+    <bpmn:sequenceFlow id="flow_fin_cancel"           sourceRef="boundary_cancel_fin"       targetRef="task_notify_cancel_fin"/>
+    <bpmn:sequenceFlow id="flow_fin_cancel_end"       sourceRef="task_notify_cancel_fin"    targetRef="end_cancelled_fin"/>
+    <bpmn:sequenceFlow id="flow_finance_approved"     sourceRef="gw_finance_decision"       targetRef="gw_approved_merge">
+      <bpmn:conditionExpression>financeDecision === 'approved'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_finance_rejected"     sourceRef="gw_finance_decision"       targetRef="task_notify_fin_rejection"/>
+    <bpmn:sequenceFlow id="flow_fin_reject_end"       sourceRef="task_notify_fin_rejection" targetRef="end_rejected_fin"/>
+    <bpmn:sequenceFlow id="flow_to_vendor_notify"     sourceRef="gw_approved_merge"         targetRef="task_notify_vendor"/>
+    <bpmn:sequenceFlow id="flow_to_fulfillment"       sourceRef="task_notify_vendor"        targetRef="task_track_fulfillment"/>
+    <bpmn:sequenceFlow id="flow_to_fulfilled_end"     sourceRef="task_track_fulfillment"    targetRef="end_fulfilled"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

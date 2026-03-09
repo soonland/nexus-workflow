@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:nexus="http://nexus-workflow/extensions"
+  id="Definitions_contract_approval"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="contract-approval" name="Contract Approval" isExecutable="true">
+
+    <!-- ── Start ──────────────────────────────────────────────────────────── -->
+
+    <bpmn:startEvent id="start" name="Contract Initiated">
+      <bpmn:outgoing>flow_to_draft</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- ── Draft ──────────────────────────────────────────────────────────── -->
+
+    <!--
+      Multiple incoming flows: initial path + legal-reject loop + mgmt-reject loop.
+      Single loop-back target keeps the model flat.
+    -->
+    <bpmn:userTask id="task_prepare_draft" name="Prepare Draft" assignee="${contractOwnerId}">
+      <bpmn:incoming>flow_to_draft</bpmn:incoming>
+      <bpmn:incoming>flow_legal_reject_to_draft</bpmn:incoming>
+      <bpmn:incoming>flow_mgmt_reject_to_draft</bpmn:incoming>
+      <bpmn:outgoing>flow_to_legal_notify</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ── Legal Review ───────────────────────────────────────────────────── -->
+
+    <bpmn:serviceTask id="task_notify_legal" name="Notify Legal Team" nexus:type="contract.notify-legal">
+      <bpmn:incoming>flow_to_legal_notify</bpmn:incoming>
+      <bpmn:outgoing>flow_to_legal_review</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:userTask id="task_legal_review" name="Legal Review" assignee="${legalReviewerId}">
+      <bpmn:incoming>flow_to_legal_review</bpmn:incoming>
+      <bpmn:outgoing>flow_to_legal_decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Interrupting 48h timer — legal SLA breach escalation -->
+    <bpmn:boundaryEvent id="boundary_legal_timer" attachedToRef="task_legal_review" cancelActivity="true">
+      <bpmn:outgoing>flow_to_legal_escalation</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT48H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="task_escalate_legal" name="Escalate Legal Review" nexus:type="contract.escalate-legal">
+      <bpmn:incoming>flow_to_legal_escalation</bpmn:incoming>
+      <bpmn:outgoing>flow_legal_escalation_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_legal_escalated" name="Legal Review Escalated">
+      <bpmn:incoming>flow_legal_escalation_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── Legal Decision XOR ─────────────────────────────────────────────── -->
+
+    <bpmn:exclusiveGateway id="gw_legal_decision" name="Legal Decision?" default="flow_legal_rejected">
+      <bpmn:incoming>flow_to_legal_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_legal_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_legal_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="task_notify_legal_rejection" name="Notify Legal Rejection" nexus:type="contract.notify-rejection">
+      <bpmn:incoming>flow_legal_rejected</bpmn:incoming>
+      <bpmn:outgoing>flow_legal_reject_to_draft</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── High-Value Approval Gate ───────────────────────────────────────── -->
+
+    <!--
+      XOR: contractValue > 50000 → AND-split (management + CFO in parallel)
+           default → skip straight to inclusive join (standard value path)
+    -->
+    <bpmn:exclusiveGateway id="gw_high_value" name="High Value Contract?" default="flow_standard_value">
+      <bpmn:incoming>flow_legal_approved</bpmn:incoming>
+      <bpmn:outgoing>flow_high_value</bpmn:outgoing>
+      <bpmn:outgoing>flow_standard_value</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:parallelGateway id="gw_approval_split" name="Parallel Approval Split">
+      <bpmn:incoming>flow_high_value</bpmn:incoming>
+      <bpmn:outgoing>flow_to_management</bpmn:outgoing>
+      <bpmn:outgoing>flow_to_cfo</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:userTask id="task_management_approval" name="Management Sign-off" assignee="${approverId}">
+      <bpmn:incoming>flow_to_management</bpmn:incoming>
+      <bpmn:outgoing>flow_mgmt_to_join</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="task_cfo_approval" name="CFO Approval" assignee="${cfoId}">
+      <bpmn:incoming>flow_to_cfo</bpmn:incoming>
+      <bpmn:outgoing>flow_cfo_to_join</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!--
+      Inclusive join: waits for exactly the flows that were activated upstream.
+      - High-value path: waits for flow_mgmt_to_join + flow_cfo_to_join
+      - Standard-value path: flow_standard_value arrives and fires immediately
+    -->
+    <bpmn:inclusiveGateway id="gw_approval_join" name="All Approvals Received">
+      <bpmn:incoming>flow_mgmt_to_join</bpmn:incoming>
+      <bpmn:incoming>flow_cfo_to_join</bpmn:incoming>
+      <bpmn:incoming>flow_standard_value</bpmn:incoming>
+      <bpmn:outgoing>flow_to_mgmt_decision</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+
+    <!-- ── Management Decision XOR ───────────────────────────────────────── -->
+
+    <bpmn:exclusiveGateway id="gw_mgmt_decision" name="Management Decision?" default="flow_mgmt_rejected">
+      <bpmn:incoming>flow_to_mgmt_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_mgmt_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_mgmt_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="task_notify_mgmt_rejection" name="Notify Management Rejection" nexus:type="contract.notify-rejection">
+      <bpmn:incoming>flow_mgmt_rejected</bpmn:incoming>
+      <bpmn:outgoing>flow_mgmt_reject_to_draft</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── Client Countersign ─────────────────────────────────────────────── -->
+
+    <bpmn:serviceTask id="task_request_countersign" name="Request Client Countersignature" nexus:type="contract.request-countersign">
+      <bpmn:incoming>flow_mgmt_approved</bpmn:incoming>
+      <bpmn:outgoing>flow_to_client_review</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:userTask id="task_client_review" name="Client Countersign" assignee="${clientSignatoryId}">
+      <bpmn:incoming>flow_to_client_review</bpmn:incoming>
+      <bpmn:outgoing>flow_to_client_decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="gw_client_decision" name="Client Decision?" default="flow_client_rejected">
+      <bpmn:incoming>flow_to_client_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_client_signed</bpmn:outgoing>
+      <bpmn:outgoing>flow_client_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="task_notify_client_rejection" name="Notify Client Rejection" nexus:type="contract.notify-rejection">
+      <bpmn:incoming>flow_client_rejected</bpmn:incoming>
+      <bpmn:outgoing>flow_client_reject_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_contract_rejected" name="Contract Rejected by Client">
+      <bpmn:incoming>flow_client_reject_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── Activation ─────────────────────────────────────────────────────── -->
+
+    <bpmn:serviceTask id="task_activate_contract" name="Activate Contract" nexus:type="contract.activate">
+      <bpmn:incoming>flow_client_signed</bpmn:incoming>
+      <bpmn:outgoing>flow_to_active_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_contract_active" name="Contract Active">
+      <bpmn:incoming>flow_to_active_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── Sequence Flows ─────────────────────────────────────────────────── -->
+
+    <bpmn:sequenceFlow id="flow_to_draft"              sourceRef="start"                        targetRef="task_prepare_draft"/>
+    <bpmn:sequenceFlow id="flow_to_legal_notify"       sourceRef="task_prepare_draft"           targetRef="task_notify_legal"/>
+    <bpmn:sequenceFlow id="flow_to_legal_review"       sourceRef="task_notify_legal"            targetRef="task_legal_review"/>
+    <bpmn:sequenceFlow id="flow_to_legal_decision"     sourceRef="task_legal_review"            targetRef="gw_legal_decision"/>
+    <bpmn:sequenceFlow id="flow_to_legal_escalation"   sourceRef="boundary_legal_timer"         targetRef="task_escalate_legal"/>
+    <bpmn:sequenceFlow id="flow_legal_escalation_end"  sourceRef="task_escalate_legal"          targetRef="end_legal_escalated"/>
+    <bpmn:sequenceFlow id="flow_legal_approved"        sourceRef="gw_legal_decision"            targetRef="gw_high_value">
+      <bpmn:conditionExpression>legalDecision === 'approved'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_legal_rejected"        sourceRef="gw_legal_decision"            targetRef="task_notify_legal_rejection"/>
+    <bpmn:sequenceFlow id="flow_legal_reject_to_draft" sourceRef="task_notify_legal_rejection"  targetRef="task_prepare_draft"/>
+    <bpmn:sequenceFlow id="flow_high_value"            sourceRef="gw_high_value"                targetRef="gw_approval_split">
+      <bpmn:conditionExpression>contractValue > 50000</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_standard_value"        sourceRef="gw_high_value"                targetRef="gw_approval_join"/>
+    <bpmn:sequenceFlow id="flow_to_management"         sourceRef="gw_approval_split"            targetRef="task_management_approval"/>
+    <bpmn:sequenceFlow id="flow_to_cfo"                sourceRef="gw_approval_split"            targetRef="task_cfo_approval"/>
+    <bpmn:sequenceFlow id="flow_mgmt_to_join"          sourceRef="task_management_approval"     targetRef="gw_approval_join"/>
+    <bpmn:sequenceFlow id="flow_cfo_to_join"           sourceRef="task_cfo_approval"            targetRef="gw_approval_join"/>
+    <bpmn:sequenceFlow id="flow_to_mgmt_decision"      sourceRef="gw_approval_join"             targetRef="gw_mgmt_decision"/>
+    <bpmn:sequenceFlow id="flow_mgmt_approved"         sourceRef="gw_mgmt_decision"             targetRef="task_request_countersign">
+      <bpmn:conditionExpression>managementDecision === 'approved' &amp;&amp; (cfoDecision === 'approved' || cfoDecision === undefined)</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_mgmt_rejected"         sourceRef="gw_mgmt_decision"             targetRef="task_notify_mgmt_rejection"/>
+    <bpmn:sequenceFlow id="flow_mgmt_reject_to_draft"  sourceRef="task_notify_mgmt_rejection"   targetRef="task_prepare_draft"/>
+    <bpmn:sequenceFlow id="flow_to_client_review"      sourceRef="task_request_countersign"     targetRef="task_client_review"/>
+    <bpmn:sequenceFlow id="flow_to_client_decision"    sourceRef="task_client_review"           targetRef="gw_client_decision"/>
+    <bpmn:sequenceFlow id="flow_client_signed"         sourceRef="gw_client_decision"           targetRef="task_activate_contract">
+      <bpmn:conditionExpression>clientDecision === 'signed'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_client_rejected"       sourceRef="gw_client_decision"           targetRef="task_notify_client_rejection"/>
+    <bpmn:sequenceFlow id="flow_client_reject_end"     sourceRef="task_notify_client_rejection" targetRef="end_contract_rejected"/>
+    <bpmn:sequenceFlow id="flow_to_active_end"         sourceRef="task_activate_contract"       targetRef="end_contract_active"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

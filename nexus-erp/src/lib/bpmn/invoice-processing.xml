@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:nexus="http://nexus-workflow/extensions"
+  id="Definitions_invoice_processing"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="invoice-processing" name="Invoice Processing" isExecutable="true">
+
+    <!-- ── Start ──────────────────────────────────────────────────────────── -->
+
+    <bpmn:startEvent id="start" name="Invoice Received">
+      <bpmn:outgoing>flow_to_validate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- ── Validation ─────────────────────────────────────────────────────── -->
+
+    <!--
+      Two incoming flows: initial + "corrected" loop-back after manual review.
+      Error boundary fires when handler calls FailServiceTask with errorCode VALIDATION_FAILED.
+    -->
+    <bpmn:serviceTask id="task_validate" name="Validate Invoice" nexus:type="invoice.validate">
+      <bpmn:incoming>flow_to_validate</bpmn:incoming>
+      <bpmn:incoming>flow_corrected_to_validate</bpmn:incoming>
+      <bpmn:outgoing>flow_to_duplicate_check</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:boundaryEvent id="boundary_validation_error" attachedToRef="task_validate" cancelActivity="true">
+      <bpmn:outgoing>flow_to_manual_review</bpmn:outgoing>
+      <bpmn:errorEventDefinition errorRef="VALIDATION_FAILED"/>
+    </bpmn:boundaryEvent>
+
+    <bpmn:userTask id="task_manual_review" name="Manual Invoice Review" assignee="${approverId}">
+      <bpmn:incoming>flow_to_manual_review</bpmn:incoming>
+      <bpmn:outgoing>flow_to_manual_decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="gw_manual_decision" name="Manual Review Decision?" default="flow_manual_rejected">
+      <bpmn:incoming>flow_to_manual_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_corrected_to_validate</bpmn:outgoing>
+      <bpmn:outgoing>flow_manual_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="task_notify_validation_failure" name="Notify Validation Failure" nexus:type="invoice.notify-failure">
+      <bpmn:incoming>flow_manual_rejected</bpmn:incoming>
+      <bpmn:outgoing>flow_validation_reject_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_rejected_validation" name="Invoice Rejected">
+      <bpmn:incoming>flow_validation_reject_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── Duplicate Detection ────────────────────────────────────────────── -->
+
+    <!--
+      Quick definitive check — no remediation path, invoice is rejected immediately.
+      Error boundary fires on DUPLICATE_DETECTED.
+    -->
+    <bpmn:serviceTask id="task_duplicate_check" name="Check for Duplicate" nexus:type="invoice.check-duplicate">
+      <bpmn:incoming>flow_to_duplicate_check</bpmn:incoming>
+      <bpmn:outgoing>flow_to_three_way_match</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:boundaryEvent id="boundary_duplicate_error" attachedToRef="task_duplicate_check" cancelActivity="true">
+      <bpmn:outgoing>flow_to_duplicate_notify</bpmn:outgoing>
+      <bpmn:errorEventDefinition errorRef="DUPLICATE_DETECTED"/>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="task_notify_duplicate" name="Notify Duplicate Invoice" nexus:type="invoice.notify-duplicate">
+      <bpmn:incoming>flow_to_duplicate_notify</bpmn:incoming>
+      <bpmn:outgoing>flow_duplicate_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_duplicate" name="Invoice Duplicate">
+      <bpmn:incoming>flow_duplicate_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── Three-Way Match ────────────────────────────────────────────────── -->
+
+    <!--
+      Two incoming flows: from duplicate check + "resolved" loop-back.
+      Error boundary fires on MATCH_FAILED; allows a discrepancy-resolution loop.
+    -->
+    <bpmn:serviceTask id="task_three_way_match" name="Three-Way Match" nexus:type="invoice.three-way-match">
+      <bpmn:incoming>flow_to_three_way_match</bpmn:incoming>
+      <bpmn:incoming>flow_resolved_to_match</bpmn:incoming>
+      <bpmn:outgoing>flow_to_payment_approval</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:boundaryEvent id="boundary_match_error" attachedToRef="task_three_way_match" cancelActivity="true">
+      <bpmn:outgoing>flow_to_discrepancy_review</bpmn:outgoing>
+      <bpmn:errorEventDefinition errorRef="MATCH_FAILED"/>
+    </bpmn:boundaryEvent>
+
+    <bpmn:userTask id="task_discrepancy_review" name="Resolve Match Discrepancy" assignee="${approverId}">
+      <bpmn:incoming>flow_to_discrepancy_review</bpmn:incoming>
+      <bpmn:outgoing>flow_to_match_resolution</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="gw_match_resolution" name="Discrepancy Resolution?" default="flow_match_rejected">
+      <bpmn:incoming>flow_to_match_resolution</bpmn:incoming>
+      <bpmn:outgoing>flow_resolved_to_match</bpmn:outgoing>
+      <bpmn:outgoing>flow_match_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="task_notify_match_failure" name="Notify Match Failure" nexus:type="invoice.notify-failure">
+      <bpmn:incoming>flow_match_rejected</bpmn:incoming>
+      <bpmn:outgoing>flow_match_reject_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_rejected_match" name="Invoice Rejected - Match Failed">
+      <bpmn:incoming>flow_match_reject_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── Payment Approval ───────────────────────────────────────────────── -->
+
+    <bpmn:userTask id="task_approve_payment" name="Approve Payment" assignee="${approverId}">
+      <bpmn:incoming>flow_to_payment_approval</bpmn:incoming>
+      <bpmn:outgoing>flow_to_payment_decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="gw_payment_decision" name="Payment Decision?" default="flow_payment_rejected">
+      <bpmn:incoming>flow_to_payment_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_payment_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_payment_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="task_notify_payment_rejection" name="Notify Payment Rejection" nexus:type="invoice.notify-failure">
+      <bpmn:incoming>flow_payment_rejected</bpmn:incoming>
+      <bpmn:outgoing>flow_payment_reject_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_rejected_payment" name="Invoice Rejected - Payment Denied">
+      <bpmn:incoming>flow_payment_reject_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── Payment Execution ──────────────────────────────────────────────── -->
+
+    <bpmn:serviceTask id="task_execute_payment" name="Execute Payment" nexus:type="invoice.execute-payment">
+      <bpmn:incoming>flow_payment_approved</bpmn:incoming>
+      <bpmn:outgoing>flow_to_paid_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_paid" name="Invoice Paid">
+      <bpmn:incoming>flow_to_paid_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── Sequence Flows ─────────────────────────────────────────────────── -->
+
+    <!-- Validation path -->
+    <bpmn:sequenceFlow id="flow_to_validate"            sourceRef="start"                          targetRef="task_validate"/>
+    <bpmn:sequenceFlow id="flow_to_duplicate_check"     sourceRef="task_validate"                  targetRef="task_duplicate_check"/>
+    <bpmn:sequenceFlow id="flow_to_manual_review"       sourceRef="boundary_validation_error"      targetRef="task_manual_review"/>
+    <bpmn:sequenceFlow id="flow_to_manual_decision"     sourceRef="task_manual_review"             targetRef="gw_manual_decision"/>
+    <bpmn:sequenceFlow id="flow_corrected_to_validate"  sourceRef="gw_manual_decision"             targetRef="task_validate">
+      <bpmn:conditionExpression>manualDecision === 'corrected'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_manual_rejected"        sourceRef="gw_manual_decision"             targetRef="task_notify_validation_failure"/>
+    <bpmn:sequenceFlow id="flow_validation_reject_end"  sourceRef="task_notify_validation_failure" targetRef="end_rejected_validation"/>
+
+    <!-- Duplicate check path -->
+    <bpmn:sequenceFlow id="flow_to_duplicate_notify"    sourceRef="boundary_duplicate_error"       targetRef="task_notify_duplicate"/>
+    <bpmn:sequenceFlow id="flow_duplicate_end"          sourceRef="task_notify_duplicate"          targetRef="end_duplicate"/>
+
+    <!-- Three-way match path -->
+    <bpmn:sequenceFlow id="flow_to_three_way_match"     sourceRef="task_duplicate_check"           targetRef="task_three_way_match"/>
+    <bpmn:sequenceFlow id="flow_to_discrepancy_review"  sourceRef="boundary_match_error"           targetRef="task_discrepancy_review"/>
+    <bpmn:sequenceFlow id="flow_to_match_resolution"    sourceRef="task_discrepancy_review"        targetRef="gw_match_resolution"/>
+    <bpmn:sequenceFlow id="flow_resolved_to_match"      sourceRef="gw_match_resolution"            targetRef="task_three_way_match">
+      <bpmn:conditionExpression>matchResolution === 'resolved'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_match_rejected"         sourceRef="gw_match_resolution"            targetRef="task_notify_match_failure"/>
+    <bpmn:sequenceFlow id="flow_match_reject_end"       sourceRef="task_notify_match_failure"      targetRef="end_rejected_match"/>
+
+    <!-- Payment path -->
+    <bpmn:sequenceFlow id="flow_to_payment_approval"    sourceRef="task_three_way_match"           targetRef="task_approve_payment"/>
+    <bpmn:sequenceFlow id="flow_to_payment_decision"    sourceRef="task_approve_payment"           targetRef="gw_payment_decision"/>
+    <bpmn:sequenceFlow id="flow_payment_approved"       sourceRef="gw_payment_decision"            targetRef="task_execute_payment">
+      <bpmn:conditionExpression>paymentDecision === 'approved'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_payment_rejected"       sourceRef="gw_payment_decision"            targetRef="task_notify_payment_rejection"/>
+    <bpmn:sequenceFlow id="flow_payment_reject_end"     sourceRef="task_notify_payment_rejection"  targetRef="end_rejected_payment"/>
+    <bpmn:sequenceFlow id="flow_to_paid_end"            sourceRef="task_execute_payment"           targetRef="end_paid"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>
