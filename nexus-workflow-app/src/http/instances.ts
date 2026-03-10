@@ -80,7 +80,7 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
 
     const ops = [
       ...computeStoreOps(true, null, result.newState),
-      ...buildUserTaskCreationOps(result.events, definition),
+      ...buildUserTaskCreationOps(result.events, definition, result.newState),
     ]
     await store.executeTransaction(ops)
     await eventBus.publishMany(result.events)
@@ -175,7 +175,7 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
 
     const ops = [
       ...computeStoreOps(false, state, result.newState),
-      ...buildUserTaskCreationOps(result.events, definition),
+      ...buildUserTaskCreationOps(result.events, definition, result.newState),
     ]
     await store.executeTransaction(ops)
     await eventBus.publishMany(result.events)
@@ -191,6 +191,9 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
     if (!state) return c.json({ error: 'NOT_FOUND', message: `Instance '${id}' not found` }, 404)
 
     if (state.instance.status === 'terminated' || state.instance.status === 'completed') {
+      // Re-emit the terminal event so downstream consumers (e.g. Redis stream) can reconcile
+      // stale records in case they missed the original event.
+      await eventBus.publish({ type: 'ProcessInstanceTerminated', instanceId: id, reason: 'already terminated' })
       return c.json({ instance: state.instance })
     }
 
@@ -207,7 +210,7 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
 
     const ops = [
       ...computeStoreOps(false, state, result.newState),
-      ...buildUserTaskCreationOps(result.events, definition),
+      ...buildUserTaskCreationOps(result.events, definition, result.newState),
     ]
     await store.executeTransaction(ops)
     await eventBus.publishMany(result.events)

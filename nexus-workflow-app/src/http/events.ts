@@ -68,7 +68,7 @@ export function createEventsRouter(store: StateStore, eventBus: EventBus): Hono 
 
     const ops = [
       ...computeStoreOps(false, state, result.newState),
-      ...buildUserTaskCreationOps(result.events, definition),
+      ...buildUserTaskCreationOps(result.events, definition, result.newState),
     ]
     await store.executeTransaction(ops)
     await eventBus.publishMany(result.events)
@@ -124,7 +124,7 @@ export function createEventsRouter(store: StateStore, eventBus: EventBus): Hono 
 
       const ops = [
         ...computeStoreOps(false, state, result.newState),
-        ...buildUserTaskCreationOps(result.events, definition),
+        ...buildUserTaskCreationOps(result.events, definition, result.newState),
       ]
       await store.executeTransaction(ops)
       await eventBus.publishMany(result.events)

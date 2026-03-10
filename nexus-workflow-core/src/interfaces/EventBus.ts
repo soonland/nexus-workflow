@@ -6,6 +6,7 @@ export type ExecutionEvent =
   | { type: 'ProcessInstanceStarted'; instanceId: string; definitionId: string; definitionVersion: number }
   | { type: 'ProcessInstanceCompleted'; instanceId: string; durationMs: number }
   | { type: 'ProcessInstanceTerminated'; instanceId: string; reason: string }
+  | { type: 'ProcessInstanceRestarted'; instanceId: string; restartedFromId: string }
   | { type: 'ProcessInstanceSuspended'; instanceId: string }
   | { type: 'ProcessInstanceResumed'; instanceId: string }
   | { type: 'ProcessInstanceFaulted'; instanceId: string; errorCode: string; message: string }

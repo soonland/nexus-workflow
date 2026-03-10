@@ -110,9 +110,24 @@ export function computeStoreOps(
 
 // ─── User Task Creation ───────────────────────────────────────────────────────
 
+/** Resolve a BPMN expression like `${varName}` against root-scope variables. */
+function resolveExpr(expr: string, state: EngineState): string {
+  return expr.replace(/\$\{([^}]+)\}/g, (_, name: string) => {
+    const rootScope = state.scopes.find(s => s.id === state.instance.rootScopeId)
+    const val = rootScope?.variables[name]
+    if (val === undefined) return expr
+    // Variables may be stored as VariableValue objects { type, value } or as raw primitives
+    const raw = (val !== null && typeof val === 'object' && 'value' in val)
+      ? (val as { value: unknown }).value
+      : val
+    return String(raw)
+  })
+}
+
 export function buildUserTaskCreationOps(
   events: ExecutionEvent[],
   definition: ProcessDefinition,
+  state: EngineState,
 ): StoreOperation[] {
   const ops: StoreOperation[] = []
 
@@ -123,13 +138,17 @@ export function buildUserTaskCreationOps(
     const element = definition.elements.find(e => e.id === event.elementId)
     if (!element || element.type !== 'userTask') continue
 
+    const resolvedAssignee = element.assignee !== undefined
+      ? resolveExpr(element.assignee, state)
+      : undefined
+
     const task: UserTaskRecord = {
       id: crypto.randomUUID(),
       instanceId: event.instanceId,
       tokenId: event.tokenId,
       elementId: event.elementId,
       name: element.name ?? event.elementId,
-      ...(element.assignee !== undefined ? { assignee: element.assignee } : {}),
+      ...(resolvedAssignee !== undefined ? { assignee: resolvedAssignee } : {}),
       ...(element.candidateGroups !== undefined ? { candidateGroups: element.candidateGroups } : {}),
       ...(element.dueDate !== undefined ? { dueDate: new Date(element.dueDate) } : {}),
       ...(element.formKey !== undefined ? { formKey: element.formKey } : {}),

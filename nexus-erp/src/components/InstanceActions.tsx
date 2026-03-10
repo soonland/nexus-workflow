@@ -8,6 +8,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import PauseRoundedIcon from '@mui/icons-material/PauseRounded'
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded'
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded'
+import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded'
 
 interface InstanceActionsProps {
   instanceId: string
@@ -18,7 +19,7 @@ export default function InstanceActions({ instanceId, status }: InstanceActionsP
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
 
-  async function act(action: 'suspend' | 'resume' | 'cancel') {
+  async function act(action: 'suspend' | 'resume' | 'cancel' | 'restart') {
     setLoading(action)
     try {
       await fetch(`/api/workflow/instances/${instanceId}/${action}`, { method: 'POST' })
@@ -66,6 +67,18 @@ export default function InstanceActions({ instanceId, status }: InstanceActionsP
           onClick={() => act('cancel')}
         >
           Cancel
+        </Button>
+      )}
+      {status === 'terminated' && (
+        <Button
+          size="small"
+          variant="outlined"
+          color="primary"
+          startIcon={loading === 'restart' ? <CircularProgress size={14} /> : <ReplayRoundedIcon />}
+          disabled={busy}
+          onClick={() => act('restart')}
+        >
+          Restart
         </Button>
       )}
     </Stack>

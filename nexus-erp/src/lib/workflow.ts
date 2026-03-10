@@ -222,3 +222,7 @@ export async function resumeInstance(id: string): Promise<{ instance: WorkflowIn
 export async function cancelInstance(id: string): Promise<{ instance: WorkflowInstance }> {
   return request(`/instances/${id}`, { method: 'DELETE' })
 }
+
+export async function restartInstance(id: string): Promise<{ instance: WorkflowInstance; restartedFromId: string }> {
+  return request(`/instances/${id}/restart`, { method: 'POST' })
+}

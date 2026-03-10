@@ -105,7 +105,7 @@ export function createTasksRouter(store: StateStore, eventBus: EventBus): Hono {
     const completedTask = { ...task, status: 'completed' as const, completedAt: new Date() }
     const ops = [
       ...computeStoreOps(false, state, result.newState),
-      ...buildUserTaskCreationOps(result.events, definition),
+      ...buildUserTaskCreationOps(result.events, definition, result.newState),
       { op: 'updateUserTask' as const, task: completedTask },
     ]
     await store.executeTransaction(ops)
