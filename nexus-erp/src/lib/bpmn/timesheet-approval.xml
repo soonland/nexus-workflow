@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   timesheet-approval.bpmn
-  Process: Start → userTask (Manager Review, assignee=${managerId})
-         → XOR Gateway
-             [decision === 'approved'] → EndEvent (Approved)
-             [default]                 → EndEvent (Rejected)
+  Process: Start
+         → userTask (Manager Review, assignee=${managerId})
+         → XOR Gateway (manager decision)
+             [approved]           → userTask (HR Review, assignee=dept:${hrDeptId})
+             [revision_requested] → EndEvent (Revision Requested by Manager)
+             [default]            → EndEvent (Rejected by Manager)
+         → XOR Gateway (hr decision)
+             [approved]           → EndEvent (Approved)
+             [revision_requested] → EndEvent (Revision Requested by HR)
+             [default]            → EndEvent (Rejected by HR)
 -->
 <bpmn:definitions
   xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
@@ -14,34 +20,74 @@
   <bpmn:process id="timesheet-approval" name="Timesheet Approval" isExecutable="true">
 
     <bpmn:startEvent id="start">
-      <bpmn:outgoing>flow_to_review</bpmn:outgoing>
+      <bpmn:outgoing>flow_to_manager_review</bpmn:outgoing>
     </bpmn:startEvent>
 
     <bpmn:userTask id="task_manager_review" name="Manager Review" assignee="${managerId}">
-      <bpmn:incoming>flow_to_review</bpmn:incoming>
-      <bpmn:outgoing>flow_to_decision</bpmn:outgoing>
+      <bpmn:incoming>flow_to_manager_review</bpmn:incoming>
+      <bpmn:outgoing>flow_manager_to_decision</bpmn:outgoing>
     </bpmn:userTask>
 
-    <bpmn:exclusiveGateway id="gw_decision" name="Decision" default="flow_rejected">
-      <bpmn:incoming>flow_to_decision</bpmn:incoming>
-      <bpmn:outgoing>flow_approved</bpmn:outgoing>
-      <bpmn:outgoing>flow_rejected</bpmn:outgoing>
+    <bpmn:exclusiveGateway id="gw_manager_decision" name="Manager Decision" default="flow_manager_rejected">
+      <bpmn:incoming>flow_manager_to_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_manager_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_manager_revision</bpmn:outgoing>
+      <bpmn:outgoing>flow_manager_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="task_hr_review" name="HR Review" assignee="dept:${hrDeptId}">
+      <bpmn:incoming>flow_manager_approved</bpmn:incoming>
+      <bpmn:outgoing>flow_hr_to_decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="gw_hr_decision" name="HR Decision" default="flow_hr_rejected">
+      <bpmn:incoming>flow_hr_to_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_hr_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_hr_revision</bpmn:outgoing>
+      <bpmn:outgoing>flow_hr_rejected</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
     <bpmn:endEvent id="end_approved" name="Approved">
-      <bpmn:incoming>flow_approved</bpmn:incoming>
+      <bpmn:incoming>flow_hr_approved</bpmn:incoming>
     </bpmn:endEvent>
 
-    <bpmn:endEvent id="end_rejected" name="Rejected">
-      <bpmn:incoming>flow_rejected</bpmn:incoming>
+    <bpmn:endEvent id="end_revision_manager" name="Revision Requested by Manager">
+      <bpmn:incoming>flow_manager_revision</bpmn:incoming>
     </bpmn:endEvent>
 
-    <bpmn:sequenceFlow id="flow_to_review"   sourceRef="start"       targetRef="task_manager_review"/>
-    <bpmn:sequenceFlow id="flow_to_decision" sourceRef="task_manager_review" targetRef="gw_decision"/>
-    <bpmn:sequenceFlow id="flow_approved"    sourceRef="gw_decision" targetRef="end_approved">
+    <bpmn:endEvent id="end_revision_hr" name="Revision Requested by HR">
+      <bpmn:incoming>flow_hr_revision</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_rejected_manager" name="Rejected by Manager">
+      <bpmn:incoming>flow_manager_rejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_rejected_hr" name="Rejected by HR">
+      <bpmn:incoming>flow_hr_rejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_to_manager_review"   sourceRef="start"              targetRef="task_manager_review"/>
+    <bpmn:sequenceFlow id="flow_manager_to_decision" sourceRef="task_manager_review" targetRef="gw_manager_decision"/>
+
+    <bpmn:sequenceFlow id="flow_manager_approved"    sourceRef="gw_manager_decision" targetRef="task_hr_review">
       <bpmn:conditionExpression>decision === 'approved'</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="flow_rejected"    sourceRef="gw_decision" targetRef="end_rejected"/>
+    <bpmn:sequenceFlow id="flow_manager_revision"    sourceRef="gw_manager_decision" targetRef="end_revision_manager">
+      <bpmn:conditionExpression>decision === 'revision_requested'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_manager_rejected"    sourceRef="gw_manager_decision" targetRef="end_rejected_manager"/>
+
+    <bpmn:sequenceFlow id="flow_hr_to_decision"      sourceRef="task_hr_review"      targetRef="gw_hr_decision"/>
+
+    <bpmn:sequenceFlow id="flow_hr_approved"         sourceRef="gw_hr_decision"      targetRef="end_approved">
+      <bpmn:conditionExpression>decision === 'approved'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_hr_revision"         sourceRef="gw_hr_decision"      targetRef="end_revision_hr">
+      <bpmn:conditionExpression>decision === 'revision_requested'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_hr_rejected"         sourceRef="gw_hr_decision"      targetRef="end_rejected_hr"/>
+
   </bpmn:process>
 
 </bpmn:definitions>

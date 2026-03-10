@@ -31,8 +31,8 @@ export async function POST(
   if (ts.employeeId !== session.user.employeeId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
-  if (ts.status !== 'draft') {
-    return NextResponse.json({ error: 'Timesheet is not in draft status' }, { status: 422 })
+  if (ts.status !== 'draft' && ts.status !== 'revision_requested') {
+    return NextResponse.json({ error: 'Timesheet cannot be submitted in its current status' }, { status: 422 })
   }
   if (!ts.employee.manager) {
     return NextResponse.json({ error: 'No manager assigned — cannot submit for approval' }, { status: 422 })
@@ -40,24 +40,32 @@ export async function POST(
 
   const managerId = ts.employee.manager.user.id
 
+  const hrDept = await db.department.findFirst({ where: { name: 'HR' } })
+  if (!hrDept) {
+    return NextResponse.json({ error: 'HR department not found — cannot submit for approval' }, { status: 422 })
+  }
+
   const instance = await startInstance(
     'timesheet-approval',
     {
       timesheetId: ts.id,
       employeeId: ts.employeeId,
       managerId,
+      hrDeptId: hrDept.id,
       weekStart: ts.weekStart.toISOString().split('T')[0],
       totalHours: Number(ts.totalHours),
     },
-    `timesheet-${ts.id}`,
+    `timesheet-${ts.id}-${Date.now()}`,
   )
 
   const updated = await db.timesheet.update({
     where: { id: ts.id },
     data: {
-      status: 'submitted',
+      status: 'pending_manager_review',
       workflowInstanceId: instance.id,
       submittedAt: new Date(),
+      rejectionReason: null,
+      decidedAt: null,
     },
   })
 

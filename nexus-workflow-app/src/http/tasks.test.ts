@@ -246,7 +246,7 @@ describe('tasks HTTP API', () => {
       expect(res.status).toBe(200)
       const body = await res.json()
       expect(body.variables).toHaveProperty('article')
-      expect(body.variables.article.value).toBe('hello')
+      expect(body.variables.article).toBe('hello')
     })
 
     it('404: unknown task id returns 404', async () => {
@@ -306,7 +306,7 @@ describe('tasks HTTP API', () => {
       )
       const instanceBody = await instanceRes.json()
       expect(instanceBody.variables).toHaveProperty('approved')
-      expect(instanceBody.variables.approved.value).toBe(true)
+      expect(instanceBody.variables.approved).toBe(true)
     })
 
     it('200: task is persisted as completed in the store', async () => {

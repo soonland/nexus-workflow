@@ -259,7 +259,7 @@ describe('instances HTTP API', () => {
       expect(res.status).toBe(200)
       const body = await res.json()
       expect(body.variables).toHaveProperty('x')
-      expect(body.variables.x.value).toBe(42)
+      expect(body.variables.x).toBe(42)
     })
 
     it('404: unknown id returns 404', async () => {
@@ -564,6 +564,30 @@ describe('instances HTTP API', () => {
         }),
       )
       expect(res.status).toBe(404)
+    })
+
+    it('open user tasks are cancelled when the instance is terminated', async () => {
+      // 1. Deploy a BPMN with a userTask and start an instance
+      await seedDefinition(store, USER_TASK_BPMN)
+      const { instance } = await startInstance(app, 'usertask-proc')
+
+      // 2. Verify the user task is open
+      const beforeCancel = await store.queryUserTasks({ instanceId: instance.id, status: 'open', page: 0, pageSize: 10 })
+      expect(beforeCancel.items).toHaveLength(1)
+      expect(beforeCancel.items[0]!.status).toBe('open')
+
+      // 3. DELETE the instance
+      const deleteRes = await app.fetch(
+        new Request(`http://localhost/instances/${instance.id}`, {
+          method: 'DELETE',
+        }),
+      )
+      expect(deleteRes.status).toBe(200)
+
+      // 4. All tasks for that instance should now be cancelled
+      const afterCancel = await store.queryUserTasks({ instanceId: instance.id, page: 0, pageSize: 10 })
+      expect(afterCancel.items.length).toBeGreaterThan(0)
+      expect(afterCancel.items.every(t => t.status === 'cancelled')).toBe(true)
     })
   })
 })

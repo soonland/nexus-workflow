@@ -13,6 +13,8 @@ import TableRow from '@mui/material/TableRow'
 import TableCell from '@mui/material/TableCell'
 import Stack from '@mui/material/Stack'
 import InboxRoundedIcon from '@mui/icons-material/InboxRounded'
+import { listTasks } from '@/lib/workflow'
+import { db } from '@/db/client'
 
 interface Task {
   id: string
@@ -26,14 +28,29 @@ export default async function TasksPage() {
   const session = await auth()
   if (session?.user.role !== 'manager') redirect('/dashboard')
 
-  const BASE = process.env.WORKFLOW_API_URL ?? 'http://localhost:3000'
-  const res = await fetch(
-    `${BASE}/tasks?assignee=${session.user.id}&status=open&pageSize=50`,
-    { cache: 'no-store' },
-  )
-  const data = res.ok ? await res.json() : { items: [], total: 0 }
-  const tasks: Task[] = data.items ?? []
-  const total: number = data.total ?? tasks.length
+  // Personal tasks assigned directly to this user
+  const personalResult = await listTasks({ assignee: session.user.id, status: 'open', pageSize: 50 })
+  const allTasks: Task[] = [...personalResult.items]
+  const seen = new Set(personalResult.items.map((t) => t.id))
+
+  // Department tasks — if this user belongs to a department, fetch tasks assigned to it
+  const employee = await db.employee.findUnique({
+    where: { userId: session.user.id },
+    select: { departmentId: true },
+  })
+  if (employee?.departmentId) {
+    const deptResult = await listTasks({
+      assignee: `dept:${employee.departmentId}`,
+      status: 'open',
+      pageSize: 50,
+    })
+    for (const task of deptResult.items) {
+      if (!seen.has(task.id)) allTasks.push(task)
+    }
+  }
+
+  const tasks = allTasks
+  const total = tasks.length
 
   return (
     <Box>

@@ -8,7 +8,7 @@ import type {
   VariableValue,
 } from 'nexus-workflow-core'
 import type { EventBus } from 'nexus-workflow-core'
-import { loadEngineState, computeStoreOps, buildUserTaskCreationOps } from './engineHelpers.js'
+import { loadEngineState, computeStoreOps, buildUserTaskCreationOps, normalizeVariables, unwrapVariables } from './engineHelpers.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -45,7 +45,7 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
           if (typeof b['variables'] !== 'object' || Array.isArray(b['variables']) || b['variables'] === null) {
             return c.json({ error: 'INVALID_BODY', message: "'variables' must be an object" }, 400)
           }
-          variables = b['variables'] as Record<string, VariableValue>
+          variables = normalizeVariables(b['variables'] as Record<string, unknown>)
         }
         if (b['correlationKey'] !== undefined) {
           if (typeof b['correlationKey'] !== 'string') {
@@ -127,7 +127,7 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
     const tokens = await store.getActiveTokens(id)
     const rootScope = await store.getScope(instance.rootScopeId)
 
-    return c.json({ instance, tokens, variables: rootScope?.variables ?? {} })
+    return c.json({ instance, tokens, variables: unwrapVariables(rootScope?.variables ?? {}) })
   })
 
   // POST /instances/:id/commands — send a command to an instance
@@ -208,9 +208,17 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
       throw e
     }
 
+    // Cancel any open user tasks that belong to this instance
+    const openTasks = await store.queryUserTasks({ instanceId: id, status: 'open', page: 0, pageSize: 1000 })
+    const cancelOps = openTasks.items.map((task) => ({
+      op: 'updateUserTask' as const,
+      task: { ...task, status: 'cancelled' as const, completedAt: new Date() },
+    }))
+
     const ops = [
       ...computeStoreOps(false, state, result.newState),
       ...buildUserTaskCreationOps(result.events, definition, result.newState),
+      ...cancelOps,
     ]
     await store.executeTransaction(ops)
     await eventBus.publishMany(result.events)

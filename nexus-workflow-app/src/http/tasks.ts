@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { execute, RuntimeError } from 'nexus-workflow-core'
 import type { StateStore, UserTaskQuery, UserTaskStatus, VariableValue } from 'nexus-workflow-core'
 import type { EventBus } from 'nexus-workflow-core'
-import { loadEngineState, computeStoreOps, buildUserTaskCreationOps } from './engineHelpers.js'
+import { loadEngineState, computeStoreOps, buildUserTaskCreationOps, normalizeVariables, unwrapVariables } from './engineHelpers.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -48,7 +48,7 @@ export function createTasksRouter(store: StateStore, eventBus: EventBus): Hono {
       }
     }
 
-    return c.json({ task, variables })
+    return c.json({ task, variables: unwrapVariables(variables) })
   })
 
   // POST /tasks/:id/complete — submit task completion with optional output variables
@@ -78,7 +78,9 @@ export function createTasksRouter(store: StateStore, eventBus: EventBus): Hono {
       return c.json({ error: 'INVALID_BODY', message: "'completedBy' is required" }, 400)
     }
 
-    const outputVariables = b['outputVariables'] as Record<string, VariableValue> | undefined
+    const outputVariables = b['outputVariables'] !== undefined
+      ? normalizeVariables(b['outputVariables'] as Record<string, unknown>)
+      : undefined
 
     const state = await loadEngineState(store, task.instanceId)
     if (!state) return c.json({ error: 'INTERNAL_ERROR', message: 'Instance state not found' }, 500)

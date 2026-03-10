@@ -6,7 +6,7 @@ import { db } from '@/db/client'
 
 const completeSchema = z.object({
   managerId: z.string(),
-  decision: z.enum(['approved', 'rejected']),
+  decision: z.enum(['approved', 'rejected', 'revision_requested']),
   rejectionReason: z.string().optional(),
 })
 
@@ -28,7 +28,6 @@ export async function POST(
 
   const { managerId, decision, rejectionReason } = parsed.data
 
-  // Get the task to find the instanceId
   let taskData
   try {
     taskData = await getTask(id)
@@ -36,7 +35,6 @@ export async function POST(
     return NextResponse.json({ error: 'Task not found' }, { status: 404 })
   }
 
-  // Complete the workflow task
   const outputVariables: Record<string, unknown> = { decision }
   if (rejectionReason) outputVariables.rejectionReason = rejectionReason
 
@@ -51,9 +49,27 @@ export async function POST(
       where: { workflowInstanceId: instanceId },
     })
     if (timesheet) {
+      const elementId = taskData.task.elementId
+
+      let newStatus: 'pending_hr_review' | 'revision_requested' | 'rejected' | 'approved'
+      if (elementId === 'task_manager_review') {
+        if (decision === 'approved') newStatus = 'pending_hr_review'
+        else if (decision === 'revision_requested') newStatus = 'revision_requested'
+        else newStatus = 'rejected'
+      } else {
+        // task_hr_review
+        if (decision === 'approved') newStatus = 'approved'
+        else if (decision === 'revision_requested') newStatus = 'revision_requested'
+        else newStatus = 'rejected'
+      }
+
       await db.timesheet.update({
         where: { id: timesheet.id },
-        data: { status: decision, decidedAt: new Date() },
+        data: {
+          status: newStatus,
+          ...(rejectionReason ? { rejectionReason } : {}),
+          ...(newStatus !== 'pending_hr_review' ? { decidedAt: new Date() } : {}),
+        },
       })
     }
   }

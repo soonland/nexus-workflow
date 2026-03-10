@@ -13,16 +13,39 @@ export async function GET(req: NextRequest) {
   const page = Number(searchParams.get('page') ?? 0)
   const pageSize = Number(searchParams.get('pageSize') ?? 20)
 
-  const result = await listTasks({
+  // Fetch tasks assigned directly to this user
+  const personalResult = await listTasks({
     assignee: session.user.id,
     status: 'open',
     page,
     pageSize,
   })
 
+  // If this user is in the HR department, also fetch HR group tasks
+  const employee = await db.employee.findUnique({
+    where: { userId: session.user.id },
+    select: { departmentId: true },
+  })
+
+  let allItems = personalResult.items
+
+  if (employee?.departmentId) {
+    const deptResult = await listTasks({
+      assignee: `dept:${employee.departmentId}`,
+      status: 'open',
+      page,
+      pageSize,
+    })
+    // Merge, deduplicating by task id
+    const seen = new Set(personalResult.items.map((t) => t.id))
+    for (const task of deptResult.items) {
+      if (!seen.has(task.id)) allItems.push(task)
+    }
+  }
+
   // Enrich with timesheet data using workflowInstanceId
   const enriched = await Promise.all(
-    result.items.map(async (task) => {
+    allItems.map(async (task) => {
       const ts = await db.timesheet.findFirst({
         where: { workflowInstanceId: task.instanceId },
         include: { employee: { include: { user: { select: { email: true } } } } },
@@ -31,5 +54,5 @@ export async function GET(req: NextRequest) {
     }),
   )
 
-  return NextResponse.json({ ...result, items: enriched })
+  return NextResponse.json({ ...personalResult, items: enriched, total: enriched.length })
 }

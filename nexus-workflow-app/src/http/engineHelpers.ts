@@ -3,11 +3,43 @@ import type {
   EngineState,
   StoreOperation,
   VariableScope,
+  VariableValue,
   ExecutionEvent,
   UserTaskRecord,
   ProcessDefinition,
   EventSubscription,
 } from 'nexus-workflow-core'
+
+// ─── Variable normalisation ───────────────────────────────────────────────────
+
+/**
+ * Converts a plain JSON object received from HTTP into the VariableValue format
+ * the engine expects.  Raw primitives (string, number, boolean, null, array,
+ * object) are wrapped as { type, value }.  Objects that already carry a `type`
+ * and `value` key are passed through unchanged.
+ */
+export function normalizeVariables(raw: Record<string, unknown>): Record<string, VariableValue> {
+  return Object.fromEntries(
+    Object.entries(raw).map(([k, v]) => {
+      if (v !== null && typeof v === 'object' && 'type' in v && 'value' in v) {
+        return [k, v as VariableValue]
+      }
+      const type =
+        v === null ? 'null' :
+        Array.isArray(v) ? 'array' :
+        (typeof v as 'string' | 'number' | 'boolean' | 'object')
+      return [k, { type, value: v } satisfies VariableValue]
+    }),
+  )
+}
+
+/**
+ * Unwraps VariableValue objects back to plain JSON-serialisable primitives for
+ * HTTP responses.  Keeps the API contract as raw values on both input and output.
+ */
+export function unwrapVariables(vars: Record<string, VariableValue>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, v.value]))
+}
 
 // ─── Engine State ─────────────────────────────────────────────────────────────
 
