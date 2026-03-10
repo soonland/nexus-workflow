@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import NextLink from 'next/link'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
@@ -15,43 +15,78 @@ import IconButton from '@mui/material/IconButton'
 import CircularProgress from '@mui/material/CircularProgress'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 
-export default function NewTimesheetPage() {
+async function createTimesheet(weekStart: string) {
+  return fetch('/api/timesheets', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ weekStart }),
+  })
+}
+
+function NewTimesheetForm() {
   const router = useRouter()
-  const [form, setForm] = useState({ weekStart: '', totalHours: '', notes: '' })
+  const searchParams = useSearchParams()
+  const prefilledWeekStart = searchParams.get('weekStart') ?? ''
+
+  const [weekStart, setWeekStart] = useState(prefilledWeekStart)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  function update(field: string) {
-    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setForm((f) => ({ ...f, [field]: e.target.value }))
-  }
+  // Auto-create when a weekStart is prefilled from the calendar
+  useEffect(() => {
+    if (!prefilledWeekStart) return
+    setLoading(true)
+    createTimesheet(prefilledWeekStart).then(async (res) => {
+      if (res.ok) {
+        const { timesheet } = await res.json()
+        router.replace(`/timesheets/${timesheet.id}`)
+      } else if (res.status === 409) {
+        // Already exists — find it and redirect
+        const listRes = await fetch(`/api/timesheets?from=${prefilledWeekStart}&to=${prefilledWeekStart}`)
+        if (listRes.ok) {
+          const timesheets = await listRes.json()
+          if (timesheets[0]) {
+            router.replace(`/timesheets/${timesheets[0].id}`)
+            return
+          }
+        }
+        setError('A timesheet for this week already exists.')
+        setLoading(false)
+      } else {
+        const data = await res.json()
+        setError(data.error ?? 'Failed to create timesheet')
+        setLoading(false)
+      }
+    })
+  }, [prefilledWeekStart]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    if (!weekStart) return
     setLoading(true)
     setError('')
-    const res = await fetch('/api/timesheets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        weekStart: form.weekStart,
-        totalHours: parseFloat(form.totalHours),
-        notes: form.notes || undefined,
-      }),
-    })
-    setLoading(false)
-    if (!res.ok) {
-      const data = await res.json()
-      setError(data.error ?? 'Failed to create timesheet')
-    } else {
+    const res = await createTimesheet(weekStart)
+    if (res.ok) {
       const { timesheet } = await res.json()
       router.push(`/timesheets/${timesheet.id}`)
+    } else {
+      const data = await res.json()
+      setError(data.error ?? 'Failed to create timesheet')
+      setLoading(false)
     }
   }
 
+  if (prefilledWeekStart && loading) {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 8, justifyContent: 'center' }}>
+        <CircularProgress size={24} />
+        <Typography color="text.secondary">Creating timesheet…</Typography>
+      </Box>
+    )
+  }
+
   return (
-    <Box sx={{ maxWidth: 560 }}>
-      {/* Page header */}
+    <Box sx={{ maxWidth: 480 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
         <IconButton component={NextLink} href="/timesheets" size="small">
           <ArrowBackRoundedIcon />
@@ -63,57 +98,29 @@ export default function NewTimesheetPage() {
         <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
           <Box component="form" onSubmit={handleSubmit}>
             <Stack spacing={3}>
-              {error && (
-                <Alert severity="error">{error}</Alert>
-              )}
-
+              {error && <Alert severity="error">{error}</Alert>}
               <TextField
                 id="weekStart"
-                label="Week Start Date"
+                label="Week Start (Monday)"
                 type="date"
                 required
-                value={form.weekStart}
-                onChange={update('weekStart')}
+                value={weekStart}
+                onChange={e => setWeekStart(e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }}
+                helperText="Select the Monday that starts the week"
                 fullWidth
               />
-
-              <TextField
-                id="totalHours"
-                label="Total Hours"
-                type="number"
-                required
-                value={form.totalHours}
-                onChange={update('totalHours')}
-                slotProps={{ htmlInput: { min: 0, max: 168, step: 0.5 } }}
-                fullWidth
-              />
-
-              <TextField
-                id="notes"
-                label="Notes (optional)"
-                multiline
-                rows={3}
-                value={form.notes}
-                onChange={update('notes')}
-                fullWidth
-              />
-
               <Stack direction="row" spacing={2}>
                 <Button
                   type="submit"
                   variant="contained"
-                  disabled={loading}
+                  disabled={loading || !weekStart}
                   startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
                   sx={{ flex: 1 }}
                 >
                   {loading ? 'Creating…' : 'Create Timesheet'}
                 </Button>
-                <Button
-                  type="button"
-                  variant="outlined"
-                  onClick={() => router.back()}
-                >
+                <Button type="button" variant="outlined" onClick={() => router.back()}>
                   Cancel
                 </Button>
               </Stack>
@@ -122,5 +129,17 @@ export default function NewTimesheetPage() {
         </CardContent>
       </Card>
     </Box>
+  )
+}
+
+export default function NewTimesheetPage() {
+  return (
+    <Suspense fallback={
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 8, justifyContent: 'center' }}>
+        <CircularProgress size={24} />
+      </Box>
+    }>
+      <NewTimesheetForm />
+    </Suspense>
   )
 }

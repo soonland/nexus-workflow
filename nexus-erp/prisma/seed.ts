@@ -68,27 +68,34 @@ async function main() {
 
   // ── Timesheets ─────────────────────────────────────────────────────────────
   const timesheetData = [
-    { userIdx: 0, weekStart: '2026-03-02', totalHours: 40, notes: 'Normal week',      status: 'draft'     as const },
-    { userIdx: 0, weekStart: '2026-02-23', totalHours: 38, notes: 'Short week',       status: 'approved'  as const },
-    { userIdx: 1, weekStart: '2026-03-02', totalHours: 42, notes: 'Overtime project', status: 'submitted' as const },
-    { userIdx: 1, weekStart: '2026-02-23', totalHours: 40, notes: null,               status: 'rejected'  as const },
-    { userIdx: 2, weekStart: '2026-03-02', totalHours: 35, notes: 'Design sprint',    status: 'draft'     as const },
+    { userIdx: 0, weekStart: '2026-03-02', status: 'draft'     as const, entries: [{ date: '2026-03-02', hours: 8, projectCode: 'ENG-101', description: 'Feature development' }, { date: '2026-03-03', hours: 7.5, projectCode: 'ENG-102', description: 'Code review' }, { date: '2026-03-04', hours: 8, projectCode: 'ENG-101', description: 'Bug fixes' }, { date: '2026-03-05', hours: 8.5, projectCode: 'ENG-103', description: 'Meetings & planning' }, { date: '2026-03-06', hours: 8, projectCode: 'ENG-101', description: 'Testing' }] },
+    { userIdx: 0, weekStart: '2026-02-23', status: 'approved'  as const, entries: [{ date: '2026-02-23', hours: 8, projectCode: 'ENG-101', description: null }, { date: '2026-02-24', hours: 7, projectCode: 'ENG-102', description: 'Short day' }, { date: '2026-02-25', hours: 8, projectCode: 'ENG-101', description: null }, { date: '2026-02-26', hours: 7.5, projectCode: 'ENG-103', description: null }, { date: '2026-02-27', hours: 7.5, projectCode: 'ENG-101', description: null }] },
+    { userIdx: 1, weekStart: '2026-03-02', status: 'submitted' as const, entries: [{ date: '2026-03-02', hours: 9, projectCode: 'DES-201', description: 'Sprint planning' }, { date: '2026-03-03', hours: 8, projectCode: 'DES-201', description: 'Design work' }, { date: '2026-03-04', hours: 9, projectCode: 'DES-202', description: 'Client revisions' }, { date: '2026-03-05', hours: 8, projectCode: 'DES-201', description: null }, { date: '2026-03-06', hours: 8, projectCode: 'DES-203', description: 'Final touches' }] },
+    { userIdx: 1, weekStart: '2026-02-23', status: 'rejected'  as const, entries: [{ date: '2026-02-23', hours: 8, projectCode: 'DES-201', description: null }, { date: '2026-02-24', hours: 8, projectCode: 'DES-201', description: null }, { date: '2026-02-25', hours: 8, projectCode: 'DES-202', description: null }, { date: '2026-02-26', hours: 8, projectCode: 'DES-201', description: null }, { date: '2026-02-27', hours: 8, projectCode: 'DES-201', description: null }] },
+    { userIdx: 2, weekStart: '2026-03-02', status: 'draft'     as const, entries: [{ date: '2026-03-02', hours: 7, projectCode: 'UI-301', description: 'Design sprint kickoff' }, { date: '2026-03-03', hours: 7, projectCode: 'UI-301', description: null }, { date: '2026-03-04', hours: 7, projectCode: 'UI-302', description: null }, { date: '2026-03-05', hours: 7, projectCode: 'UI-301', description: null }, { date: '2026-03-06', hours: 7, projectCode: 'UI-303', description: 'Weekly review' }] },
   ]
 
   for (const t of timesheetData) {
     const emp = createdEmployees[t.userIdx]!.employee!
-    await db.timesheet.create({
+    const ts = await db.timesheet.create({
       data: {
         employeeId:  emp.id,
         weekStart:   new Date(t.weekStart),
-        totalHours:  t.totalHours,
-        notes:       t.notes ?? undefined,
         status:      t.status,
         submittedAt: t.status !== 'draft' ? new Date() : null,
         decidedAt:   (t.status === 'approved' || t.status === 'rejected') ? new Date() : null,
       },
     })
-    console.log(`  timesheet: ${createdEmployees[t.userIdx]!.email} week ${t.weekStart} [${t.status}]`)
+    await db.timesheetEntry.createMany({
+      data: t.entries.map((e) => ({
+        timesheetId: ts.id,
+        date: new Date(e.date),
+        hours: e.hours,
+        projectCode: e.projectCode,
+        description: e.description,
+      })),
+    })
+    console.log(`  timesheet: ${createdEmployees[t.userIdx]!.email} week ${t.weekStart} [${t.status}] (${t.entries.length} entries)`)
   }
 
   console.log('\nDone! Credentials: password123 for all accounts.')

@@ -49,7 +49,10 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
   const timesheet = variables.timesheetId
     ? await db.timesheet.findUnique({
         where: { id: variables.timesheetId as string },
-        include: { employee: { include: { user: { select: { email: true } } } } },
+        include: {
+          employee: { include: { user: { select: { email: true } } } },
+          entries: { select: { hours: true } },
+        },
       })
     : null
 
@@ -124,12 +127,12 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                   <Stack spacing={2.5} divider={<Divider />}>
                     <DetailRow label="Total Hours">
                       <Typography variant="body2" fontWeight={500}>
-                        {timesheet.totalHours.toString()}h
+                        {timesheet.entries.reduce((s, e) => s + Number(e.hours), 0)}h
                       </Typography>
                     </DetailRow>
-                    <DetailRow label="Notes">
+                    <DetailRow label="Entries">
                       <Typography variant="body2" fontWeight={500}>
-                        {timesheet.notes ?? '-'}
+                        {timesheet.entries.length} line{timesheet.entries.length !== 1 ? 's' : ''}
                       </Typography>
                     </DetailRow>
                   </Stack>

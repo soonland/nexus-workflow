@@ -5,21 +5,35 @@ import { auth } from '@/auth'
 
 const createSchema = z.object({
   weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  totalHours: z.number().min(0).max(168),
-  notes: z.string().optional(),
 })
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session?.user.employeeId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const { searchParams } = new URL(req.url)
+  const from = searchParams.get('from')
+  const to = searchParams.get('to')
+
   const timesheets = await db.timesheet.findMany({
-    where: { employeeId: session.user.employeeId },
+    where: {
+      employeeId: session.user.employeeId,
+      ...(from && to
+        ? { weekStart: { gte: new Date(from), lte: new Date(to) } }
+        : {}),
+    },
+    include: { entries: { select: { hours: true } } },
     orderBy: { weekStart: 'desc' },
   })
-  return NextResponse.json(timesheets)
+
+  const result = timesheets.map(({ entries, ...ts }) => ({
+    ...ts,
+    totalHours: entries.reduce((sum, e) => sum + Number(e.hours), 0),
+  }))
+
+  return NextResponse.json(result)
 }
 
 export async function POST(req: NextRequest) {
@@ -34,15 +48,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.errors[0]?.message ?? 'Invalid input' }, { status: 400 })
   }
 
-  const { weekStart, totalHours, notes } = parsed.data
-
   try {
     const timesheet = await db.timesheet.create({
       data: {
         employeeId: session.user.employeeId,
-        weekStart: new Date(weekStart),
-        totalHours,
-        notes,
+        weekStart: new Date(parsed.data.weekStart),
       },
     })
     return NextResponse.json({ timesheet }, { status: 201 })

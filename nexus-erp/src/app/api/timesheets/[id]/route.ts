@@ -10,7 +10,10 @@ export async function GET(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
-  const ts = await db.timesheet.findUnique({ where: { id } })
+  const ts = await db.timesheet.findUnique({
+    where: { id },
+    include: { entries: { orderBy: [{ date: 'asc' }, { createdAt: 'asc' }] } },
+  })
   if (!ts) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Only owner or manager can view

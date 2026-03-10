@@ -17,6 +17,7 @@ export async function POST(
   const ts = await db.timesheet.findUnique({
     where: { id },
     include: {
+      entries: { select: { hours: true } },
       employee: {
         include: {
           manager: {
@@ -37,8 +38,12 @@ export async function POST(
   if (!ts.employee.manager) {
     return NextResponse.json({ error: 'No manager assigned — cannot submit for approval' }, { status: 422 })
   }
+  if (ts.entries.length === 0) {
+    return NextResponse.json({ error: 'Cannot submit an empty timesheet — add at least one entry' }, { status: 422 })
+  }
 
   const managerId = ts.employee.manager.user.id
+  const totalHours = ts.entries.reduce((sum, e) => sum + Number(e.hours), 0)
 
   const hrDept = await db.department.findFirst({ where: { name: 'HR' } })
   if (!hrDept) {
@@ -53,7 +58,7 @@ export async function POST(
       managerId,
       hrDeptId: hrDept.id,
       weekStart: ts.weekStart.toISOString().split('T')[0],
-      totalHours: Number(ts.totalHours),
+      totalHours,
     },
     `timesheet-${ts.id}-${Date.now()}`,
   )
