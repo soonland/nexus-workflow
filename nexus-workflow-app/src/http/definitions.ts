@@ -2,7 +2,12 @@ import { Hono } from 'hono'
 import { parseBpmn, DefinitionError } from 'nexus-workflow-core'
 import type { StateStore } from 'nexus-workflow-core'
 
-export function createDefinitionsRouter(store: StateStore): Hono {
+interface XmlStore {
+  saveDefinitionXml(id: string, version: number, xml: string): Promise<void>
+  getDefinitionXml(id: string, version?: number): Promise<string | null>
+}
+
+export function createDefinitionsRouter(store: StateStore, xmlStore: XmlStore): Hono {
   const app = new Hono()
 
   // POST /definitions — upload BPMN XML, parse, store, return summary
@@ -31,6 +36,7 @@ export function createDefinitionsRouter(store: StateStore): Hono {
     }
 
     await store.saveDefinition(result.definition)
+    await xmlStore.saveDefinitionXml(result.definition.id, result.definition.version, xml)
 
     const { id, version, name, deployedAt, isDeployable } = result.definition
     return c.json(
@@ -58,11 +64,25 @@ export function createDefinitionsRouter(store: StateStore): Hono {
     return c.json(definitions)
   })
 
+  // GET /definitions/:id/xml — return raw BPMN XML for a definition
+  app.get('/:id/xml', async (c) => {
+    const id = c.req.param('id')
+    const versionParam = c.req.query('version')
+    const version = versionParam !== undefined ? Number.parseInt(versionParam, 10) : undefined
+
+    const xml = await xmlStore.getDefinitionXml(id, version)
+    if (xml === null) {
+      return c.json({ error: 'NOT_FOUND', message: `Definition '${id}' not found or has no stored XML` }, 404)
+    }
+
+    return c.text(xml, 200, { 'Content-Type': 'application/xml' })
+  })
+
   // GET /definitions/:id — get latest (or specific version) of a definition
   app.get('/:id', async (c) => {
     const id = c.req.param('id')
     const versionParam = c.req.query('version')
-    const version = versionParam !== undefined ? parseInt(versionParam, 10) : undefined
+    const version = versionParam !== undefined ? Number.parseInt(versionParam, 10) : undefined
 
     const definition = await store.getDefinition(id, version)
     if (definition === null) {

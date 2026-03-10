@@ -18,7 +18,8 @@ import TableCell from '@mui/material/TableCell'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded'
-import { getFullDefinition } from '@/lib/workflow'
+import { getFullDefinition, getDefinitionXml } from '@/lib/workflow'
+import BpmnViewerLoader from '@/components/BpmnViewerLoader'
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -59,7 +60,10 @@ export default async function DefinitionDetailPage({
   const { version: versionParam } = await searchParams
   const version = versionParam !== undefined ? parseInt(versionParam, 10) : undefined
 
-  const def = await getFullDefinition(id, version)
+  const [def, xml] = await Promise.all([
+    getFullDefinition(id, version),
+    getDefinitionXml(id, version),
+  ])
   if (!def) notFound()
 
   return (
@@ -115,6 +119,16 @@ export default async function DefinitionDetailPage({
             </Grid>
           </CardContent>
         </Card>
+
+        {/* BPMN Diagram */}
+        {xml && (
+          <Card>
+            <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
+              <Typography variant="h5" sx={{ mb: 2 }}>Diagram</Typography>
+              <BpmnViewerLoader xml={xml} />
+            </CardContent>
+          </Card>
+        )}
 
         {/* Elements */}
         <Card>

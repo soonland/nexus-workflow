@@ -34,7 +34,7 @@ await scheduler.start()
 
 const app = new Hono()
 app.get('/health', (c) => c.json({ status: 'ok' }))
-app.route('/definitions', createDefinitionsRouter(store))
+app.route('/definitions', createDefinitionsRouter(store, store))
 app.route('/', createInstancesRouter(store, eventBus))
 app.route('/', createTasksRouter(store, eventBus))
 app.route('/', createAdminRouter(store, eventBus))

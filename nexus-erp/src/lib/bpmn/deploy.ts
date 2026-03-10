@@ -1,29 +1,28 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { getDefinition, deployDefinition } from '@/lib/workflow'
+import { getDefinition, getDefinitionXml, deployDefinition } from '@/lib/workflow'
 
-export async function ensureTimesheetDefinitionDeployed(): Promise<void> {
-  const existing = await getDefinition('timesheet-approval')
-  if (existing) {
-    console.log('[bpmn] timesheet-approval already deployed')
+async function ensureDeployed(definitionId: string, xmlFileName: string): Promise<void> {
+  const [existing, storedXml] = await Promise.all([
+    getDefinition(definitionId),
+    getDefinitionXml(definitionId),
+  ])
+
+  if (existing && storedXml) {
+    console.log(`[bpmn] ${definitionId} already deployed with XML`)
     return
   }
 
-  const xmlPath = join(process.cwd(), 'src/lib/bpmn/timesheet-approval.xml')
+  const xmlPath = join(process.cwd(), 'src/lib/bpmn', xmlFileName)
   const xml = readFileSync(xmlPath, 'utf-8')
   const result = await deployDefinition(xml)
-  console.log(`[bpmn] deployed timesheet-approval v${result.version}`)
+  console.log(`[bpmn] deployed ${definitionId} v${result.version}`)
+}
+
+export async function ensureTimesheetDefinitionDeployed(): Promise<void> {
+  await ensureDeployed('timesheet-approval', 'timesheet-approval.xml')
 }
 
 export async function ensureProfileUpdateDefinitionDeployed(): Promise<void> {
-  const existing = await getDefinition('update-profile-info')
-  if (existing) {
-    console.log('[bpmn] update-profile-info already deployed')
-    return
-  }
-
-  const xmlPath = join(process.cwd(), 'src/lib/bpmn/update-profile-info.xml')
-  const xml = readFileSync(xmlPath, 'utf-8')
-  const result = await deployDefinition(xml)
-  console.log(`[bpmn] deployed update-profile-info v${result.version}`)
+  await ensureDeployed('update-profile-info', 'update-profile-info.xml')
 }

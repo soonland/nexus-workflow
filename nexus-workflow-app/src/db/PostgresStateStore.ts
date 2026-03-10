@@ -253,6 +253,27 @@ export class PostgresStateStore implements StateStore {
     return reviveDefinition(rows[0]!.data)
   }
 
+  async saveDefinitionXml(id: string, version: number, xml: string): Promise<void> {
+    await this.sql`
+      UPDATE definitions SET source_xml = ${xml} WHERE id = ${id} AND version = ${version}
+    `
+  }
+
+  async getDefinitionXml(id: string, version?: number): Promise<string | null> {
+    type Row = { source_xml: string | null }
+    let rows: Row[]
+    if (version !== undefined) {
+      rows = await this.sql<Row[]>`
+        SELECT source_xml FROM definitions WHERE id = ${id} AND version = ${version}
+      `
+    } else {
+      rows = await this.sql<Row[]>`
+        SELECT source_xml FROM definitions WHERE id = ${id} ORDER BY version DESC LIMIT 1
+      `
+    }
+    return rows[0]?.source_xml ?? null
+  }
+
   async listDefinitions(filter?: { isDeployable?: boolean }): Promise<ProcessDefinitionSummary[]> {
     type Row = {
       id: string

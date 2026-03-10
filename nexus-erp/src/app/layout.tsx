@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import 'bpmn-js/dist/assets/diagram-js.css'
+import 'bpmn-js/dist/assets/bpmn-js.css'
 import ThemeRegistry from '@/components/ThemeRegistry'
 
 export const metadata: Metadata = {

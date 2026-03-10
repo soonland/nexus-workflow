@@ -63,6 +63,14 @@ export async function getDefinition(id: string): Promise<{ id: string } | null> 
   return res.json() as Promise<{ id: string }>
 }
 
+export async function getDefinitionXml(id: string, version?: number): Promise<string | null> {
+  const qs = version !== undefined ? `?version=${version}` : ''
+  const res = await fetch(`${BASE_URL}/definitions/${id}/xml${qs}`, { cache: 'no-store' })
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`Workflow API error ${res.status}`)
+  return res.text()
+}
+
 export async function startInstance(
   definitionId: string,
   variables: Record<string, unknown>,

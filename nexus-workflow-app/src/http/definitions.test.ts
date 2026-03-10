@@ -45,14 +45,21 @@ function makeDefinition(overrides: Partial<ProcessDefinition> = {}): ProcessDefi
 
 // ─── Test Suite ───────────────────────────────────────────────────────────────
 
+const inMemoryXmlStore = {
+  xmlMap: new Map<string, string>(),
+  async saveDefinitionXml(id: string, version: number, xml: string) { this.xmlMap.set(`${id}@${version}`, xml) },
+  async getDefinitionXml(id: string, version?: number) { return this.xmlMap.get(`${id}@${version ?? 1}`) ?? null },
+}
+
 describe('definitions HTTP API', () => {
   let store: InMemoryStateStore
   let app: Hono
 
   beforeEach(() => {
     store = new InMemoryStateStore()
+    inMemoryXmlStore.xmlMap.clear()
     app = new Hono()
-    app.route('/definitions', createDefinitionsRouter(store))
+    app.route('/definitions', createDefinitionsRouter(store, inMemoryXmlStore))
   })
 
   // ─── POST /definitions ──────────────────────────────────────────────────────
