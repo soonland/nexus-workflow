@@ -33,15 +33,25 @@ export async function POST(
     return NextResponse.json({ error: parsed.error.errors[0]?.message ?? 'Invalid input' }, { status: 400 })
   }
 
-  // Block if there is already a pending request for this employee
+  const contactData = {
+    phone:      parsed.data.phone      ?? null,
+    street:     parsed.data.street     ?? null,
+    city:       parsed.data.city       ?? null,
+    state:      parsed.data.state      ?? null,
+    postalCode: parsed.data.postalCode ?? null,
+    country:    parsed.data.country    ?? null,
+  }
+
+  // If a pending request already exists, update it in place — no new workflow instance needed
   const existing = await db.employeeProfileUpdateRequest.findFirst({
     where: { employeeId: id, status: 'PENDING' },
   })
   if (existing) {
-    return NextResponse.json(
-      { error: 'A profile update request is already pending HR review' },
-      { status: 409 },
-    )
+    const updated = await db.employeeProfileUpdateRequest.update({
+      where: { id: existing.id },
+      data: contactData,
+    })
+    return NextResponse.json({ request: updated, workflowInstanceId: existing.workflowInstanceId }, { status: 200 })
   }
 
   // Resolve the HR manager to assign the review task to.
@@ -61,15 +71,7 @@ export async function POST(
 
   // Create the staging record
   const request = await db.employeeProfileUpdateRequest.create({
-    data: {
-      employeeId: id,
-      phone: parsed.data.phone ?? null,
-      street: parsed.data.street ?? null,
-      city: parsed.data.city ?? null,
-      state: parsed.data.state ?? null,
-      postalCode: parsed.data.postalCode ?? null,
-      country: parsed.data.country ?? null,
-    },
+    data: { employeeId: id, ...contactData },
   })
 
   // Start the workflow instance

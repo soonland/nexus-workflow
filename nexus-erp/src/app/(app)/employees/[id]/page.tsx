@@ -72,7 +72,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       : Promise.resolve([]),
     db.employeeProfileUpdateRequest.findFirst({
       where: { employeeId: id, status: 'PENDING' },
-      select: { id: true, createdAt: true },
+      select: { id: true, createdAt: true, phone: true, street: true, city: true, state: true, postalCode: true, country: true },
       orderBy: { createdAt: 'desc' },
     }),
   ])
@@ -164,7 +164,16 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                       country: emp.country,
                     }}
                     pendingRequest={pendingRequest
-                      ? { id: pendingRequest.id, createdAt: pendingRequest.createdAt.toISOString() }
+                      ? {
+                          id: pendingRequest.id,
+                          createdAt: pendingRequest.createdAt.toISOString(),
+                          phone: pendingRequest.phone,
+                          street: pendingRequest.street,
+                          city: pendingRequest.city,
+                          state: pendingRequest.state,
+                          postalCode: pendingRequest.postalCode,
+                          country: pendingRequest.country,
+                        }
                       : null
                     }
                   />

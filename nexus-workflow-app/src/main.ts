@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { InMemoryEventBus } from 'nexus-workflow-core'
 import { config } from './config.js'
 import { PostgresStateStore } from './db/PostgresStateStore.js'
-import { runMigrations } from './db/migrate.js'
+import { runMigrations, resetDatabase } from './db/migrate.js'
 import { createDefinitionsRouter } from './http/definitions.js'
 import { createInstancesRouter } from './http/instances.js'
 import { createTasksRouter } from './http/tasks.js'
@@ -16,11 +16,18 @@ import { HttpCallHandler } from './worker/handlers/HttpCallHandler.js'
 import { LogHandler } from './worker/handlers/LogHandler.js'
 import { PostgresScheduler } from './scheduler/PostgresScheduler.js'
 import { TimerCoordinator } from './scheduler/TimerCoordinator.js'
+import { RedisStreamPublisher } from './events/RedisStreamPublisher.js'
 
 const store = new PostgresStateStore(config.databaseUrl)
 const eventBus = new InMemoryEventBus()
 const eventLog = new PostgresEventLog(config.databaseUrl)
 eventBus.subscribe(event => { void eventLog.append(event) })
+
+if (config.redisUrl) {
+  const redisPublisher = new RedisStreamPublisher(config.redisUrl)
+  await redisPublisher.connect()
+  redisPublisher.attach(eventBus)
+}
 
 const worker = new TaskWorker(store, eventBus)
 worker.register(new HttpCallHandler())
@@ -41,7 +48,11 @@ app.route('/', createAdminRouter(store, eventBus))
 app.route('/', createEventsRouter(store, eventBus))
 app.route('/', createObservabilityRouter(store, eventLog))
 
-await runMigrations(config.databaseUrl)
+if (config.resetDb) {
+  await resetDatabase(config.databaseUrl)
+} else {
+  await runMigrations(config.databaseUrl)
+}
 serve({ fetch: app.fetch, port: config.port }, () => {
   console.log(`nexus-workflow-app listening on port ${config.port}`)
 })

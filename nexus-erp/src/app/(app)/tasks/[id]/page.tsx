@@ -15,6 +15,7 @@ import Divider from '@mui/material/Divider'
 
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 import TaskDecisionForm from './TaskDecisionForm'
+import ProfileUpdateCard from './ProfileUpdateCard'
 
 interface DetailRowProps {
   label: string
@@ -106,6 +107,9 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                   <Stack spacing={2.5} divider={<Divider />}>
                     <DetailRow label="Employee">
                       <Typography variant="body2" fontWeight={500}>
+                        {timesheet.employee.fullName}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
                         {timesheet.employee.user.email}
                       </Typography>
                     </DetailRow>
@@ -137,33 +141,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
 
         {/* Profile update request card */}
         {profileUpdateRequest && (
-          <Card sx={{ borderLeft: '3px solid', borderColor: 'primary.main' }}>
-            <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-              <Typography variant="h5" sx={{ mb: 2.5 }}>Proposed Contact Changes</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
-                Employee: <strong>{profileUpdateRequest.employee.user.email}</strong>
-              </Typography>
-
-              <Grid container spacing={2}>
-                {[
-                  { label: 'Phone',       value: profileUpdateRequest.phone },
-                  { label: 'Street',      value: profileUpdateRequest.street },
-                  { label: 'City',        value: profileUpdateRequest.city },
-                  { label: 'State',       value: profileUpdateRequest.state },
-                  { label: 'Postal Code', value: profileUpdateRequest.postalCode },
-                  { label: 'Country',     value: profileUpdateRequest.country },
-                ]
-                  .filter((f) => f.value !== null)
-                  .map((f) => (
-                    <Grid key={f.label} size={{ xs: 12, sm: 6 }}>
-                      <DetailRow label={f.label}>
-                        <Typography variant="body2" fontWeight={500}>{f.value}</Typography>
-                      </DetailRow>
-                    </Grid>
-                  ))}
-              </Grid>
-            </CardContent>
-          </Card>
+          <ProfileUpdateCard request={profileUpdateRequest} />
         )}
       </Stack>
     </Box>

@@ -6,32 +6,30 @@ const db = new PrismaClient()
 async function main() {
   console.log('Seeding nexus_erp...')
 
+  // ── Wipe all data (FK-safe order) ──────────────────────────────────────────
+  await db.employeeProfileUpdateRequest.deleteMany()
+  await db.timesheet.deleteMany()
+  await db.employee.deleteMany()
+  await db.user.deleteMany()
+  await db.department.deleteMany()
+  console.log('  cleared existing data')
+
   // ── Departments ────────────────────────────────────────────────────────────
-  const deptEngineering = await db.department.upsert({
-    where: { name: 'Engineering' },
-    update: {},
-    create: { name: 'Engineering' },
-  })
-  const deptDesign = await db.department.upsert({
-    where: { name: 'Design' },
-    update: {},
-    create: { name: 'Design' },
-  })
+  const deptEngineering = await db.department.create({ data: { name: 'Engineering' } })
+  const deptDesign      = await db.department.create({ data: { name: 'Design' } })
   console.log('  departments: Engineering, Design')
 
   // ── Manager ────────────────────────────────────────────────────────────────
-  const managerUser = await db.user.upsert({
-    where: { email: 'manager@nexus.local' },
-    update: {},
-    create: {
-      email: 'manager@nexus.local',
+  const managerUser = await db.user.create({
+    data: {
+      email:        'manager@nexus.local',
       passwordHash: await hash('password123', 12),
-      role: 'manager',
+      role:         'manager',
       employee: {
         create: {
-          fullName: 'Alice Martin',
+          fullName:     'Alice Martin',
           departmentId: deptEngineering.id,
-          hireDate: new Date('2020-01-15'),
+          hireDate:     new Date('2020-01-15'),
         },
       },
     },
@@ -40,27 +38,25 @@ async function main() {
   console.log(`  manager: ${managerUser.email} (employeeId: ${managerUser.employee!.id})`)
 
   // ── Employees ──────────────────────────────────────────────────────────────
-  const employees = [
+  const employeeDefs = [
     { email: 'bob@nexus.local',   fullName: 'Bob Smith',   departmentId: deptEngineering.id, hireDate: '2021-03-01' },
     { email: 'carol@nexus.local', fullName: 'Carol Jones', departmentId: deptEngineering.id, hireDate: '2022-06-15' },
     { email: 'dave@nexus.local',  fullName: 'Dave Lee',    departmentId: deptDesign.id,      hireDate: '2023-01-10' },
   ]
 
   const createdEmployees = []
-  for (const e of employees) {
-    const user = await db.user.upsert({
-      where: { email: e.email },
-      update: {},
-      create: {
-        email: e.email,
+  for (const e of employeeDefs) {
+    const user = await db.user.create({
+      data: {
+        email:        e.email,
         passwordHash: await hash('password123', 12),
-        role: 'employee',
+        role:         'employee',
         employee: {
           create: {
-            fullName: e.fullName,
+            fullName:     e.fullName,
             departmentId: e.departmentId,
-            hireDate: new Date(e.hireDate),
-            managerId: managerUser.employee!.id,
+            hireDate:     new Date(e.hireDate),
+            managerId:    managerUser.employee!.id,
           },
         },
       },
@@ -81,17 +77,15 @@ async function main() {
 
   for (const t of timesheetData) {
     const emp = createdEmployees[t.userIdx]!.employee!
-    await db.timesheet.upsert({
-      where: { employeeId_weekStart: { employeeId: emp.id, weekStart: new Date(t.weekStart) } },
-      update: {},
-      create: {
-        employeeId: emp.id,
-        weekStart: new Date(t.weekStart),
-        totalHours: t.totalHours,
-        notes: t.notes ?? undefined,
-        status: t.status,
+    await db.timesheet.create({
+      data: {
+        employeeId:  emp.id,
+        weekStart:   new Date(t.weekStart),
+        totalHours:  t.totalHours,
+        notes:       t.notes ?? undefined,
+        status:      t.status,
         submittedAt: t.status !== 'draft' ? new Date() : null,
-        decidedAt: (t.status === 'approved' || t.status === 'rejected') ? new Date() : null,
+        decidedAt:   (t.status === 'approved' || t.status === 'rejected') ? new Date() : null,
       },
     })
     console.log(`  timesheet: ${createdEmployees[t.userIdx]!.email} week ${t.weekStart} [${t.status}]`)

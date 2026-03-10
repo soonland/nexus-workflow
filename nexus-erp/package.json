@@ -24,6 +24,7 @@
     "bcryptjs": "^2.4.3",
     "bpmn-auto-layout": "^1.2.0",
     "bpmn-js": "^18.13.1",
+    "ioredis": "^5.10.0",
     "next": "^15.0.0",
     "next-auth": "^5.0.0-beta.25",
     "react": "^19.0.0",

@@ -44,3 +44,29 @@ export async function runMigrations(connectionString: string): Promise<void> {
     await sql.end()
   }
 }
+
+export async function resetDatabase(connectionString: string): Promise<void> {
+  const sql = postgres(connectionString)
+  try {
+    await sql`
+      DROP TABLE IF EXISTS
+        execution_events,
+        scheduled_timers,
+        history_entries,
+        gateway_join_states,
+        event_subscriptions,
+        user_tasks,
+        variable_scopes,
+        tokens,
+        instances,
+        definitions,
+        schema_migrations
+      CASCADE
+    `
+    console.log('Database reset: all tables dropped')
+  } finally {
+    await sql.end()
+  }
+
+  await runMigrations(connectionString)
+}

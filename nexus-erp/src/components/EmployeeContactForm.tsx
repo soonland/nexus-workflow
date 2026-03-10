@@ -23,6 +23,12 @@ interface ContactFormValues {
 interface PendingRequest {
   id: string
   createdAt: string
+  phone: string | null
+  street: string | null
+  city: string | null
+  state: string | null
+  postalCode: string | null
+  country: string | null
 }
 
 interface EmployeeContactFormProps {
@@ -37,7 +43,11 @@ export default function EmployeeContactForm({
   pendingRequest,
 }: EmployeeContactFormProps) {
   const router = useRouter()
-  const [form, setForm] = useState(defaultValues)
+  const [form, setForm] = useState<ContactFormValues>(
+    pendingRequest
+      ? { phone: pendingRequest.phone, street: pendingRequest.street, city: pendingRequest.city, state: pendingRequest.state, postalCode: pendingRequest.postalCode, country: pendingRequest.country }
+      : defaultValues
+  )
   const [status, setStatus] = useState<'idle' | 'saving' | 'submitted' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -66,27 +76,23 @@ export default function EmployeeContactForm({
     }
   }
 
-  if (pendingRequest) {
-    return (
-      <Alert severity="info">
-        <Typography variant="body2" fontWeight={500}>Profile update pending HR review</Typography>
-        <Typography variant="body2" sx={{ mt: 0.5 }}>
-          Submitted on{' '}
-          {new Date(pendingRequest.createdAt).toLocaleDateString('en-GB', {
-            day: 'numeric', month: 'long', year: 'numeric',
-          })}
-          . Your changes will be applied once approved.
-        </Typography>
-      </Alert>
-    )
-  }
-
   return (
     <Stack spacing={3}>
+      {pendingRequest && (
+        <Alert severity="info" icon={false} sx={{ display: 'flex', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: 1 }}>
+            <Typography variant="body2">
+              These changes are <strong>pending HR review</strong> since{' '}
+              {new Date(pendingRequest.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.
+              You can still update them below.
+            </Typography>
+            <Chip label="In Review" size="small" color="warning" />
+          </Box>
+        </Alert>
+      )}
       {status === 'submitted' && (
         <Alert severity="success">
-          Your update request has been submitted and is pending HR review.{' '}
-          <Chip label="Pending" size="small" color="warning" sx={{ ml: 0.5 }} />
+          {pendingRequest ? 'Your pending request has been updated.' : 'Your update request has been submitted and is pending HR review.'}
         </Alert>
       )}
       {status === 'error' && <Alert severity="error">{errorMsg}</Alert>}

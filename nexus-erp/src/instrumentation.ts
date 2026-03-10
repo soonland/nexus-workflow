@@ -9,5 +9,12 @@ export async function register() {
     } catch (err) {
       console.error('[instrumentation] Failed to deploy BPMN definition:', err)
     }
+
+    if (process.env.REDIS_URL) {
+      const { startRedisConsumer } = await import('@/lib/redisConsumer')
+      startRedisConsumer(process.env.REDIS_URL).catch((err) => {
+        console.error('[instrumentation] Redis consumer failed to start:', err)
+      })
+    }
   }
 }
