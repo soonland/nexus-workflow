@@ -5,6 +5,7 @@ import type { StateStore } from 'nexus-workflow-core'
 interface XmlStore {
   saveDefinitionXml(id: string, version: number, xml: string): Promise<void>
   getDefinitionXml(id: string, version?: number): Promise<string | null>
+  deleteDefinition(id: string): Promise<void>
 }
 
 export function createDefinitionsRouter(store: StateStore, xmlStore: XmlStore): Hono {
@@ -90,6 +91,33 @@ export function createDefinitionsRouter(store: StateStore, xmlStore: XmlStore): 
     }
 
     return c.json(definition)
+  })
+
+  // DELETE /definitions/:id — delete all versions of a definition
+  app.delete('/:id', async (c) => {
+    const id = c.req.param('id')
+
+    const definition = await store.getDefinition(id)
+    if (!definition) {
+      return c.json({ error: 'NOT_FOUND', message: `Definition '${id}' not found` }, 404)
+    }
+
+    const [pending, active, suspended] = await Promise.all([
+      store.findInstances({ definitionId: id, status: 'pending', page: 0, pageSize: 1 }),
+      store.findInstances({ definitionId: id, status: 'active', page: 0, pageSize: 1 }),
+      store.findInstances({ definitionId: id, status: 'suspended', page: 0, pageSize: 1 }),
+    ])
+
+    const blockedCount = pending.total + active.total + suspended.total
+    if (blockedCount > 0) {
+      return c.json(
+        { error: 'HAS_ACTIVE_INSTANCES', message: `Definition '${id}' has ${blockedCount} pending, active, or suspended instance(s)` },
+        409,
+      )
+    }
+
+    await xmlStore.deleteDefinition(id)
+    return c.json({ deleted: id })
   })
 
   return app

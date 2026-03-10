@@ -15,15 +15,22 @@ import CancelRoundedIcon from '@mui/icons-material/CancelRounded'
 import SchemaRoundedIcon from '@mui/icons-material/SchemaRounded'
 import NextLink from 'next/link'
 import Button from '@mui/material/Button'
-import { listDefinitions, WorkflowDefinition } from '@/lib/workflow'
+import { listDefinitions, listInstances, WorkflowDefinition } from '@/lib/workflow'
+import DeleteDefinitionButton from '@/components/DeleteDefinitionButton'
 
 export default async function WorkflowDefinitionsPage() {
   const session = await auth()
   if (session?.user.role !== 'manager') redirect('/dashboard')
 
   let definitions: WorkflowDefinition[]
+  let inUseIds = new Set<string>()
   try {
-    definitions = await listDefinitions()
+    const [defs, blocking] = await Promise.all([
+      listDefinitions(),
+      listInstances({ status: 'pending,active,suspended', pageSize: 1000 }),
+    ])
+    definitions = defs
+    inUseIds = new Set(blocking.items.map((i) => i.definitionId))
   } catch {
     definitions = []
   }
@@ -82,14 +89,17 @@ export default async function WorkflowDefinitionsPage() {
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <Button
-                      component={NextLink}
-                      href={`/workflow/definitions/${def.id}`}
-                      size="small"
-                      variant="contained"
-                    >
-                      View
-                    </Button>
+                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                      <DeleteDefinitionButton definitionId={def.id} disabled={inUseIds.has(def.id)} />
+                      <Button
+                        component={NextLink}
+                        href={`/workflow/definitions/${def.id}`}
+                        size="small"
+                        variant="contained"
+                      >
+                        View
+                      </Button>
+                    </Stack>
                   </TableCell>
                 </TableRow>
               ))}

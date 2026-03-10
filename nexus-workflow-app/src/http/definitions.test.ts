@@ -49,6 +49,7 @@ const inMemoryXmlStore = {
   xmlMap: new Map<string, string>(),
   async saveDefinitionXml(id: string, version: number, xml: string) { this.xmlMap.set(`${id}@${version}`, xml) },
   async getDefinitionXml(id: string, version?: number) { return this.xmlMap.get(`${id}@${version ?? 1}`) ?? null },
+  async deleteDefinition(id: string) { for (const key of this.xmlMap.keys()) { if (key.startsWith(`${id}@`)) this.xmlMap.delete(key) } },
 }
 
 describe('definitions HTTP API', () => {

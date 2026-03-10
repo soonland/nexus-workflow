@@ -274,6 +274,10 @@ export class PostgresStateStore implements StateStore {
     return rows[0]?.source_xml ?? null
   }
 
+  async deleteDefinition(id: string): Promise<void> {
+    await this.sql`DELETE FROM definitions WHERE id = ${id}`
+  }
+
   async listDefinitions(filter?: { isDeployable?: boolean }): Promise<ProcessDefinitionSummary[]> {
     type Row = {
       id: string

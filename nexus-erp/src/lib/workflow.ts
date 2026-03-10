@@ -63,6 +63,10 @@ export async function getDefinition(id: string): Promise<{ id: string } | null> 
   return res.json() as Promise<{ id: string }>
 }
 
+export async function deleteDefinition(id: string): Promise<{ deleted: string }> {
+  return request<{ deleted: string }>(`/definitions/${id}`, { method: 'DELETE' })
+}
+
 export async function getDefinitionXml(id: string, version?: number): Promise<string | null> {
   const qs = version !== undefined ? `?version=${version}` : ''
   const res = await fetch(`${BASE_URL}/definitions/${id}/xml${qs}`, { cache: 'no-store' })
