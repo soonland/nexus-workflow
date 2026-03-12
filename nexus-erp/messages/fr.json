@@ -148,6 +148,7 @@
   },
   "employees": {
     "title": "Employés",
+    "addEmployee": "Ajouter un employé",
     "yourProfile": "Votre profil",
     "fields": {
       "department": "Département",
@@ -166,6 +167,103 @@
     "breadcrumb": {
       "employees": "Employés",
       "dashboard": "Tableau de bord"
+    },
+    "edit": {
+      "tabs": {
+        "profile": "Profil",
+        "contact": "Contact",
+        "access": "Accès"
+      },
+      "fields": {
+        "fullName": "Nom complet",
+        "department": "Département",
+        "hireDate": "Date d\u2019embauche",
+        "manager": "Manager",
+        "role": "Rôle",
+        "phone": "Téléphone",
+        "street": "Rue",
+        "city": "Ville",
+        "state": "État / Région",
+        "postalCode": "Code postal",
+        "country": "Pays"
+      },
+      "roles": {
+        "employee": "Employé",
+        "manager": "Manager"
+      },
+      "sections": {
+        "employment": "Emploi",
+        "contactAddress": "Contact et adresse",
+        "groups": "Groupes",
+        "access": "Accès"
+      },
+      "placeholders": {
+        "noDepartment": "— Aucun —",
+        "noManager": "— Aucun —",
+        "searchGroups": "Rechercher des groupes\u2026"
+      },
+      "save": {
+        "profile": "Enregistrer le profil",
+        "contact": "Enregistrer le contact",
+        "groups": "Enregistrer les groupes",
+        "permissions": "Enregistrer les permissions",
+        "saving": "Enregistrement\u2026"
+      },
+      "hints": {
+        "profileFields": "Champs d\u2019emploi uniquement",
+        "contactFields": "Champs contact et adresse",
+        "groupsMembership": "Enregistre les appartenances aux groupes de cet utilisateur",
+        "permissionsGrants": "Enregistre les droits directs \u2014 les cases grisées sont héritées via les groupes ou le département"
+      },
+      "messages": {
+        "profileSaved": "Profil enregistré.",
+        "permissionsSaved": "Permissions enregistrées.",
+        "groupsSaved": "Groupes enregistrés."
+      },
+      "noPermissions": "Aucune permission définie dans le système."
+    },
+    "new": {
+      "title": "Nouvel employé",
+      "sections": {
+        "employment": "Emploi",
+        "contactAddress": "Contact et adresse"
+      },
+      "fields": {
+        "fullName": "Nom complet",
+        "email": "Email",
+        "password": "Mot de passe initial",
+        "hireDate": "Date d\u2019embauche",
+        "role": "Rôle",
+        "department": "Département",
+        "manager": "Manager",
+        "phone": "Téléphone",
+        "street": "Rue",
+        "city": "Ville",
+        "state": "État / Région",
+        "postalCode": "Code postal",
+        "country": "Pays"
+      },
+      "roles": {
+        "employee": "Employé",
+        "manager": "Manager"
+      },
+      "placeholders": {
+        "noDepartment": "— Aucun —",
+        "noManager": "— Aucun —"
+      },
+      "validation": {
+        "fullNameRequired": "Le nom complet est requis",
+        "emailRequired": "L\u2019email est requis",
+        "emailInvalid": "Saisissez une adresse email valide",
+        "passwordRequired": "Le mot de passe est requis",
+        "passwordMinLength": "Le mot de passe doit comporter au moins 8 caractères",
+        "hireDateRequired": "La date d\u2019embauche est requise",
+        "emailInUse": "Cet email est déjà enregistré"
+      },
+      "submit": "Créer l\u2019employé",
+      "submitting": "Création\u2026",
+      "cancel": "Annuler",
+      "createFailed": "Impossible de créer l\u2019employé"
     }
   },
   "tasks": {
