@@ -23,7 +23,7 @@ async function createTimesheet(weekStart: string) {
   })
 }
 
-function NewTimesheetForm() {
+const NewTimesheetForm = () => {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { showSnackbar } = useSnackbar()
@@ -58,7 +58,7 @@ function NewTimesheetForm() {
         setLoading(false)
       }
     })
-  }, [prefilledWeekStart]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [prefilledWeekStart]) // eslint-disable-line react-hooks/exhaustive-deps -- intentional: re-run only on initial mount
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -130,7 +130,7 @@ function NewTimesheetForm() {
   )
 }
 
-export default function NewTimesheetPage() {
+const NewTimesheetPage = () => {
   return (
     <Suspense fallback={
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 8, justifyContent: 'center' }}>
@@ -141,3 +141,4 @@ export default function NewTimesheetPage() {
     </Suspense>
   )
 }
+export default NewTimesheetPage

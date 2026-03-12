@@ -3,6 +3,8 @@ import tseslint from 'typescript-eslint'
 import importPlugin from 'eslint-plugin-import'
 import vitestPlugin from 'eslint-plugin-vitest'
 import nextPlugin from '@next/eslint-plugin-next'
+import reactPlugin from 'eslint-plugin-react'
+import reactHooksPlugin from 'eslint-plugin-react-hooks'
 import prettierConfig from 'eslint-config-prettier'
 import {
   TEST_PATTERNS,
@@ -19,6 +21,9 @@ export default tseslint.config(
 
   // Next.js core web vitals rules (React + Next.js specific)
   nextPlugin.flatConfig.coreWebVitals,
+
+  // React hooks rules — explicitly registered so eslint-disable comments resolve correctly
+  reactHooksPlugin.configs['recommended-latest'],
 
   {
     files: ['**/*.ts', '**/*.tsx'],
@@ -37,6 +42,17 @@ export default tseslint.config(
       'import/resolver': {
         typescript: { project: './tsconfig.json' },
       },
+    },
+  },
+
+  {
+    files: ['**/*.tsx'],
+    plugins: { react: reactPlugin },
+    rules: {
+      'react/function-component-definition': ['error', {
+        namedComponents: 'arrow-function',
+        unnamedComponents: 'arrow-function',
+      }],
     },
   },
 

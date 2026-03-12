@@ -9,8 +9,7 @@ import {
   buildParallelGatewayDefinition,
 } from '../../tests/fixtures/builders/ProcessDefinitionBuilder.js'
 import type { BpmnFlowElement, SequenceFlow, StartEventElement, EndEventElement, ManualTaskElement, ScriptTaskElement } from '../model/types.js'
-import type { EngineState, EngineCommand } from './ExecutionEngine.js'
-import { execute } from './ExecutionEngine.js'
+import { execute, type EngineState, type EngineCommand } from './ExecutionEngine.js'
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 

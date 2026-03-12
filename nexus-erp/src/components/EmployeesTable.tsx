@@ -67,7 +67,7 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+const DetailRow = ({ label, value }: { label: string; value: React.ReactNode }) => {
   return (
     <Box>
       <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>
@@ -82,7 +82,7 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
 
 // ── Dialog content ─────────────────────────────────────────────────────────────
 
-function ProfileDialogContent({ employeeId }: { employeeId: string }) {
+const ProfileDialogContent = ({ employeeId }: { employeeId: string }) => {
   const [data, setData] = useState<EmployeeSummary | null>(null)
   const [error, setError] = useState('')
 
@@ -211,7 +211,7 @@ function ProfileDialogContent({ employeeId }: { employeeId: string }) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export default function EmployeesTable({ employees }: { employees: EmployeeRow[] }) {
+const EmployeesTable = ({ employees }: { employees: EmployeeRow[] }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected = employees.find((e) => e.id === selectedId)
 
@@ -298,3 +298,4 @@ export default function EmployeesTable({ employees }: { employees: EmployeeRow[]
     </>
   )
 }
+export default EmployeesTable

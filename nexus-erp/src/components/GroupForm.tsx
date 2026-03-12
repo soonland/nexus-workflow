@@ -43,7 +43,7 @@ interface GroupFormProps {
 
 type Status = 'idle' | 'saving'
 
-export default function GroupForm({
+const GroupForm = ({
   mode,
   groupId,
   defaultName = '',
@@ -53,7 +53,7 @@ export default function GroupForm({
   defaultMembers = [],
   allPermissions,
   allUsers,
-}: GroupFormProps) {
+}: GroupFormProps) => {
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
 
@@ -287,3 +287,4 @@ export default function GroupForm({
     </Box>
   )
 }
+export default GroupForm

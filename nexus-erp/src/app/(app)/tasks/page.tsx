@@ -1,4 +1,3 @@
-import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import NextLink from 'next/link'
 import Box from '@mui/material/Box'
@@ -13,6 +12,7 @@ import TableRow from '@mui/material/TableRow'
 import TableCell from '@mui/material/TableCell'
 import Stack from '@mui/material/Stack'
 import InboxRoundedIcon from '@mui/icons-material/InboxRounded'
+import { auth } from '@/auth'
 import { listTasks } from '@/lib/workflow'
 import { db } from '@/db/client'
 import { getEffectivePermissions } from '@/lib/permissions'
@@ -25,7 +25,7 @@ interface Task {
   createdAt: string
 }
 
-export default async function TasksPage() {
+const TasksPage = async () => {
   const session = await auth()
   if (!session) redirect('/login')
 
@@ -118,3 +118,4 @@ export default async function TasksPage() {
     </Box>
   )
 }
+export default TasksPage

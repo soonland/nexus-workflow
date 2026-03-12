@@ -1,9 +1,9 @@
-import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
+import { auth } from '@/auth'
 import { db } from '@/db/client'
 import GroupForm from '@/components/GroupForm'
 
-export default async function NewGroupPage() {
+const NewGroupPage = async () => {
   const session = await auth()
   if (session?.user.role !== 'manager') redirect('/dashboard')
 
@@ -29,3 +29,4 @@ export default async function NewGroupPage() {
     />
   )
 }
+export default NewGroupPage

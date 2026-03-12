@@ -33,7 +33,7 @@ interface DepartmentsTableProps {
   departments: Department[]
 }
 
-export default function DepartmentsTable({ departments }: DepartmentsTableProps) {
+const DepartmentsTable = ({ departments }: DepartmentsTableProps) => {
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
 
@@ -155,3 +155,4 @@ export default function DepartmentsTable({ departments }: DepartmentsTableProps)
     </>
   )
 }
+export default DepartmentsTable

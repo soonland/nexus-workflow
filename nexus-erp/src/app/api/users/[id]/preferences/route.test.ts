@@ -25,10 +25,10 @@ vi.mock('next/server', () => {
   return { NextRequest: MockNextRequest, NextResponse }
 })
 
+import { NextRequest } from 'next/server'
 import { PATCH } from './route'
 
 function makeRequest(body: unknown, userId = 'user-1') {
-  const { NextRequest } = require('next/server')
   return new NextRequest(`http://localhost/api/users/${userId}/preferences`, {
     method: 'PATCH',
     body: JSON.stringify(body),

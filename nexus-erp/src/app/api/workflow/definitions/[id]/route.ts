@@ -1,6 +1,6 @@
+import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { deleteDefinition } from '@/lib/workflow'
-import { NextResponse } from 'next/server'
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()

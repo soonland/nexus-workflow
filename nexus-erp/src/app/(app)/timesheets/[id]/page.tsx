@@ -4,7 +4,6 @@ import React, { use, useCallback, useEffect, useMemo, useRef, useState } from 'r
 import NextLink from 'next/link'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
-import { useSnackbar } from '@/components/SnackbarContext'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
@@ -25,6 +24,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import SendRoundedIcon from '@mui/icons-material/SendRounded'
+import { useSnackbar } from '@/components/SnackbarContext'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -168,6 +168,7 @@ function buildProjectRows(entries: TimesheetEntry[], weekDays: Date[]): ProjectR
     // Find which day this entry belongs to
     const entryDateIso = entry.date.slice(0, 10) // "YYYY-MM-DD"
     // rowMap.get(key) is guaranteed non-null — we set it in the block above
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     rowMap.get(key)!.cells[entryDateIso] = { entryId: entry.id, hours: Number.parseFloat(entry.hours) }
   }
 
@@ -254,7 +255,7 @@ interface HoursCellProps {
   onCommit: (newHours: number | null) => void
 }
 
-function HoursCell({ value, editable, saving, isHighlighted, onCommit }: Readonly<HoursCellProps>) {
+const HoursCell = ({ value, editable, saving, isHighlighted, onCommit }: Readonly<HoursCellProps>) => {
   // Local string state so the user can type freely; we only commit on blur
   const [localValue, setLocalValue] = useState<string>(value !== null ? String(value) : '')
   const committedRef = useRef<number | null>(value)
@@ -359,7 +360,7 @@ const stickyFirstCell = {
 // Main page
 // ---------------------------------------------------------------------------
 
-export default function TimesheetDetailPage({ params }: Readonly<{ params: Promise<{ id: string }> }>) {
+const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string }> }>) => {
   const { id } = use(params)
   const { showSnackbar } = useSnackbar()
 
@@ -416,7 +417,7 @@ export default function TimesheetDetailPage({ params }: Readonly<{ params: Promi
 
   const weekDays = useMemo(
     () => (timesheet ? getWeekDays(timesheet.weekStart) : []),
-    [timesheet?.weekStart], // eslint-disable-line react-hooks/exhaustive-deps
+    [timesheet?.weekStart], // eslint-disable-line react-hooks/exhaustive-deps -- intentional: re-run only on weekStart change
   )
   const weekDayIsos = useMemo(() => weekDays.map(dateToIso), [weekDays])
 
@@ -458,6 +459,7 @@ export default function TimesheetDetailPage({ params }: Readonly<{ params: Promi
 
     try {
       if (op === 'delete') {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         await apiDeleteEntry(id, existing!.entryId)
         setRows((prev) =>
           prev.map((r) =>
@@ -474,6 +476,7 @@ export default function TimesheetDetailPage({ params }: Readonly<{ params: Promi
           ),
         )
       } else {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         await apiUpdateEntry(id, existing!.entryId, newHours as number, projectCode, description)
       }
     } catch (err) {
@@ -984,3 +987,4 @@ export default function TimesheetDetailPage({ params }: Readonly<{ params: Promi
     </Box>
   )
 }
+export default TimesheetDetailPage

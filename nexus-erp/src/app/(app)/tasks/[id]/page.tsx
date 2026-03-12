@@ -1,6 +1,4 @@
-import { auth } from '@/auth'
 import { redirect, notFound } from 'next/navigation'
-import { db } from '@/db/client'
 import NextLink from 'next/link'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
@@ -14,6 +12,8 @@ import Alert from '@mui/material/Alert'
 import Divider from '@mui/material/Divider'
 
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
+import { db } from '@/db/client'
+import { auth } from '@/auth'
 import TaskDecisionForm from './TaskDecisionForm'
 import ProfileUpdateCard from './ProfileUpdateCard'
 
@@ -22,7 +22,7 @@ interface DetailRowProps {
   children: React.ReactNode
 }
 
-function DetailRow({ label, children }: DetailRowProps) {
+const DetailRow = ({ label, children }: DetailRowProps) => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
       <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -33,7 +33,7 @@ function DetailRow({ label, children }: DetailRowProps) {
   )
 }
 
-export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
+const TaskDetailPage = async ({ params }: { params: Promise<{ id: string }> }) => {
   const session = await auth()
   if (!session) redirect('/login')
 
@@ -150,3 +150,4 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
     </Box>
   )
 }
+export default TaskDetailPage

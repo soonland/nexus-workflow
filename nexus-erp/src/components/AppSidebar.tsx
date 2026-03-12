@@ -110,7 +110,7 @@ interface AppSidebarProps {
   hasEmployee: boolean
 }
 
-export default function AppSidebar({ role, hasEmployee }: AppSidebarProps) {
+const AppSidebar = ({ role, hasEmployee }: AppSidebarProps) => {
   const pathname = usePathname()
   const { collapsed, setCollapsed } = useSidebar()
   const isManager = role === 'manager'
@@ -268,3 +268,4 @@ export default function AppSidebar({ role, hasEmployee }: AppSidebarProps) {
     </Drawer>
   )
 }
+export default AppSidebar

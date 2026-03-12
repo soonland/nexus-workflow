@@ -61,7 +61,7 @@ interface OrganizationFormProps {
 
 type SaveStatus = 'idle' | 'saving'
 
-export default function OrganizationForm({
+const OrganizationForm = ({
   mode,
   orgId,
   defaultValues = {},
@@ -69,7 +69,7 @@ export default function OrganizationForm({
   isManager,
   isOwner,
   workflowInstanceId: initialWorkflowInstanceId,
-}: OrganizationFormProps) {
+}: OrganizationFormProps) => {
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
 
@@ -747,3 +747,4 @@ export default function OrganizationForm({
     </Box>
   )
 }
+export default OrganizationForm

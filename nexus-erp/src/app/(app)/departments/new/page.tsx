@@ -1,9 +1,9 @@
-import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
+import { auth } from '@/auth'
 import { db } from '@/db/client'
 import DepartmentForm from '@/components/DepartmentForm'
 
-export default async function NewDepartmentPage() {
+const NewDepartmentPage = async () => {
   const session = await auth()
   if (session?.user.role !== 'manager') redirect('/dashboard')
 
@@ -26,3 +26,4 @@ export default async function NewDepartmentPage() {
 
   return <DepartmentForm mode="create" allEmployees={JSON.parse(JSON.stringify(employees))} />
 }
+export default NewDepartmentPage

@@ -1,4 +1,3 @@
-import { auth } from '@/auth'
 import { redirect, notFound } from 'next/navigation'
 import NextLink from 'next/link'
 import Box from '@mui/material/Box'
@@ -18,10 +17,11 @@ import TableCell from '@mui/material/TableCell'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded'
+import { auth } from '@/auth'
 import { getFullDefinition, getDefinitionXml } from '@/lib/workflow'
 import BpmnViewerLoader from '@/components/BpmnViewerLoader'
 
-function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+const DetailRow = ({ label, children }: { label: string; children: React.ReactNode }) => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
       <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -46,13 +46,13 @@ const TYPE_COLORS: Record<string, 'default' | 'success' | 'warning' | 'error' | 
   boundaryEvent: 'info',
 }
 
-export default async function DefinitionDetailPage({
+const DefinitionDetailPage = async ({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>
   searchParams: Promise<{ version?: string }>
-}) {
+}) => {
   const session = await auth()
   if (session?.user.role !== 'manager') redirect('/dashboard')
 
@@ -213,3 +213,4 @@ export default async function DefinitionDetailPage({
     </Box>
   )
 }
+export default DefinitionDetailPage

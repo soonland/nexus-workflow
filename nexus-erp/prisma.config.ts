@@ -1,6 +1,6 @@
+import path from 'node:path'
 import { defineConfig } from 'prisma/config'
 import { config } from 'dotenv'
-import path from 'node:path'
 
 config({ path: path.resolve(__dirname, '.env') })
 
@@ -9,6 +9,7 @@ export default defineConfig({
     seed: 'tsx ./prisma/seed.ts',
   },
   datasource: {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     url: process.env['DATABASE_URL']!,
   },
 })

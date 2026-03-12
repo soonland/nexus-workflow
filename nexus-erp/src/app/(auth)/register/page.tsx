@@ -34,7 +34,7 @@ type FormFields = 'email' | 'password' | 'fullName' | 'department' | 'hireDate'
 
 const FIELDS: FormFields[] = ['email', 'password', 'fullName', 'department', 'hireDate']
 
-export default function RegisterPage() {
+const RegisterPage = () => {
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
   const [form, setForm] = useState<Record<FormFields, string>>({
@@ -140,3 +140,4 @@ export default function RegisterPage() {
     </Box>
   )
 }
+export default RegisterPage

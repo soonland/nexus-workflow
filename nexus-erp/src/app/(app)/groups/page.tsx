@@ -1,9 +1,9 @@
-import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
+import { auth } from '@/auth'
 import { db } from '@/db/client'
 import GroupsTable from '@/components/GroupsTable'
 
-export default async function GroupsPage() {
+const GroupsPage = async () => {
   const session = await auth()
   if (session?.user.role !== 'manager') redirect('/dashboard')
 
@@ -14,3 +14,4 @@ export default async function GroupsPage() {
 
   return <GroupsTable groups={JSON.parse(JSON.stringify(groups))} />
 }
+export default GroupsPage

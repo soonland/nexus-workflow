@@ -38,11 +38,11 @@ interface EmployeeContactFormProps {
   pendingRequest?: PendingRequest | null
 }
 
-export default function EmployeeContactForm({
+const EmployeeContactForm = ({
   employeeId,
   defaultValues,
   pendingRequest,
-}: EmployeeContactFormProps) {
+}: EmployeeContactFormProps) => {
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
   const [form, setForm] = useState<ContactFormValues>(
@@ -154,3 +154,4 @@ export default function EmployeeContactForm({
     </Stack>
   )
 }
+export default EmployeeContactForm

@@ -37,7 +37,7 @@ interface DepartmentFormProps {
 
 type Status = 'idle' | 'saving'
 
-export default function DepartmentForm({
+const DepartmentForm = ({
   mode,
   departmentId,
   defaultName = '',
@@ -45,7 +45,7 @@ export default function DepartmentForm({
   defaultPermissions = [],
   allEmployees,
   allPermissions = [],
-}: DepartmentFormProps) {
+}: DepartmentFormProps) => {
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
   const [name, setName] = useState(defaultName)
@@ -246,3 +246,4 @@ export default function DepartmentForm({
     </Box>
   )
 }
+export default DepartmentForm

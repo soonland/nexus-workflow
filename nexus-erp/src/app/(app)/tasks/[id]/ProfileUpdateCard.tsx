@@ -18,7 +18,7 @@ const CONTACT_FIELDS: { label: string; key: keyof Employee & keyof EmployeeProfi
   { label: 'Country',     key: 'country' },
 ]
 
-export default function ProfileUpdateCard({ request }: { request: Request }) {
+const ProfileUpdateCard = ({ request }: { request: Request }) => {
   const emp = request.employee
   const rows = CONTACT_FIELDS
     .map((f) => ({
@@ -83,3 +83,4 @@ export default function ProfileUpdateCard({ request }: { request: Request }) {
     </Card>
   )
 }
+export default ProfileUpdateCard

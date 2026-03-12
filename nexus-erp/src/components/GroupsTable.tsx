@@ -30,7 +30,7 @@ interface GroupsTableProps {
   groups: Group[]
 }
 
-export default function GroupsTable({ groups }: GroupsTableProps) {
+const GroupsTable = ({ groups }: GroupsTableProps) => {
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
 
@@ -126,3 +126,4 @@ export default function GroupsTable({ groups }: GroupsTableProps) {
     </>
   )
 }
+export default GroupsTable

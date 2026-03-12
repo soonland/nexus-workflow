@@ -15,7 +15,7 @@ interface InstanceActionsProps {
   status: string
 }
 
-export default function InstanceActions({ instanceId, status }: InstanceActionsProps) {
+const InstanceActions = ({ instanceId, status }: InstanceActionsProps) => {
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
 
@@ -84,3 +84,4 @@ export default function InstanceActions({ instanceId, status }: InstanceActionsP
     </Stack>
   )
 }
+export default InstanceActions

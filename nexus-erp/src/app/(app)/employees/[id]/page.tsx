@@ -1,6 +1,4 @@
-import { auth } from '@/auth'
 import { redirect, notFound } from 'next/navigation'
-import { db } from '@/db/client'
 import NextLink from 'next/link'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
@@ -16,6 +14,8 @@ import BadgeRoundedIcon from '@mui/icons-material/BadgeRounded'
 import CorporateFareRoundedIcon from '@mui/icons-material/CorporateFareRounded'
 import CalendarTodayRoundedIcon from '@mui/icons-material/CalendarTodayRounded'
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded'
+import { db } from '@/db/client'
+import { auth } from '@/auth'
 import EmployeeEditForm from '@/components/EmployeeEditForm'
 import EmployeeContactForm from '@/components/EmployeeContactForm'
 
@@ -28,7 +28,7 @@ function getInitials(name: string): string {
     .toUpperCase()
 }
 
-function ReadOnlyField({
+const ReadOnlyField = ({
   icon,
   label,
   value,
@@ -36,7 +36,7 @@ function ReadOnlyField({
   icon: React.ReactNode
   label: string
   value: React.ReactNode
-}) {
+}) => {
   return (
     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
       <Box
@@ -70,7 +70,7 @@ function ReadOnlyField({
   )
 }
 
-export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
+const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }> }) => {
   const session = await auth()
   if (!session) redirect('/login')
 
@@ -148,8 +148,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
   const deptPermissions = (isManager && emp.department)
     ? emp.department.permissions.map((p) => ({
-        deptId: emp.department!.id,
-        deptName: emp.department!.name,
+        deptId: emp.department?.id ?? '',
+        deptName: emp.department?.name ?? '',
         permissionKey: p.permissionKey,
       }))
     : []
@@ -380,3 +380,4 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     </Box>
   )
 }
+export default EmployeeProfilePage

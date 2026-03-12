@@ -15,7 +15,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Link from '@mui/material/Link'
 import { useSnackbar } from '@/components/SnackbarContext'
 
-export default function LoginPage() {
+const LoginPage = () => {
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
   const [email, setEmail] = useState('')
@@ -111,3 +111,4 @@ export default function LoginPage() {
     </Box>
   )
 }
+export default LoginPage

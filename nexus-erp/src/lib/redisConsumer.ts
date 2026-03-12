@@ -46,6 +46,7 @@ async function processPending(redis: Redis): Promise<void> {
       const dataIdx = fields.indexOf('data')
       if (dataIdx !== -1) {
         try {
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
           const event = JSON.parse(fields[dataIdx + 1]!) as WorkflowEvent
           await handleEvent(event)
         } catch (err) {
@@ -82,6 +83,7 @@ export async function startRedisConsumer(redisUrl: string): Promise<void> {
             const dataIdx = fields.indexOf('data')
             if (dataIdx !== -1) {
               try {
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const event = JSON.parse(fields[dataIdx + 1]!) as WorkflowEvent
                 await handleEvent(event)
               } catch (err) {

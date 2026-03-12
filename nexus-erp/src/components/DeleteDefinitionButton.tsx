@@ -16,7 +16,7 @@ interface Props {
   disabled?: boolean
 }
 
-export default function DeleteDefinitionButton({ definitionId, disabled = false }: Props) {
+const DeleteDefinitionButton = ({ definitionId, disabled = false }: Props) => {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -87,3 +87,4 @@ export default function DeleteDefinitionButton({ definitionId, disabled = false 
     </>
   )
 }
+export default DeleteDefinitionButton
