@@ -34,7 +34,13 @@ jobs:
         run: npm run build
 
       - name: Test
-        run: npm test
+        run: npm run test:coverage
+
+      - name: Coverage summary
+        uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          name: nexus-workflow-core
+          json-summary-path: nexus-workflow-core/coverage/coverage-summary.json
 
   # ─── nexus-workflow-app ─────────────────────────────────────────────────────
   app:
@@ -88,9 +94,15 @@ jobs:
         run: npm run build
 
       - name: Test
-        run: npm test
+        run: npm run test:coverage
         env:
           DATABASE_URL: postgres://nexus:nexus@localhost:5433/nexus_workflow_test
+
+      - name: Coverage summary
+        uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          name: nexus-workflow-app
+          json-summary-path: nexus-workflow-app/coverage/coverage-summary.json
 
   # ─── nexus-erp ──────────────────────────────────────────────────────────────
   erp:
@@ -119,4 +131,10 @@ jobs:
         run: npm run build
 
       - name: Test
-        run: npm test
+        run: npm run test:coverage
+
+      - name: Coverage summary
+        uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          name: nexus-erp
+          json-summary-path: nexus-erp/coverage/coverage-summary.json
