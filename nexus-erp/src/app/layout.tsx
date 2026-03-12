@@ -4,6 +4,7 @@ import 'bpmn-js/dist/assets/diagram-js.css'
 import 'bpmn-js/dist/assets/bpmn-js.css'
 import { cookies } from 'next/headers'
 import { auth } from '@/auth'
+import { getLocale } from 'next-intl/server'
 import ThemeRegistry from '@/components/ThemeRegistry'
 
 export const metadata: Metadata = {
@@ -12,12 +13,16 @@ export const metadata: Metadata = {
 }
 
 const RootLayout = async ({ children }: { children: React.ReactNode }) => {
-  const [session, cookieStore] = await Promise.all([auth(), cookies()])
+  const [session, cookieStore, locale] = await Promise.all([
+    auth(),
+    cookies(),
+    getLocale(),
+  ])
   const initialTheme =
     cookieStore.get('nexus-theme')?.value ?? session?.user?.theme ?? 'system'
 
   return (
-    <html lang="en" data-theme={initialTheme}>
+    <html lang={locale} data-theme={initialTheme}>
       <body>
         <ThemeRegistry initialTheme={initialTheme}>{children}</ThemeRegistry>
       </body>
