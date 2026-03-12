@@ -1,6 +1,6 @@
 # CLAUDE.md — nexus-erp
 
-Next.js 15 ERP application. Uses nexus-workflow-app as a workflow backend.
+Next.js 16 ERP application. Uses nexus-workflow-app as a workflow backend.
 
 ## Commands
 
@@ -25,7 +25,7 @@ Copy `.env.local.example` → `.env.local` and fill in:
 
 - `prisma/schema.prisma` — DB schema (User, Employee, Timesheet)
 - `src/auth.ts` — NextAuth v5 Credentials provider
-- `src/middleware.ts` — route protection
+- `src/proxy.ts` — route protection (Next.js 16 proxy file, replaces middleware.ts)
 - `src/db/client.ts` — singleton PrismaClient
 - `src/lib/workflow.ts` — typed HTTP client for nexus-workflow-app
 - `src/lib/bpmn/` — BPMN definition + deployer

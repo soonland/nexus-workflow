@@ -20,10 +20,22 @@ export default tseslint.config(
   ...tseslint.configs.strict,
 
   // Next.js core web vitals rules (React + Next.js specific)
-  nextPlugin.flatConfig.coreWebVitals,
+  // @next/eslint-plugin-next v16 moved from flatConfig.coreWebVitals to configs['core-web-vitals']
+  nextPlugin.configs['core-web-vitals'],
 
-  // React hooks rules — explicitly registered so eslint-disable comments resolve correctly
-  reactHooksPlugin.configs['recommended-latest'],
+  // React hooks rules — use only the classic two rules (rules-of-hooks + exhaustive-deps).
+  // eslint-plugin-react-hooks@7 (bundled with eslint-config-next@16) added many React Compiler
+  // lint rules (refs, set-state-in-effect, preserve-manual-memoization, etc.) to its
+  // recommended-latest preset. Those rules require intentional React Compiler adoption and
+  // would force large rewrites beyond the scope of this upgrade. We preserve the pre-upgrade
+  // rule set by registering the plugin and enabling only the two classic rules explicitly.
+  {
+    plugins: { 'react-hooks': reactHooksPlugin },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+    },
+  },
 
   {
     files: ['**/*.ts', '**/*.tsx'],
