@@ -19,9 +19,9 @@ jobs:
         working-directory: nexus-workflow-core
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -43,6 +43,7 @@ jobs:
         uses: davelosert/vitest-coverage-report-action@v2
         with:
           name: nexus-workflow-core
+          vite-config-path: nexus-workflow-core/vitest.config.ts
           json-summary-path: nexus-workflow-core/coverage/coverage-summary.json
           json-final-path: nexus-workflow-core/coverage/coverage-final.json
 
@@ -73,9 +74,9 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -124,9 +125,9 @@ jobs:
         working-directory: nexus-erp
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
