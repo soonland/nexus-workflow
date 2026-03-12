@@ -35,6 +35,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           role: user.role,
           employeeId: user.employee?.id ?? null,
           theme: user.theme ?? 'system',
+          locale: user.locale ?? 'fr',
         }
       },
     }),
@@ -46,6 +47,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.role = user.role
         token.employeeId = user.employeeId
         token.theme = user.theme
+        token.locale = user.locale
       }
       return token
     },
@@ -55,6 +57,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.user.role = token.role as 'employee' | 'manager'
       session.user.employeeId = token.employeeId as string | null
       session.user.theme = (token.theme as string) ?? 'system'
+      session.user.locale = (token.locale as string) ?? 'fr'
       return session
     },
   },
