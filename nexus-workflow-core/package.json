@@ -37,6 +37,6 @@
     "vitest": "^3.0.0"
   },
   "dependencies": {
-    "fast-xml-parser": "^5.4.2"
+    "fast-xml-parser": "^5.5.3"
   }
 }
