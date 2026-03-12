@@ -157,7 +157,11 @@
     },
     "sections": {
       "employment": "Empleo",
-      "contactAddress": "Contacto y dirección"
+      "contactAddress": "Contacto y dirección",
+      "preferences": "Preferencias"
+    },
+    "preferences": {
+      "language": "Idioma"
     },
     "breadcrumb": {
       "employees": "Empleados",

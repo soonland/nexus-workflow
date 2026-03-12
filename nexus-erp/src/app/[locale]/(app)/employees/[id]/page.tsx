@@ -13,11 +13,12 @@ import BadgeRoundedIcon from '@mui/icons-material/BadgeRounded'
 import CorporateFareRoundedIcon from '@mui/icons-material/CorporateFareRounded'
 import CalendarTodayRoundedIcon from '@mui/icons-material/CalendarTodayRounded'
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded'
-import { getTranslations } from 'next-intl/server'
+import { getTranslations, getLocale } from 'next-intl/server'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
 import EmployeeEditForm from '@/components/EmployeeEditForm'
 import EmployeeContactForm from '@/components/EmployeeContactForm'
+import LanguageSelector from '@/app/[locale]/(app)/settings/LanguageSelector'
 
 function getInitials(name: string): string {
   return name
@@ -79,7 +80,10 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
 
   if (!isManager && session.user.employeeId !== id) redirect('/dashboard')
 
-  const t = await getTranslations('employees')
+  const [t, locale] = await Promise.all([
+    getTranslations('employees'),
+    getLocale(),
+  ])
 
   const emp = await db.employee.findUnique({
     where: { id },
@@ -375,6 +379,21 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
                     : null
                 }
               />
+            </Box>
+
+            {/* Preferences */}
+            <Box sx={{ p: 3 }}>
+              <Typography
+                variant="overline"
+                color="text.secondary"
+                sx={{ display: 'block', mb: 2 }}
+              >
+                {t('sections.preferences')}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                {t('preferences.language')}
+              </Typography>
+              <LanguageSelector userId={session.user.id} currentLocale={locale} />
             </Box>
           </Stack>
         </Paper>
