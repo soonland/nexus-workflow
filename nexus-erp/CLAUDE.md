@@ -34,6 +34,32 @@ Copy `.env.local.example` → `.env.local` and fill in:
 - `src/app/(app)/` — protected app pages (auth guard in layout)
 - `src/app/api/` — API routes
 
+## MUI + Next.js Conventions
+
+### Links in Server Components
+
+Next.js 16 forbids passing functions as props from Server Components to Client Components.
+MUI components (`Button`, `IconButton`, `CardActionArea`, etc.) are Client Components, so
+**never write `component={NextLink}` inside a Server Component page** — it throws at runtime:
+
+> Error: Functions cannot be passed directly to Client Components
+
+`ThemeRegistry` already configures `MuiButtonBase.defaultProps.LinkComponent = NextLink` globally,
+so all ButtonBase-derived components perform client-side navigation automatically when given an
+`href` prop. Just use `href` directly:
+
+```tsx
+// ✅ Correct — works in both Server and Client Components
+<Button href="/dashboard">Go to dashboard</Button>
+<IconButton href="/back" size="small"><ArrowBackIcon /></IconButton>
+
+// ❌ Wrong in Server Components — crashes Next.js 16
+<Button component={NextLink} href="/dashboard">Go to dashboard</Button>
+```
+
+In **Client Components** (`'use client'`) the `component={NextLink}` pattern also still works,
+but using just `href` is preferred for consistency.
+
 ## Key Flows
 
 **Timesheet Submit:**
