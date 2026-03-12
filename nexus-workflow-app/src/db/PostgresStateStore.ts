@@ -8,8 +8,6 @@ import type {
   ProcessDefinitionSummary,
   ProcessInstanceSummary,
   StoreOperation,
-} from 'nexus-workflow-core'
-import type {
   ProcessDefinition,
   ProcessInstance,
   Token,
@@ -250,7 +248,8 @@ export class PostgresStateStore implements StateStore {
       `
     }
     if (rows.length === 0) return null
-    return reviveDefinition(rows[0]!.data)
+    const row = rows[0] as Row
+    return reviveDefinition(row.data)
   }
 
   async saveDefinitionXml(id: string, version: number, xml: string): Promise<void> {
@@ -356,7 +355,8 @@ export class PostgresStateStore implements StateStore {
     type Row = { data: RawProcessInstance }
     const rows = await this.sql<Row[]>`SELECT data FROM instances WHERE id = ${id}`
     if (rows.length === 0) return null
-    return reviveInstance(rows[0]!.data)
+    const row = rows[0] as Row
+    return reviveInstance(row.data)
   }
 
   async findInstances(query: InstanceQuery): Promise<PagedResult<ProcessInstanceSummary>> {
@@ -412,7 +412,8 @@ export class PostgresStateStore implements StateStore {
       params,
     )
 
-    const total = rows.length > 0 ? parseInt(rows[0]!.total_count, 10) : 0
+    const firstRow = rows[0] as ResultRow | undefined
+    const total = firstRow !== undefined ? parseInt(firstRow.total_count, 10) : 0
 
     const items = rows.map((r): ProcessInstanceSummary => {
       const inst = reviveInstance(r.data)
@@ -500,7 +501,8 @@ export class PostgresStateStore implements StateStore {
     type Row = { data: VariableScope }
     const rows = await this.sql<Row[]>`SELECT data FROM variable_scopes WHERE id = ${id}`
     if (rows.length === 0) return null
-    return rows[0]!.data
+    const row = rows[0] as Row
+    return row.data
   }
 
   async getScopeChain(leafScopeId: string): Promise<VariableScope[]> {
@@ -552,7 +554,8 @@ export class PostgresStateStore implements StateStore {
     type Row = { data: RawUserTaskRecord }
     const rows = await this.sql<Row[]>`SELECT data FROM user_tasks WHERE id = ${id}`
     if (rows.length === 0) return null
-    return reviveUserTaskRecord(rows[0]!.data)
+    const row = rows[0] as Row
+    return reviveUserTaskRecord(row.data)
   }
 
   async queryUserTasks(query: UserTaskQuery): Promise<PagedResult<UserTaskRecord>> {
@@ -598,7 +601,8 @@ export class PostgresStateStore implements StateStore {
       params,
     )
 
-    const total = rows.length > 0 ? parseInt(rows[0]!.total_count, 10) : 0
+    const firstRow = rows[0] as ResultRow | undefined
+    const total = firstRow !== undefined ? parseInt(firstRow.total_count, 10) : 0
     const items = rows.map((r) => reviveUserTaskRecord(r.data))
 
     return { items, total, page: query.page, pageSize: query.pageSize }
@@ -704,7 +708,8 @@ export class PostgresStateStore implements StateStore {
       WHERE gateway_id = ${gatewayId} AND instance_id = ${instanceId}
     `
     if (rows.length === 0) return null
-    return rows[0]!.data
+    const row = rows[0] as Row
+    return row.data
   }
 
   async deleteGatewayState(gatewayId: string, instanceId: string): Promise<void> {

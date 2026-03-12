@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import postgres from 'postgres'
-import { PostgresStateStore } from './PostgresStateStore.js'
-import { runMigrations } from './migrate.js'
 import type {
   ProcessDefinition,
   ProcessInstance,
@@ -13,6 +11,8 @@ import type {
   HistoryEntry,
   ScheduledTimer,
 } from 'nexus-workflow-core'
+import { PostgresStateStore } from './PostgresStateStore.js'
+import { runMigrations } from './migrate.js'
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 

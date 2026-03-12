@@ -9,7 +9,6 @@ import type {
   BpmnFlowElement,
   SequenceFlow,
   Token,
-  TokenStatus,
   VariableScope,
   VariableValue,
   WaitCondition,
@@ -23,7 +22,6 @@ import type {
   ServiceTaskElement,
   EndEventElement,
   UserTaskElement,
-  ScriptTaskElement,
   IntermediateCatchEventElement,
   BoundaryEventElement,
 } from '../model/types.js'
@@ -163,8 +161,8 @@ function handleCompleteTask(
   }
 
   // Auto-resume a suspended instance when an admin completes a task
-  if (ctx.instance!.status === 'suspended') {
-    ctx.instance = { ...ctx.instance!, status: 'active' }
+  if (ctx.requireInstance().status === 'suspended') {
+    ctx.instance = { ...ctx.requireInstance(), status: 'active' }
     ctx.emit({ type: 'ProcessInstanceResumed', instanceId: ctx.instance.id })
   }
 
@@ -175,7 +173,7 @@ function handleCompleteTask(
 
   const element = getElement(definition, token.elementId)
 
-  ctx.emit({ type: 'ServiceTaskCompleted', instanceId: ctx.instance!.id, tokenId, elementId: token.elementId, durationMs: 0 })
+  ctx.emit({ type: 'ServiceTaskCompleted', instanceId: ctx.requireInstance().id, tokenId, elementId: token.elementId, durationMs: 0 })
 
   // Cancel any waiting boundary tokens attached to this task
   cancelBoundaryTokensFor(ctx, token.elementId)
@@ -199,7 +197,7 @@ function handleFailServiceTask(
 
   ctx.emit({
     type: 'ServiceTaskFailed',
-    instanceId: ctx.instance!.id,
+    instanceId: ctx.requireInstance().id,
     tokenId: token.id,
     elementId: token.elementId,
     error: command.error.message,
@@ -217,14 +215,14 @@ function handleFailServiceTask(
 
     ctx.emit({
       type: 'ErrorThrown',
-      instanceId: ctx.instance!.id,
+      instanceId: ctx.requireInstance().id,
       tokenId: token.id,
       errorCode: command.error.code,
       caught: true,
     })
     ctx.emit({
       type: 'BoundaryEventTriggered',
-      instanceId: ctx.instance!.id,
+      instanceId: ctx.requireInstance().id,
       tokenId: token.id,
       boundaryEventId: errorBoundary.id,
       interrupting: errorBoundary.cancelActivity,
@@ -238,7 +236,7 @@ function handleFailServiceTask(
   } else {
     // No matching boundary — suspend the instance, keep token waiting for admin action
     ctx.instance = {
-      ...ctx.instance!,
+      ...ctx.requireInstance(),
       status: 'suspended',
       errorInfo: {
         code: command.error.code,
@@ -262,26 +260,26 @@ function handleFailServiceTask(
 }
 
 function handleSuspendInstance(ctx: ExecutionContext): void {
-  const status = ctx.instance!.status
+  const status = ctx.requireInstance().status
   if (status !== 'active') {
     throw new RuntimeError(
       `Cannot suspend instance — status is "${status}", expected "active"`,
       ctx.instance?.id,
     )
   }
-  ctx.instance = { ...ctx.instance!, status: 'suspended' }
+  ctx.instance = { ...ctx.requireInstance(), status: 'suspended' }
   ctx.emit({ type: 'ProcessInstanceSuspended', instanceId: ctx.instance.id })
 }
 
 function handleResumeInstance(ctx: ExecutionContext): void {
-  const status = ctx.instance!.status
+  const status = ctx.requireInstance().status
   if (status !== 'suspended') {
     throw new RuntimeError(
       `Cannot resume instance — status is "${status}", expected "suspended"`,
       ctx.instance?.id,
     )
   }
-  ctx.instance = { ...ctx.instance!, status: 'active' }
+  ctx.instance = { ...ctx.requireInstance(), status: 'active' }
   ctx.emit({ type: 'ProcessInstanceResumed', instanceId: ctx.instance.id })
 }
 
@@ -293,7 +291,7 @@ function handleCancelInstance(ctx: ExecutionContext): void {
       ctx.emit({ type: 'TokenCancelled', instanceId: t.instanceId, tokenId: t.id, elementId: t.elementId })
     }
   }
-  ctx.instance = { ...ctx.instance!, status: 'terminated' }
+  ctx.instance = { ...ctx.requireInstance(), status: 'terminated' }
   ctx.emit({ type: 'ProcessInstanceTerminated', instanceId: ctx.instance.id, reason: 'cancelled by admin' })
 }
 
@@ -357,7 +355,7 @@ function handleEndEvent(
   ctx: ExecutionContext,
   token: Token,
   element: EndEventElement,
-  definition: ProcessDefinition,
+  _definition: ProcessDefinition,
 ): void {
   const completed: Token = { ...token, status: 'completed', updatedAt: ctx.now() }
   ctx.updateToken(completed)
@@ -390,7 +388,7 @@ function handleServiceTask(
 ): void {
   ctx.emit({
     type: 'ServiceTaskStarted',
-    instanceId: ctx.instance!.id,
+    instanceId: ctx.requireInstance().id,
     tokenId: token.id,
     elementId: element.id,
     taskType: element.taskType ?? 'unknown',
@@ -637,12 +635,14 @@ function handleParallelGateway(
 
   if (isJoin) {
     // Check or create join state
-    const arrivingFlowId = token.arrivedViaFlowId ?? incoming[0]!.id
+    const firstIncoming = incoming[0]
+    if (!firstIncoming) throw new RuntimeError(`Parallel gateway "${element.id}" has no incoming flows`)
+    const arrivingFlowId = token.arrivedViaFlowId ?? firstIncoming.id
     const existingState = ctx.getJoinState(element.id) as ParallelGatewayJoinState | undefined
 
     const currentJoinState: ParallelGatewayJoinState = existingState ?? {
       gatewayId: element.id,
-      instanceId: ctx.instance!.id,
+      instanceId: ctx.requireInstance().id,
       activationId: ctx.newId(),
       arrivedFromFlows: [],
       expectedFlows: incoming.map(f => f.id),
@@ -687,7 +687,9 @@ function handleInclusiveGateway(
   const isJoin = incoming.length > 1
 
   if (isJoin) {
-    const arrivingFlowId = token.arrivedViaFlowId ?? incoming[0]!.id
+    const firstIncoming = incoming[0]
+    if (!firstIncoming) throw new RuntimeError(`Inclusive gateway "${element.id}" has no incoming flows`)
+    const arrivingFlowId = token.arrivedViaFlowId ?? firstIncoming.id
     const existingState = ctx.getJoinState(element.id) as InclusiveGatewayJoinState | undefined
 
     if (existingState === undefined) {
@@ -725,7 +727,7 @@ function handleInclusiveGateway(
   if (incomingOfJoin !== null) {
     const joinState: InclusiveGatewayJoinState = {
       gatewayId: incomingOfJoin.joinGatewayId,
-      instanceId: ctx.instance!.id,
+      instanceId: ctx.requireInstance().id,
       activationId: ctx.newId(),
       activatedIncomingFlows: incomingOfJoin.incomingFlows,
       arrivedFromFlows: [],
@@ -813,9 +815,9 @@ function advanceTokenFlows(ctx: ExecutionContext, token: Token, definition: Proc
 }
 
 function completeInstance(ctx: ExecutionContext): void {
-  const startedAt = ctx.instance!.startedAt
+  const startedAt = ctx.requireInstance().startedAt
   const now = ctx.now()
-  ctx.instance = { ...ctx.instance!, status: 'completed', completedAt: now }
+  ctx.instance = { ...ctx.requireInstance(), status: 'completed', completedAt: now }
   ctx.emit({
     type: 'ProcessInstanceCompleted',
     instanceId: ctx.instance.id,
@@ -961,6 +963,11 @@ class ExecutionContext {
     return token
   }
 
+  requireInstance(): ProcessInstance {
+    if (!this.instance) throw new RuntimeError('No active process instance in execution context')
+    return this.instance
+  }
+
   getAllTokens(): Token[] { return [...this.tokenMap.values()] }
 
   enqueuePending(token: Token): void { this.pendingQueue.push(token) }
@@ -1010,7 +1017,7 @@ class ExecutionContext {
   toResult(): EngineResult {
     return {
       newState: {
-        instance: this.instance!,
+        instance: this.requireInstance(),
         tokens: [...this.tokenMap.values()],
         scopes: [...this.scopeMap.values()],
         gatewayJoinStates: [...this.joinStateMap.values()],

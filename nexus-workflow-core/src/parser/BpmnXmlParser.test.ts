@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { parseBpmn } from './BpmnXmlParser.js'
+import { describe, it, expect } from 'vitest'
 import { DefinitionError } from '../model/errors.js'
+import { parseBpmn } from './BpmnXmlParser.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { InMemoryScheduler } from './InMemoryScheduler.js'
 import type { ScheduledTimer } from '../model/types.js'
+import { InMemoryScheduler } from './InMemoryScheduler.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

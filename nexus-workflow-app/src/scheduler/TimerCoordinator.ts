@@ -1,18 +1,4 @@
-import { execute, RuntimeError } from 'nexus-workflow-core'
-import type {
-  StateStore,
-  EventBus,
-  Scheduler,
-  EngineState,
-  VariableScope,
-  GatewayJoinState,
-  StoreOperation,
-  ScheduledTimer,
-} from 'nexus-workflow-core'
-import type {
-  IntermediateCatchEventElement,
-  BoundaryEventElement,
-} from 'nexus-workflow-core'
+import { execute, RuntimeError, type StateStore, type EventBus, type Scheduler, type EngineState, type VariableScope, type GatewayJoinState, type StoreOperation, type ScheduledTimer, type IntermediateCatchEventElement, type BoundaryEventElement } from 'nexus-workflow-core'
 import { parseTimerExpression } from './parseTimerExpression.js'
 
 /**

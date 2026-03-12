@@ -1,6 +1,4 @@
-import type { ScheduledTimer } from 'nexus-workflow-core'
-import type { Scheduler, TimerFiredCallback } from 'nexus-workflow-core'
-import type { StateStore } from 'nexus-workflow-core'
+import type { ScheduledTimer, Scheduler, TimerFiredCallback, StateStore } from 'nexus-workflow-core'
 
 // ─── Options ──────────────────────────────────────────────────────────────────
 

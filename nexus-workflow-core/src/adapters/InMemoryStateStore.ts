@@ -8,7 +8,6 @@ import type {
   GatewayJoinState,
   HistoryEntry,
   ScheduledTimer,
-  ParallelGatewayJoinState,
 } from '../model/types.js'
 import type {
   StateStore,
@@ -25,9 +24,6 @@ function gatewayKey(gatewayId: string, instanceId: string): string {
   return `${instanceId}::${gatewayId}`
 }
 
-function isParallelJoinState(s: GatewayJoinState): s is ParallelGatewayJoinState {
-  return 'expectedFlows' in s
-}
 
 export class InMemoryStateStore implements StateStore {
   private definitions = new Map<string, ProcessDefinition>()
@@ -103,8 +99,8 @@ export class InMemoryStateStore implements StateStore {
       const statuses = Array.isArray(query.status) ? query.status : [query.status]
       results = results.filter(i => statuses.includes(i.status))
     }
-    if (query.startedAfter) results = results.filter(i => i.startedAt >= query.startedAfter!)
-    if (query.startedBefore) results = results.filter(i => i.startedAt <= query.startedBefore!)
+    if (query.startedAfter) { const after = query.startedAfter; results = results.filter(i => i.startedAt >= after) }
+    if (query.startedBefore) { const before = query.startedBefore; results = results.filter(i => i.startedAt <= before) }
 
     const total = results.length
     const items = results
@@ -188,7 +184,7 @@ export class InMemoryStateStore implements StateStore {
     if (query.instanceId) results = results.filter(t => t.instanceId === query.instanceId)
     if (query.assignee) results = results.filter(t => t.assignee === query.assignee)
     if (query.candidateGroup) {
-      results = results.filter(t => t.candidateGroups?.includes(query.candidateGroup!))
+      const group = query.candidateGroup; results = results.filter(t => t.candidateGroups?.includes(group))
     }
     if (query.status) {
       const statuses = Array.isArray(query.status) ? query.status : [query.status]

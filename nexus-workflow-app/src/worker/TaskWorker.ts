@@ -1,13 +1,12 @@
-import { execute, RuntimeError } from 'nexus-workflow-core'
-import type {
-  StateStore,
-  EventBus,
-  ServiceTaskHandler,
-  TaskContext,
-  EngineState,
-  VariableScope,
-  VariableValue,
-  GatewayJoinState,
+import { execute, RuntimeError ,type 
+  StateStore,type 
+  EventBus,type 
+  ServiceTaskHandler,type 
+  TaskContext,type 
+  EngineState,type 
+  VariableScope,type 
+  VariableValue,type 
+  GatewayJoinState,type 
   StoreOperation,
 } from 'nexus-workflow-core'
 
@@ -234,7 +233,8 @@ function mergeScopes(chain: VariableScope[]): Record<string, VariableValue> {
   // chain[0] is the leaf (innermost); chain[last] is the root
   const merged: Record<string, VariableValue> = {}
   for (let i = chain.length - 1; i >= 0; i--) {
-    Object.assign(merged, chain[i]!.variables)
+    const scope = chain[i] as VariableScope
+    Object.assign(merged, scope.variables)
   }
   return merged
 }

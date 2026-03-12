@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { execute } from './ExecutionEngine.js'
-import type { EngineState, EngineCommand } from './ExecutionEngine.js'
 import { RuntimeError, DefinitionError } from '../model/errors.js'
 import {
   buildDefinition,
@@ -10,7 +8,9 @@ import {
   buildXorGatewayDefinition,
   buildParallelGatewayDefinition,
 } from '../../tests/fixtures/builders/ProcessDefinitionBuilder.js'
-import type { BpmnFlowElement, SequenceFlow, StartEventElement, EndEventElement, ManualTaskElement, ScriptTaskElement, ServiceTaskElement } from '../model/types.js'
+import type { BpmnFlowElement, SequenceFlow, StartEventElement, EndEventElement, ManualTaskElement, ScriptTaskElement } from '../model/types.js'
+import type { EngineState, EngineCommand } from './ExecutionEngine.js'
+import { execute } from './ExecutionEngine.js'
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -516,57 +516,6 @@ describe('ExecutionEngine — Inclusive Gateway split + join', () => {
     return buildDefinition({ elements, sequenceFlows, startEventId: 'start_1' })
   }
 
-  /**
-   * Split → service tasks → join: intermediate tasks between split and join.
-   * Used to test completion of a multi-task inclusive gateway scenario.
-   * The join state is supplied explicitly via the engine state (as would happen
-   * in practice when the WorkflowEngine populates it from the split command).
-   */
-  function buildInclusiveGatewayWithTasksDefinition(): ReturnType<typeof buildSimpleSequenceDefinition> {
-    const elements: BpmnFlowElement[] = [
-      {
-        id: 'start_1', type: 'startEvent', eventDefinition: { type: 'none' },
-        incomingFlows: [], outgoingFlows: ['flow_1'],
-      } as StartEventElement,
-      {
-        id: 'gw_split', type: 'inclusiveGateway', defaultFlow: 'flow_c',
-        incomingFlows: ['flow_1'], outgoingFlows: ['flow_a', 'flow_b', 'flow_c'],
-      } as any,
-      {
-        id: 'task_a', type: 'serviceTask', taskType: 'branch-a',
-        incomingFlows: ['flow_a'], outgoingFlows: ['flow_join_a'],
-      } as ServiceTaskElement,
-      {
-        id: 'task_b', type: 'serviceTask', taskType: 'branch-b',
-        incomingFlows: ['flow_b'], outgoingFlows: ['flow_join_b'],
-      } as ServiceTaskElement,
-      {
-        id: 'task_c', type: 'serviceTask', taskType: 'branch-c',
-        incomingFlows: ['flow_c'], outgoingFlows: ['flow_join_c'],
-      } as ServiceTaskElement,
-      {
-        id: 'gw_join', type: 'inclusiveGateway',
-        incomingFlows: ['flow_join_a', 'flow_join_b', 'flow_join_c'], outgoingFlows: ['flow_end'],
-      } as any,
-      {
-        id: 'end_1', type: 'endEvent', eventDefinition: { type: 'none' },
-        incomingFlows: ['flow_end'], outgoingFlows: [],
-      } as EndEventElement,
-    ]
-
-    const sequenceFlows: SequenceFlow[] = [
-      { id: 'flow_1',      sourceRef: 'start_1',  targetRef: 'gw_split' },
-      { id: 'flow_a',      sourceRef: 'gw_split', targetRef: 'task_a', conditionExpression: 'amount > 100' },
-      { id: 'flow_b',      sourceRef: 'gw_split', targetRef: 'task_b', conditionExpression: 'amount > 50' },
-      { id: 'flow_c',      sourceRef: 'gw_split', targetRef: 'task_c', isDefault: true },
-      { id: 'flow_join_a', sourceRef: 'task_a',   targetRef: 'gw_join' },
-      { id: 'flow_join_b', sourceRef: 'task_b',   targetRef: 'gw_join' },
-      { id: 'flow_join_c', sourceRef: 'task_c',   targetRef: 'gw_join' },
-      { id: 'flow_end',    sourceRef: 'gw_join',  targetRef: 'end_1' },
-    ]
-
-    return buildDefinition({ elements, sequenceFlows, startEventId: 'start_1' })
-  }
 
   it('activates two branches when amount > 100 (flow_a and flow_b both true)', () => {
     const def = buildInclusiveGatewayDefinition()

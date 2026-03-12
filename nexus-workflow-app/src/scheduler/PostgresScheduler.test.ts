@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { InMemoryStateStore } from 'nexus-workflow-core'
-import type { ScheduledTimer } from 'nexus-workflow-core'
+import { InMemoryStateStore ,type  ScheduledTimer } from 'nexus-workflow-core'
 import { PostgresScheduler } from './PostgresScheduler.js'
 
 function makeTimer(overrides: Partial<ScheduledTimer> = {}): ScheduledTimer {

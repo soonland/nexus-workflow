@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { JsEvaluator } from './JsEvaluator.js'
 import {
   SandboxViolationError,
   EvaluationTimeoutError,
   ExpressionSyntaxError,
 } from '../model/errors.js'
 import type { ExpressionContext } from '../interfaces/ExpressionEvaluator.js'
+import { JsEvaluator } from './JsEvaluator.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

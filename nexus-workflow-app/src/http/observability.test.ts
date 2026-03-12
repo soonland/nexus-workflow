@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Hono } from 'hono'
 import { parseBpmn, InMemoryStateStore, InMemoryEventBus, execute } from 'nexus-workflow-core'
-import type { ExecutionEvent } from 'nexus-workflow-core'
 import { InMemoryEventLog } from '../db/EventLog.js'
 import { createObservabilityRouter } from './observability.js'
 import { createInstancesRouter } from './instances.js'
@@ -35,7 +34,7 @@ async function seedAndStart(
   eventBus: InMemoryEventBus,
   eventLog: InMemoryEventLog,
   bpmnXml: string = SIMPLE_BPMN,
-  definitionId: string = 'simple-proc',
+  _definitionId: string = 'simple-proc',
 ): Promise<{ instanceId: string }> {
   const { definition } = parseBpmn(bpmnXml)
   await store.saveDefinition(definition!)

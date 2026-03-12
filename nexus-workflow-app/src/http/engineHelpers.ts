@@ -112,7 +112,9 @@ export function computeStoreOps(
     const oldToken = oldTokenMap.get(token.id)
     if (oldToken?.status === 'waiting') continue // subscription already exists
 
-    const data = token.waitingFor!.correlationData ?? {}
+    const waitingFor = token.waitingFor
+    if (!waitingFor) continue
+    const data = waitingFor.correlationData ?? {}
     const sub: EventSubscription = {
       id: `sub-${token.id}`,
       instanceId: token.instanceId,

@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { InMemoryStateStore } from './InMemoryStateStore.js'
 import { buildDefinition, buildSimpleSequenceDefinition } from '../../tests/fixtures/builders/ProcessDefinitionBuilder.js'
 import { buildInstance } from '../../tests/fixtures/builders/ProcessInstanceBuilder.js'
 import { buildToken } from '../../tests/fixtures/builders/TokenBuilder.js'
 import type { VariableScope, EventSubscription, UserTaskRecord, HistoryEntry, ScheduledTimer } from '../model/types.js'
+import { InMemoryStateStore } from './InMemoryStateStore.js'
 
 describe('InMemoryStateStore', () => {
   let store: InMemoryStateStore

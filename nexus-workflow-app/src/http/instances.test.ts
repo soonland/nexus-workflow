@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Hono } from 'hono'
-import { parseBpmn, InMemoryStateStore, InMemoryEventBus } from 'nexus-workflow-core'
-import type { ProcessDefinition, Token, ExecutionEvent } from 'nexus-workflow-core'
+import { parseBpmn, InMemoryStateStore, InMemoryEventBus ,type  ProcessDefinition,type  Token,type  ExecutionEvent } from 'nexus-workflow-core'
 import { createInstancesRouter } from './instances.js'
 
 // ─── BPMN Fixtures ────────────────────────────────────────────────────────────

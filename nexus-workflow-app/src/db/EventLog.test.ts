@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { InMemoryEventLog, PostgresEventLog } from './EventLog.js'
 import type { ExecutionEvent } from 'nexus-workflow-core'
+import { InMemoryEventLog, PostgresEventLog } from './EventLog.js'
 
 // ─── InMemoryEventLog ────────────────────────────────────────────────────────
 

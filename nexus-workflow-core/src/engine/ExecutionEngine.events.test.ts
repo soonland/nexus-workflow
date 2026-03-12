@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { execute } from './ExecutionEngine.js'
+import { describe, it, expect } from 'vitest'
 import { parseBpmn } from '../parser/BpmnXmlParser.js'
+import { execute } from './ExecutionEngine.js'
 import type { EngineState } from './ExecutionEngine.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

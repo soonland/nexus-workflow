@@ -1,6 +1,5 @@
 import { Hono } from 'hono'
-import { parseBpmn, DefinitionError } from 'nexus-workflow-core'
-import type { StateStore } from 'nexus-workflow-core'
+import { parseBpmn, DefinitionError ,type  StateStore } from 'nexus-workflow-core'
 
 interface XmlStore {
   saveDefinitionXml(id: string, version: number, xml: string): Promise<void>

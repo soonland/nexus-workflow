@@ -16,9 +16,9 @@
  *     [default]  → Rejected
  */
 
-import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { describe, it, expect } from 'vitest'
 import { execute } from '../../src/engine/ExecutionEngine.js'
 import { parseBpmn } from '../../src/parser/BpmnXmlParser.js'
 import type { EngineState } from '../../src/engine/ExecutionEngine.js'
