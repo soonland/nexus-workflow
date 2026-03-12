@@ -6,6 +6,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "db:reset": "tsx src/db/reset-cli.ts",
     "build": "tsc",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
