@@ -8,9 +8,15 @@ import { SidebarProvider } from '@/components/SidebarContext'
 import { SnackbarProvider } from '@/components/SnackbarContext'
 import { signOutAction } from '@/lib/actions'
 
-const AppLayout = async ({ children }: { children: React.ReactNode }) => {
-  const session = await auth()
-  if (!session) redirect('/login')
+const AppLayout = async ({
+  children,
+  params,
+}: {
+  children: React.ReactNode
+  params: Promise<{ locale: string }>
+}) => {
+  const [session, { locale }] = await Promise.all([auth(), params])
+  if (!session) redirect(`/${locale}/login`)
 
   return (
     <SidebarProvider>
