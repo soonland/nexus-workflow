@@ -3,22 +3,25 @@ import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Grid from '@mui/material/Grid'
 import Typography from '@mui/material/Typography'
+import { getTranslations } from 'next-intl/server'
 import type { Employee, EmployeeProfileUpdateRequest, User } from '@prisma/client'
 
 type Request = EmployeeProfileUpdateRequest & {
   employee: Employee & { user: Pick<User, 'email'> }
 }
 
-const CONTACT_FIELDS: { label: string; key: keyof Employee & keyof EmployeeProfileUpdateRequest }[] = [
-  { label: 'Phone',       key: 'phone' },
-  { label: 'Street',      key: 'street' },
-  { label: 'City',        key: 'city' },
-  { label: 'State',       key: 'state' },
-  { label: 'Postal Code', key: 'postalCode' },
-  { label: 'Country',     key: 'country' },
-]
+const ProfileUpdateCard = async ({ request }: { request: Request }) => {
+  const t = await getTranslations('tasks.profileUpdate')
 
-const ProfileUpdateCard = ({ request }: { request: Request }) => {
+  const CONTACT_FIELDS: { label: string; key: keyof Employee & keyof EmployeeProfileUpdateRequest }[] = [
+    { label: t('fields.phone'),      key: 'phone' },
+    { label: t('fields.street'),     key: 'street' },
+    { label: t('fields.city'),       key: 'city' },
+    { label: t('fields.state'),      key: 'state' },
+    { label: t('fields.postalCode'), key: 'postalCode' },
+    { label: t('fields.country'),    key: 'country' },
+  ]
+
   const emp = request.employee
   const rows = CONTACT_FIELDS
     .map((f) => ({
@@ -34,7 +37,7 @@ const ProfileUpdateCard = ({ request }: { request: Request }) => {
   return (
     <Card sx={{ borderLeft: '3px solid', borderColor: 'primary.main' }}>
       <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-        <Typography variant="h5" sx={{ mb: 0.5 }}>Proposed Contact Changes</Typography>
+        <Typography variant="h5" sx={{ mb: 0.5 }}>{t('title')}</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
           {emp.fullName} &middot; {emp.user.email}
         </Typography>
@@ -44,7 +47,7 @@ const ProfileUpdateCard = ({ request }: { request: Request }) => {
           sx={{ border: '1px solid', borderColor, borderRadius: 1, overflow: 'hidden' }}
         >
           {/* Header */}
-          {(['Field', 'Current', 'Proposed'] as const).map((h, i) => (
+          {([t('columns.field'), t('columns.current'), t('columns.proposed')] as const).map((h, i) => (
             <Grid
               key={h}
               size={4}

@@ -14,6 +14,7 @@ import TableBody from '@mui/material/TableBody'
 import TableRow from '@mui/material/TableRow'
 import TableCell from '@mui/material/TableCell'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
+import { getTranslations } from 'next-intl/server'
 import { auth } from '@/auth'
 import { getInstance, getInstanceEvents } from '@/lib/workflow'
 import InstanceActions from '@/components/InstanceActions'
@@ -43,9 +44,10 @@ const InstanceDetailPage = async ({ params }: { params: Promise<{ id: string }> 
 
   const { id } = await params
 
-  const [data, events] = await Promise.all([
+  const [data, events, t] = await Promise.all([
     getInstance(id),
     getInstanceEvents(id).catch(() => []),
+    getTranslations('workflow.instances'),
   ])
 
   if (!data) notFound()
@@ -72,30 +74,30 @@ const InstanceDetailPage = async ({ params }: { params: Promise<{ id: string }> 
         {/* Instance info */}
         <Card>
           <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-            <Typography variant="h5" sx={{ mb: 2.5 }}>Instance Details</Typography>
+            <Typography variant="h5" sx={{ mb: 2.5 }}>{t('detail.instanceDetails')}</Typography>
             <Grid container spacing={3}>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Stack spacing={2.5} divider={<Divider />}>
-                  <DetailRow label="Instance ID">
+                  <DetailRow label={t('detail.fields.instanceId')}>
                     <Typography variant="body2" fontWeight={500} sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{id}</Typography>
                   </DetailRow>
-                  <DetailRow label="Definition">
+                  <DetailRow label={t('detail.fields.definition')}>
                     <Typography variant="body2" fontWeight={500}>{instance.definitionId}</Typography>
                   </DetailRow>
-                  <DetailRow label="Version">
+                  <DetailRow label={t('detail.fields.version')}>
                     <Typography variant="body2" fontWeight={500}>v{instance.definitionVersion}</Typography>
                   </DetailRow>
                 </Stack>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Stack spacing={2.5} divider={<Divider />}>
-                  <DetailRow label="Started">
+                  <DetailRow label={t('detail.fields.started')}>
                     <Typography variant="body2" fontWeight={500}>{new Date(instance.startedAt).toLocaleString()}</Typography>
                   </DetailRow>
-                  <DetailRow label="Completed">
+                  <DetailRow label={t('detail.fields.completed')}>
                     <Typography variant="body2" fontWeight={500}>{instance.completedAt ? new Date(instance.completedAt).toLocaleString() : '—'}</Typography>
                   </DetailRow>
-                  <DetailRow label="Status">
+                  <DetailRow label={t('detail.fields.status')}>
                     <Box><Chip label={instance.status} size="small" color={STATUS_COLORS[instance.status] ?? 'default'} /></Box>
                   </DetailRow>
                 </Stack>
@@ -108,16 +110,16 @@ const InstanceDetailPage = async ({ params }: { params: Promise<{ id: string }> 
         {tokens.length > 0 && (
           <Card>
             <CardContent sx={{ p: 3, '&:last-child': { pb: 0 } }}>
-              <Typography variant="h5" sx={{ mb: 2 }}>Active Tokens ({tokens.length})</Typography>
+              <Typography variant="h5" sx={{ mb: 2 }}>{t('detail.activeTokens', { count: tokens.length })}</Typography>
             </CardContent>
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Token ID</TableCell>
-                  <TableCell>Element</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Waiting For</TableCell>
+                  <TableCell>{t('detail.tokenColumns.tokenId')}</TableCell>
+                  <TableCell>{t('detail.tokenColumns.element')}</TableCell>
+                  <TableCell>{t('detail.tokenColumns.type')}</TableCell>
+                  <TableCell>{t('detail.tokenColumns.status')}</TableCell>
+                  <TableCell>{t('detail.tokenColumns.waitingFor')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -144,16 +146,16 @@ const InstanceDetailPage = async ({ params }: { params: Promise<{ id: string }> 
         {/* Variables */}
         <Card>
           <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-            <Typography variant="h5" sx={{ mb: 2 }}>Variables</Typography>
+            <Typography variant="h5" sx={{ mb: 2 }}>{t('detail.variables')}</Typography>
             {variableEntries.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">No variables in scope.</Typography>
+              <Typography variant="body2" color="text.secondary">{t('detail.noVariables')}</Typography>
             ) : (
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Type</TableCell>
-                    <TableCell>Value</TableCell>
+                    <TableCell>{t('detail.variableColumns.name')}</TableCell>
+                    <TableCell>{t('detail.variableColumns.type')}</TableCell>
+                    <TableCell>{t('detail.variableColumns.value')}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -178,19 +180,19 @@ const InstanceDetailPage = async ({ params }: { params: Promise<{ id: string }> 
         {/* Event log */}
         <Card>
           <CardContent sx={{ p: 3, '&:last-child': { pb: 0 } }}>
-            <Typography variant="h5" sx={{ mb: 2 }}>Event Log ({events.length})</Typography>
+            <Typography variant="h5" sx={{ mb: 2 }}>{t('detail.eventLog', { count: events.length })}</Typography>
           </CardContent>
           {events.length === 0 ? (
             <CardContent sx={{ pt: 0, pb: 3 }}>
-              <Typography variant="body2" color="text.secondary">No events recorded.</Typography>
+              <Typography variant="body2" color="text.secondary">{t('detail.noEvents')}</Typography>
             </CardContent>
           ) : (
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Time</TableCell>
-                  <TableCell>Event Type</TableCell>
-                  <TableCell>Element</TableCell>
+                  <TableCell>{t('detail.eventColumns.time')}</TableCell>
+                  <TableCell>{t('detail.eventColumns.eventType')}</TableCell>
+                  <TableCell>{t('detail.eventColumns.element')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>

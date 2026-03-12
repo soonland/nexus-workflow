@@ -13,11 +13,13 @@ import CardContent from '@mui/material/CardContent'
 import Stack from '@mui/material/Stack'
 import CircularProgress from '@mui/material/CircularProgress'
 import Link from '@mui/material/Link'
+import { useTranslations } from 'next-intl'
 import { useSnackbar } from '@/components/SnackbarContext'
 
 const LoginPage = () => {
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
+  const t = useTranslations('auth.login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -32,7 +34,7 @@ const LoginPage = () => {
     })
     setLoading(false)
     if (result?.error) {
-      showSnackbar({ message: 'Invalid email or password', severity: 'error' })
+      showSnackbar({ message: t('invalidCredentials'), severity: 'error' })
     } else {
       router.push('/dashboard')
     }
@@ -56,7 +58,7 @@ const LoginPage = () => {
             Nexus ERP
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Sign in to your account
+            {t('subtitle')}
           </Typography>
         </Box>
 
@@ -66,7 +68,7 @@ const LoginPage = () => {
               <Stack spacing={3}>
                 <TextField
                   id="email"
-                  label="Email"
+                  label={t('emailLabel')}
                   type="email"
                   required
                   fullWidth
@@ -77,7 +79,7 @@ const LoginPage = () => {
 
                 <TextField
                   id="password"
-                  label="Password"
+                  label={t('passwordLabel')}
                   type="password"
                   required
                   fullWidth
@@ -94,7 +96,7 @@ const LoginPage = () => {
                   disabled={loading}
                   startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
                 >
-                  {loading ? 'Signing in…' : 'Sign in'}
+                  {loading ? t('signingIn') : t('signIn')}
                 </Button>
               </Stack>
             </Box>
@@ -102,9 +104,9 @@ const LoginPage = () => {
         </Card>
 
         <Typography variant="body2" sx={{ textAlign: 'center', mt: 3, color: 'text.secondary' }}>
-          Don&apos;t have an account?{' '}
+          {t('noAccount')}{' '}
           <Link component={NextLink} href="/register" underline="hover" color="primary">
-            Register
+            {t('register')}
           </Link>
         </Typography>
       </Box>

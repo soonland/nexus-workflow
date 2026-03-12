@@ -13,6 +13,7 @@ import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded'
 import SchemaRoundedIcon from '@mui/icons-material/SchemaRounded'
 import Button from '@mui/material/Button'
+import { getTranslations } from 'next-intl/server'
 import { auth } from '@/auth'
 import { listDefinitions, listInstances, WorkflowDefinition } from '@/lib/workflow'
 import DeleteDefinitionButton from '@/components/DeleteDefinitionButton'
@@ -20,6 +21,8 @@ import DeleteDefinitionButton from '@/components/DeleteDefinitionButton'
 const WorkflowDefinitionsPage = async () => {
   const session = await auth()
   if (session?.user.role !== 'manager') redirect('/dashboard')
+
+  const t = await getTranslations('workflow.definitions')
 
   let definitions: WorkflowDefinition[]
   let inUseIds = new Set<string>()
@@ -37,7 +40,7 @@ const WorkflowDefinitionsPage = async () => {
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-        <Typography variant="h2">Process Definitions</Typography>
+        <Typography variant="h2">{t('title')}</Typography>
         <Chip label={definitions.length} size="small" color="primary" />
       </Box>
 
@@ -46,18 +49,18 @@ const WorkflowDefinitionsPage = async () => {
           <Stack alignItems="center" spacing={2} sx={{ py: 8 }}>
             <SchemaRoundedIcon sx={{ fontSize: 56, color: 'text.disabled' }} />
             <Typography variant="body1" color="text.secondary">
-              No process definitions deployed yet.
+              {t('noDefinitions')}
             </Typography>
           </Stack>
         ) : (
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Definition ID</TableCell>
-                <TableCell>Name</TableCell>
-                <TableCell>Version</TableCell>
-                <TableCell>Deployable</TableCell>
-                <TableCell>Deployed At</TableCell>
+                <TableCell>{t('columns.definitionId')}</TableCell>
+                <TableCell>{t('columns.name')}</TableCell>
+                <TableCell>{t('columns.version')}</TableCell>
+                <TableCell>{t('columns.deployable')}</TableCell>
+                <TableCell>{t('columns.deployedAt')}</TableCell>
                 <TableCell align="right" />
               </TableRow>
             </TableHead>
@@ -96,7 +99,7 @@ const WorkflowDefinitionsPage = async () => {
                         size="small"
                         variant="contained"
                       >
-                        View
+                        {t('view')}
                       </Button>
                     </Stack>
                   </TableCell>

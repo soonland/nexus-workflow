@@ -17,6 +17,7 @@ import TableCell from '@mui/material/TableCell'
 import CircularProgress from '@mui/material/CircularProgress'
 import TimelineRoundedIcon from '@mui/icons-material/TimelineRounded'
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded'
+import { useTranslations } from 'next-intl'
 import { useSnackbar } from '@/components/SnackbarContext'
 
 interface StoredEvent {
@@ -28,6 +29,7 @@ interface StoredEvent {
 
 const EventLogPage = () => {
   const { showSnackbar } = useSnackbar()
+  const t = useTranslations('workflow.events')
   const [instanceId, setInstanceId] = useState('')
   const [loading, setLoading] = useState(false)
   const [events, setEvents] = useState<StoredEvent[] | null>(null)
@@ -38,17 +40,17 @@ const EventLogPage = () => {
     try {
       const res = await fetch(`/api/workflow/instances/${instanceId.trim()}/events`)
       if (res.status === 404) {
-        showSnackbar({ message: `Instance "${instanceId.trim()}" not found.`, severity: 'error' })
+        showSnackbar({ message: t('instanceNotFound', { instanceId: instanceId.trim() }), severity: 'error' })
         setEvents(null)
       } else if (!res.ok) {
-        showSnackbar({ message: 'Failed to fetch events.', severity: 'error' })
+        showSnackbar({ message: t('fetchFailed'), severity: 'error' })
         setEvents(null)
       } else {
         const data = await res.json()
         setEvents(data.events ?? [])
       }
     } catch {
-      showSnackbar({ message: 'Network error.', severity: 'error' })
+      showSnackbar({ message: t('networkError'), severity: 'error' })
     } finally {
       setLoading(false)
     }
@@ -56,15 +58,15 @@ const EventLogPage = () => {
 
   return (
     <Box>
-      <Typography variant="h2" sx={{ mb: 3 }}>Event Log</Typography>
+      <Typography variant="h2" sx={{ mb: 3 }}>{t('title')}</Typography>
 
       <Card sx={{ mb: 3 }}>
         <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>Search by Instance ID</Typography>
+          <Typography variant="h6" sx={{ mb: 2 }}>{t('searchByInstance')}</Typography>
           <Stack direction="row" spacing={2}>
             <TextField
               size="small"
-              label="Instance ID"
+              label={t('instanceIdLabel')}
               value={instanceId}
               onChange={(e) => setInstanceId(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && search()}
@@ -77,7 +79,7 @@ const EventLogPage = () => {
               onClick={search}
               disabled={loading || !instanceId.trim()}
             >
-              Search
+              {t('search')}
             </Button>
           </Stack>
         </CardContent>
@@ -87,7 +89,7 @@ const EventLogPage = () => {
         <Stack alignItems="center" spacing={2} sx={{ py: 8 }}>
           <TimelineRoundedIcon sx={{ fontSize: 56, color: 'text.disabled' }} />
           <Typography variant="body1" color="text.secondary">
-            Enter an instance ID above to view its event log.
+            {t('placeholder')}
           </Typography>
         </Stack>
       )}
@@ -96,21 +98,21 @@ const EventLogPage = () => {
         <Card>
           <CardContent sx={{ p: 3, '&:last-child': { pb: 0 } }}>
             <Typography variant="h6" sx={{ mb: 0 }}>
-              {events.length} event{events.length !== 1 ? 's' : ''} for <code style={{ fontSize: '0.85em' }}>{instanceId}</code>
+              {t('eventsCount', { count: events.length })} <code style={{ fontSize: '0.85em' }}>{instanceId}</code>
             </Typography>
           </CardContent>
           {events.length === 0 ? (
             <CardContent>
-              <Typography variant="body2" color="text.secondary">No events found.</Typography>
+              <Typography variant="body2" color="text.secondary">{t('noEvents')}</Typography>
             </CardContent>
           ) : (
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>#</TableCell>
-                  <TableCell>Time</TableCell>
-                  <TableCell>Event Type</TableCell>
-                  <TableCell>Element</TableCell>
+                  <TableCell>{t('columns.number')}</TableCell>
+                  <TableCell>{t('columns.time')}</TableCell>
+                  <TableCell>{t('columns.eventType')}</TableCell>
+                  <TableCell>{t('columns.element')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>

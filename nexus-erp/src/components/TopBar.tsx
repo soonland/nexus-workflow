@@ -21,6 +21,7 @@ import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded'
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded'
 import NavigateNextRoundedIcon from '@mui/icons-material/NavigateNextRounded'
 import { usePathname, useRouter } from '@/i18n/navigation'
+import { useTranslations } from 'next-intl'
 import { useTheme } from '@/contexts/ThemeContext'
 import { THEMES, type ThemeId } from '@/lib/theme'
 import { useSidebar } from './SidebarContext'
@@ -34,9 +35,9 @@ interface TopBarProps {
   userId: string
 }
 
-function buildBreadcrumbs(pathname: string): { label: string; href: string }[] {
+function buildBreadcrumbs(pathname: string, homeLabel: string): { label: string; href: string }[] {
   const segments = pathname.split('/').filter(Boolean)
-  const crumbs: { label: string; href: string }[] = [{ label: 'Home', href: '/dashboard' }]
+  const crumbs: { label: string; href: string }[] = [{ label: homeLabel, href: '/dashboard' }]
   let accumulated = ''
   for (const seg of segments) {
     accumulated += `/${seg}`
@@ -69,7 +70,8 @@ const TopBar = ({ email, employeeId, role, signOutAction, userId }: TopBarProps)
   const router = useRouter()
   const { collapsed } = useSidebar()
   const { themeId, setThemeId } = useTheme()
-  const crumbs = buildBreadcrumbs(pathname)
+  const t = useTranslations('topBar')
+  const crumbs = buildBreadcrumbs(pathname, t('home'))
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
 
   const [anchor, setAnchor] = React.useState<null | HTMLElement>(null)
@@ -150,7 +152,7 @@ const TopBar = ({ email, employeeId, role, signOutAction, userId }: TopBarProps)
               aria-controls={open ? 'account-menu' : undefined}
               aria-expanded={open ? 'true' : undefined}
               aria-haspopup="true"
-              aria-label="Account menu"
+              aria-label={t('accountMenu')}
               size="small"
               sx={{ p: 0 }}
               onClick={(e) => setAnchor(e.currentTarget)}
@@ -192,7 +194,7 @@ const TopBar = ({ email, employeeId, role, signOutAction, userId }: TopBarProps)
                 }}
               >
                 <ListItemIcon><PersonRoundedIcon fontSize="small" /></ListItemIcon>
-                My Profile
+                {t('myProfile')}
               </MenuItem>
             )}
 
@@ -200,7 +202,7 @@ const TopBar = ({ email, employeeId, role, signOutAction, userId }: TopBarProps)
             <Box sx={{ px: 2, pt: 1, pb: 0.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
                 <PaletteRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                <Typography color="text.secondary" variant="caption">Theme</Typography>
+                <Typography color="text.secondary" variant="caption">{t('theme')}</Typography>
               </Box>
               {THEMES.map((t) => (
                 <MenuItem
@@ -236,7 +238,7 @@ const TopBar = ({ email, employeeId, role, signOutAction, userId }: TopBarProps)
             <form action={signOutAction}>
               <MenuItem component="button" sx={{ width: '100%', color: 'error.main' }} type="submit">
                 <ListItemIcon sx={{ color: 'error.main' }}><LogoutRoundedIcon fontSize="small" /></ListItemIcon>
-                Sign out
+                {t('signOut')}
               </MenuItem>
             </form>
           </Menu>

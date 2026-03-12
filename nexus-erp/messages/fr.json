@@ -1,5 +1,328 @@
 {
   "common": {
     "appName": "Nexus ERP"
+  },
+  "nav": {
+    "sections": {
+      "overview": "Aperçu",
+      "operations": "Opérations",
+      "b2bPortal": "Portail B2B",
+      "workflow": "Flux de travail",
+      "admin": "Admin"
+    },
+    "items": {
+      "dashboard": "Tableau de bord",
+      "timesheets": "Feuilles de temps",
+      "employees": "Employés",
+      "taskInbox": "Boîte de tâches",
+      "organizations": "Organisations",
+      "contracts": "Contrats",
+      "invoices": "Factures",
+      "purchaseOrders": "Bons de commande",
+      "activeInstances": "Instances actives",
+      "processDefinitions": "Définitions de processus",
+      "eventLog": "Journal d\u2019événements",
+      "departments": "Départements",
+      "groups": "Groupes",
+      "settings": "Paramètres",
+      "auditLog": "Journal d\u2019audit"
+    },
+    "expandSidebar": "Développer la barre latérale",
+    "collapseSidebar": "Réduire la barre latérale"
+  },
+  "topBar": {
+    "home": "Accueil",
+    "myProfile": "Mon profil",
+    "theme": "Thème",
+    "signOut": "Se déconnecter",
+    "accountMenu": "Menu du compte"
+  },
+  "auth": {
+    "login": {
+      "subtitle": "Connexion à votre compte",
+      "emailLabel": "Email",
+      "passwordLabel": "Mot de passe",
+      "signingIn": "Connexion en cours\u2026",
+      "signIn": "Se connecter",
+      "noAccount": "Vous n\u2019avez pas de compte\u00a0?",
+      "register": "S\u2019inscrire",
+      "invalidCredentials": "Email ou mot de passe invalide"
+    },
+    "register": {
+      "subtitle": "Créer votre compte",
+      "fields": {
+        "email": "Email",
+        "password": "Mot de passe",
+        "fullName": "Nom complet",
+        "department": "Département",
+        "hireDate": "Date d\u2019embauche"
+      },
+      "creating": "Création du compte\u2026",
+      "register": "S\u2019inscrire",
+      "hasAccount": "Vous avez déjà un compte\u00a0?",
+      "signIn": "Se connecter",
+      "failed": "\u00c9chec de l\u2019inscription"
+    }
+  },
+  "timesheets": {
+    "title": "Mes feuilles de temps",
+    "subtitle": "Cliquez sur une semaine pour voir les détails ou saisir des heures.",
+    "status": {
+      "draft": "Brouillon",
+      "submitted": "Soumis",
+      "pendingManagerReview": "Revue du manager",
+      "pendingHrReview": "Revue RH",
+      "revisionRequested": "Révision demandée",
+      "revisionRequest": "Révision demandée",
+      "approved": "Approuvé",
+      "rejected": "Rejeté"
+    },
+    "new": {
+      "creating": "Création de la feuille\u2026",
+      "title": "Nouvelle feuille de temps",
+      "weekStartLabel": "Début de semaine (lundi)",
+      "weekStartHelper": "Sélectionnez le lundi qui commence la semaine",
+      "creatingBtn": "Création\u2026",
+      "create": "Créer la feuille",
+      "cancel": "Annuler",
+      "alreadyExists": "Une feuille de temps existe déjà pour cette semaine.",
+      "createFailed": "Impossible de créer la feuille de temps"
+    },
+    "detail": {
+      "title": "Feuille de temps",
+      "notFound": "Feuille de temps introuvable",
+      "networkError": "Erreur réseau \u2014 impossible de charger la feuille de temps",
+      "projectDescription": "Projet / Description",
+      "total": "Total",
+      "noEntries": "Aucune entrée pour cette semaine.",
+      "removeRow": "Supprimer cette ligne projet",
+      "codePlaceholder": "Code",
+      "descriptionPlaceholder": "Description",
+      "hoursAriaLabel": "Heures",
+      "projectCodeAriaLabel": "Code projet",
+      "descriptionAriaLabel": "Description",
+      "deleteRowAriaLabel": "Supprimer la ligne projet",
+      "addRow": "Ajouter une ligne projet",
+      "dailyTotal": "Total journalier",
+      "hoursLogged": "{hours} heures saisies cette semaine",
+      "noHours": "Aucune heure saisie",
+      "submitting": "Envoi\u2026",
+      "submitForApproval": "Soumettre pour approbation",
+      "backAriaLabel": "Retour aux feuilles de temps",
+      "submitFailed": "\u00c9chec de la soumission",
+      "rejectedLabel": "Rejeté",
+      "revisionRequestedLabel": "Révision demandée",
+      "saveFailed": "\u00c9chec de l\u2019enregistrement",
+      "weekOf": "Semaine du"
+    },
+    "calendar": {
+      "days": {
+        "mon": "Lun",
+        "tue": "Mar",
+        "wed": "Mer",
+        "thu": "Jeu",
+        "fri": "Ven",
+        "sat": "Sam",
+        "sun": "Dim"
+      },
+      "months": {
+        "january": "Janvier",
+        "february": "Février",
+        "march": "Mars",
+        "april": "Avril",
+        "may": "Mai",
+        "june": "Juin",
+        "july": "Juillet",
+        "august": "Août",
+        "september": "Septembre",
+        "october": "Octobre",
+        "november": "Novembre",
+        "december": "Décembre"
+      },
+      "week": "Semaine",
+      "logHours": "Saisir des heures",
+      "monthlySummary": "Récapitulatif mensuel",
+      "total": "Total",
+      "goToCurrentMonth": "Aller au mois actuel"
+    }
+  },
+  "employees": {
+    "title": "Employés",
+    "yourProfile": "Votre profil",
+    "fields": {
+      "department": "Département",
+      "hireDate": "Date d\u2019embauche",
+      "manager": "Manager",
+      "role": "Rôle"
+    },
+    "sections": {
+      "employment": "Emploi",
+      "contactAddress": "Contact et adresse"
+    },
+    "breadcrumb": {
+      "employees": "Employés",
+      "dashboard": "Tableau de bord"
+    }
+  },
+  "tasks": {
+    "title": "Boîte de tâches",
+    "noPendingTasks": "Aucune tâche en attente. Vous êtes à jour\u00a0!",
+    "taskName": "Nom de la tâche",
+    "status": "Statut",
+    "created": "Créé le",
+    "review": "Examiner",
+    "detail": {
+      "reviewTask": "Examiner la tâche",
+      "timesheet": "Feuille de temps",
+      "alreadyCompleted": "Cette tâche a déjà été traitée.",
+      "fields": {
+        "employee": "Employé",
+        "weekStart": "Début de semaine",
+        "totalHours": "Total des heures",
+        "entries": "Entrées"
+      }
+    },
+    "decision": {
+      "yourDecision": "Votre décision",
+      "approve": "Approuver",
+      "reject": "Rejeter",
+      "rejectionReason": "Motif de rejet (facultatif)",
+      "submitting": "Envoi\u2026",
+      "submitDecision": "Soumettre la décision",
+      "submitFailed": "\u00c9chec de la soumission"
+    },
+    "profileUpdate": {
+      "title": "Modifications de contact proposées",
+      "columns": {
+        "field": "Champ",
+        "current": "Actuel",
+        "proposed": "Proposé"
+      },
+      "fields": {
+        "phone": "Téléphone",
+        "street": "Rue",
+        "city": "Ville",
+        "state": "État / Région",
+        "postalCode": "Code postal",
+        "country": "Pays"
+      }
+    }
+  },
+  "workflow": {
+    "definitions": {
+      "title": "Définitions de processus",
+      "noDefinitions": "Aucune définition de processus déployée.",
+      "columns": {
+        "definitionId": "ID de définition",
+        "name": "Nom",
+        "version": "Version",
+        "deployable": "Déployable",
+        "deployedAt": "Déployé le"
+      },
+      "view": "Voir",
+      "detail": {
+        "metadata": "Métadonnées",
+        "diagram": "Diagramme",
+        "elements": "Éléments",
+        "sequenceFlows": "Flux de séquence",
+        "fields": {
+          "definitionId": "ID de définition",
+          "name": "Nom",
+          "startEvent": "Événement de démarrage",
+          "version": "Version",
+          "deployable": "Déployable",
+          "deployedAt": "Déployé le"
+        },
+        "elementsColumns": {
+          "id": "ID",
+          "type": "Type",
+          "name": "Nom",
+          "incoming": "Entrants",
+          "outgoing": "Sortants"
+        },
+        "flowsColumns": {
+          "id": "ID",
+          "source": "Source",
+          "target": "Cible",
+          "condition": "Condition",
+          "default": "Défaut"
+        }
+      }
+    },
+    "instances": {
+      "title": "Instances de flux",
+      "noInstances": "Aucune instance trouvée.",
+      "statusFilter": {
+        "all": "Toutes",
+        "active": "Actives",
+        "suspended": "Suspendues",
+        "completed": "Terminées",
+        "terminated": "Annulées"
+      },
+      "columns": {
+        "instanceId": "ID d\u2019instance",
+        "definition": "Définition",
+        "ver": "Ver.",
+        "status": "Statut",
+        "started": "Démarré le",
+        "completed": "Terminé le",
+        "actions": "Actions"
+      },
+      "view": "Voir",
+      "previous": "Précédent",
+      "next": "Suivant",
+      "page": "Page {page} sur {total}",
+      "detail": {
+        "instanceDetails": "Détails de l\u2019instance",
+        "activeTokens": "Jetons actifs ({count})",
+        "variables": "Variables",
+        "noVariables": "Aucune variable dans la portée.",
+        "eventLog": "Journal d\u2019événements ({count})",
+        "noEvents": "Aucun événement enregistré.",
+        "fields": {
+          "instanceId": "ID d\u2019instance",
+          "definition": "Définition",
+          "version": "Version",
+          "started": "Démarré le",
+          "completed": "Terminé le",
+          "status": "Statut"
+        },
+        "tokenColumns": {
+          "tokenId": "ID du jeton",
+          "element": "Élément",
+          "type": "Type",
+          "status": "Statut",
+          "waitingFor": "En attente de"
+        },
+        "variableColumns": {
+          "name": "Nom",
+          "type": "Type",
+          "value": "Valeur"
+        },
+        "eventColumns": {
+          "time": "Heure",
+          "eventType": "Type d\u2019événement",
+          "element": "Élément"
+        }
+      }
+    },
+    "events": {
+      "title": "Journal d\u2019événements",
+      "searchByInstance": "Rechercher par ID d\u2019instance",
+      "instanceIdLabel": "ID d\u2019instance",
+      "search": "Rechercher",
+      "placeholder": "Saisissez un ID d\u2019instance pour voir son journal.",
+      "noEvents": "Aucun événement trouvé.",
+      "columns": {
+        "number": "N°",
+        "time": "Heure",
+        "eventType": "Type d\u2019événement",
+        "element": "Élément"
+      },
+      "eventsCount": "{count, plural, one {# événement} other {# événements}} pour",
+      "instanceNotFound": "Instance \"{instanceId}\" introuvable.",
+      "fetchFailed": "Impossible de récupérer les événements.",
+      "networkError": "Erreur réseau."
+    }
   }
 }

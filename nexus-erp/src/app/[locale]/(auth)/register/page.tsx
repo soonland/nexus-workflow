@@ -12,15 +12,8 @@ import CardContent from '@mui/material/CardContent'
 import Stack from '@mui/material/Stack'
 import CircularProgress from '@mui/material/CircularProgress'
 import Link from '@mui/material/Link'
+import { useTranslations } from 'next-intl'
 import { useSnackbar } from '@/components/SnackbarContext'
-
-const FIELD_LABELS: Record<string, string> = {
-  email: 'Email',
-  password: 'Password',
-  fullName: 'Full Name',
-  department: 'Department',
-  hireDate: 'Hire Date',
-}
 
 const FIELD_TYPES: Record<string, string> = {
   email: 'email',
@@ -37,6 +30,7 @@ const FIELDS: FormFields[] = ['email', 'password', 'fullName', 'department', 'hi
 const RegisterPage = () => {
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
+  const t = useTranslations('auth.register')
   const [form, setForm] = useState<Record<FormFields, string>>({
     email: '',
     password: '',
@@ -62,7 +56,7 @@ const RegisterPage = () => {
     setLoading(false)
     if (!res.ok) {
       const data = await res.json()
-      showSnackbar({ message: data.error ?? 'Registration failed', severity: 'error' })
+      showSnackbar({ message: data.error ?? t('failed'), severity: 'error' })
     } else {
       router.push('/login')
     }
@@ -87,7 +81,7 @@ const RegisterPage = () => {
             Nexus ERP
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Create your account
+            {t('subtitle')}
           </Typography>
         </Box>
 
@@ -99,7 +93,7 @@ const RegisterPage = () => {
                   <TextField
                     key={field}
                     id={field}
-                    label={FIELD_LABELS[field]}
+                    label={t(`fields.${field}`)}
                     type={FIELD_TYPES[field]}
                     required
                     fullWidth
@@ -123,7 +117,7 @@ const RegisterPage = () => {
                   disabled={loading}
                   startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
                 >
-                  {loading ? 'Creating account…' : 'Register'}
+                  {loading ? t('creating') : t('register')}
                 </Button>
               </Stack>
             </Box>
@@ -131,9 +125,9 @@ const RegisterPage = () => {
         </Card>
 
         <Typography variant="body2" sx={{ textAlign: 'center', mt: 3, color: 'text.secondary' }}>
-          Already have an account?{' '}
+          {t('hasAccount')}{' '}
           <Link component={NextLink} href="/login" underline="hover" color="primary">
-            Sign in
+            {t('signIn')}
           </Link>
         </Typography>
       </Box>
