@@ -11,6 +11,8 @@ jobs:
   core:
     name: nexus-workflow-core
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     defaults:
       run:
         working-directory: nexus-workflow-core
@@ -41,11 +43,14 @@ jobs:
         with:
           name: nexus-workflow-core
           json-summary-path: nexus-workflow-core/coverage/coverage-summary.json
+          json-final-path: nexus-workflow-core/coverage/coverage-final.json
 
   # ─── nexus-workflow-app ─────────────────────────────────────────────────────
   app:
     name: nexus-workflow-app
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     defaults:
       run:
         working-directory: nexus-workflow-app
@@ -103,11 +108,14 @@ jobs:
         with:
           name: nexus-workflow-app
           json-summary-path: nexus-workflow-app/coverage/coverage-summary.json
+          json-final-path: nexus-workflow-app/coverage/coverage-final.json
 
   # ─── nexus-erp ──────────────────────────────────────────────────────────────
   erp:
     name: nexus-erp
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     defaults:
       run:
         working-directory: nexus-erp
@@ -138,3 +146,4 @@ jobs:
         with:
           name: nexus-erp
           json-summary-path: nexus-erp/coverage/coverage-summary.json
+          json-final-path: nexus-erp/coverage/coverage-final.json

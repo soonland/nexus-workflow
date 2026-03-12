@@ -15,7 +15,7 @@ export default defineConfig({
         'src/contexts/ThemeContext.tsx',
         'src/app/api/users/[id]/preferences/route.ts',
       ],
-      reporter: ['text', 'lcov', 'html', 'json-summary'],
+      reporter: ['text', 'lcov', 'html', 'json-summary', 'json'],
     },
   },
   resolve: {
