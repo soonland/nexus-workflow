@@ -2,57 +2,69 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { listTasks } from '@/lib/workflow'
 import { db } from '@/db/client'
+import { getEffectivePermissions } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
-  if (!session || session.user.role !== 'manager') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const { searchParams } = req.nextUrl
   const page = Number(searchParams.get('page') ?? 0)
   const pageSize = Number(searchParams.get('pageSize') ?? 20)
 
-  // Fetch tasks assigned directly to this user
-  const personalResult = await listTasks({
-    assignee: session.user.id,
-    status: 'open',
-    page,
-    pageSize,
+  // Build all assignee patterns this user matches (including group-inherited permissions)
+  const effectivePerms = await getEffectivePermissions(session.user.id, db)
+  const patterns = [
+    session.user.id,
+    `role:${session.user.role}`,
+    ...effectivePerms.map((key) => `perm:${key}`),
+  ]
+
+  // Fetch tasks for all patterns in parallel, deduplicate by id
+  const results = await Promise.all(
+    patterns.map((a) => listTasks({ assignee: a, status: 'open', page, pageSize })),
+  )
+  const seen = new Set<string>()
+  const allItems = results.flatMap((r) => r.items).filter((t) => {
+    if (seen.has(t.id)) return false
+    seen.add(t.id)
+    return true
   })
 
-  // If this user is in the HR department, also fetch HR group tasks
-  const employee = await db.employee.findUnique({
-    where: { userId: session.user.id },
-    select: { departmentId: true },
-  })
-
-  let allItems = personalResult.items
-
-  if (employee?.departmentId) {
-    const deptResult = await listTasks({
-      assignee: `dept:${employee.departmentId}`,
-      status: 'open',
-      page,
-      pageSize,
-    })
-    // Merge, deduplicating by task id
-    const seen = new Set(personalResult.items.map((t) => t.id))
-    for (const task of deptResult.items) {
-      if (!seen.has(task.id)) allItems.push(task)
-    }
-  }
-
-  // Enrich with timesheet data using workflowInstanceId
+  // Enrich with entity data using workflowInstanceId
   const enriched = await Promise.all(
     allItems.map(async (task) => {
-      const ts = await db.timesheet.findFirst({
+      // Try timesheet first
+      const timesheet = await db.timesheet.findFirst({
         where: { workflowInstanceId: task.instanceId },
         include: { employee: { include: { user: { select: { email: true } } } } },
       })
-      return { ...task, timesheet: ts ?? null }
+      if (timesheet) {
+        return { ...task, entityType: 'timesheet' as const, entity: timesheet, timesheet }
+      }
+
+      // Try organization
+      const organization = await db.organization.findFirst({
+        where: { workflowInstanceId: task.instanceId },
+      })
+      if (organization) {
+        return { ...task, entityType: 'organization' as const, entity: organization, timesheet: null }
+      }
+
+      // Try employee profile update request
+      const profileRequest = await db.employeeProfileUpdateRequest.findFirst({
+        where: { workflowInstanceId: task.instanceId },
+        include: { employee: { select: { fullName: true, userId: true } } },
+      })
+      if (profileRequest) {
+        return { ...task, entityType: 'profileUpdateRequest' as const, entity: profileRequest, timesheet: null }
+      }
+
+      return { ...task, entityType: null, entity: null, timesheet: null }
     }),
   )
 
-  return NextResponse.json({ ...personalResult, items: enriched, total: enriched.length })
+  return NextResponse.json({ items: enriched, total: enriched.length, page, pageSize })
 }

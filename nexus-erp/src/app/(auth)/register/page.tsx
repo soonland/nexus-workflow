@@ -7,12 +7,12 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
-import Alert from '@mui/material/Alert'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Stack from '@mui/material/Stack'
 import CircularProgress from '@mui/material/CircularProgress'
 import Link from '@mui/material/Link'
+import { useSnackbar } from '@/components/SnackbarContext'
 
 const FIELD_LABELS: Record<string, string> = {
   email: 'Email',
@@ -36,6 +36,7 @@ const FIELDS: FormFields[] = ['email', 'password', 'fullName', 'department', 'hi
 
 export default function RegisterPage() {
   const router = useRouter()
+  const { showSnackbar } = useSnackbar()
   const [form, setForm] = useState<Record<FormFields, string>>({
     email: '',
     password: '',
@@ -43,7 +44,6 @@ export default function RegisterPage() {
     department: '',
     hireDate: '',
   })
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   function update(field: FormFields) {
@@ -54,7 +54,6 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    setError('')
     const res = await fetch('/api/employees', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -63,7 +62,7 @@ export default function RegisterPage() {
     setLoading(false)
     if (!res.ok) {
       const data = await res.json()
-      setError(data.error ?? 'Registration failed')
+      showSnackbar({ message: data.error ?? 'Registration failed', severity: 'error' })
     } else {
       router.push('/login')
     }
@@ -96,10 +95,6 @@ export default function RegisterPage() {
           <CardContent sx={{ p: 4, '&:last-child': { pb: 4 } }}>
             <Box component="form" onSubmit={handleSubmit}>
               <Stack spacing={3}>
-                {error && (
-                  <Alert severity="error">{error}</Alert>
-                )}
-
                 {FIELDS.map((field) => (
                   <TextField
                     key={field}

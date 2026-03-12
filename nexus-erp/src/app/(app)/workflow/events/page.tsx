@@ -10,12 +10,12 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
 import Table from '@mui/material/Table'
+import { useSnackbar } from '@/components/SnackbarContext'
 import TableHead from '@mui/material/TableHead'
 import TableBody from '@mui/material/TableBody'
 import TableRow from '@mui/material/TableRow'
 import TableCell from '@mui/material/TableCell'
 import CircularProgress from '@mui/material/CircularProgress'
-import Alert from '@mui/material/Alert'
 import TimelineRoundedIcon from '@mui/icons-material/TimelineRounded'
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded'
 
@@ -27,29 +27,28 @@ interface StoredEvent {
 }
 
 export default function EventLogPage() {
+  const { showSnackbar } = useSnackbar()
   const [instanceId, setInstanceId] = useState('')
   const [loading, setLoading] = useState(false)
   const [events, setEvents] = useState<StoredEvent[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   async function search() {
     if (!instanceId.trim()) return
     setLoading(true)
-    setError(null)
     try {
       const res = await fetch(`/api/workflow/instances/${instanceId.trim()}/events`)
       if (res.status === 404) {
-        setError(`Instance "${instanceId.trim()}" not found.`)
+        showSnackbar({ message: `Instance "${instanceId.trim()}" not found.`, severity: 'error' })
         setEvents(null)
       } else if (!res.ok) {
-        setError('Failed to fetch events.')
+        showSnackbar({ message: 'Failed to fetch events.', severity: 'error' })
         setEvents(null)
       } else {
         const data = await res.json()
         setEvents(data.events ?? [])
       }
     } catch {
-      setError('Network error.')
+      showSnackbar({ message: 'Network error.', severity: 'error' })
     } finally {
       setLoading(false)
     }
@@ -84,9 +83,7 @@ export default function EventLogPage() {
         </CardContent>
       </Card>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-
-      {events === null && !error && (
+      {events === null && (
         <Stack alignItems="center" spacing={2} sx={{ py: 8 }}>
           <TimelineRoundedIcon sx={{ fontSize: 56, color: 'text.disabled' }} />
           <Typography variant="body1" color="text.secondary">

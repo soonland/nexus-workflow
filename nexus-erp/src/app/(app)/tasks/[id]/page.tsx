@@ -35,7 +35,7 @@ function DetailRow({ label, children }: DetailRowProps) {
 
 export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  if (session?.user.role !== 'manager') redirect('/dashboard')
+  if (!session) redirect('/login')
 
   const { id } = await params
 
@@ -94,7 +94,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
             )}
 
             {isOpen && (
-              <TaskDecisionForm taskId={id} managerId={session!.user.id} />
+              <TaskDecisionForm taskId={id} />
             )}
           </CardContent>
         </Card>

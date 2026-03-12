@@ -8,24 +8,23 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
-import Alert from '@mui/material/Alert'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Stack from '@mui/material/Stack'
 import CircularProgress from '@mui/material/CircularProgress'
 import Link from '@mui/material/Link'
+import { useSnackbar } from '@/components/SnackbarContext'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { showSnackbar } = useSnackbar()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    setError('')
     const result = await signIn('credentials', {
       email,
       password,
@@ -33,7 +32,7 @@ export default function LoginPage() {
     })
     setLoading(false)
     if (result?.error) {
-      setError('Invalid email or password')
+      showSnackbar({ message: 'Invalid email or password', severity: 'error' })
     } else {
       router.push('/dashboard')
     }
@@ -65,10 +64,6 @@ export default function LoginPage() {
           <CardContent sx={{ p: 4, '&:last-child': { pb: 4 } }}>
             <Box component="form" onSubmit={handleSubmit}>
               <Stack spacing={3}>
-                {error && (
-                  <Alert severity="error">{error}</Alert>
-                )}
-
                 <TextField
                   id="email"
                   label="Email"

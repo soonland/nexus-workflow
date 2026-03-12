@@ -4,6 +4,7 @@ import React, { use, useCallback, useEffect, useMemo, useRef, useState } from 'r
 import NextLink from 'next/link'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
+import { useSnackbar } from '@/components/SnackbarContext'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
@@ -360,6 +361,7 @@ const stickyFirstCell = {
 
 export default function TimesheetDetailPage({ params }: Readonly<{ params: Promise<{ id: string }> }>) {
   const { id } = use(params)
+  const { showSnackbar } = useSnackbar()
 
   const [timesheet, setTimesheet] = useState<Timesheet | null>(null)
   const [loading, setLoading] = useState(true)
@@ -371,12 +373,8 @@ export default function TimesheetDetailPage({ params }: Readonly<{ params: Promi
   // Per-cell saving indicator: key is `${rowKey}::${dateIso}`
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set())
 
-  // Inline error for cell saves (shown as a small snackbar-style alert)
-  const [cellError, setCellError] = useState<string | null>(null)
-
   // Submit state
   const [submitLoading, setSubmitLoading] = useState(false)
-  const [submitError, setSubmitError] = useState('')
 
   // ---------------------------------------------------------------------------
   // Fetch
@@ -457,7 +455,6 @@ export default function TimesheetDetailPage({ params }: Readonly<{ params: Promi
       ),
     )
     setSavingCells((prev) => new Set(prev).add(cellId))
-    setCellError(null)
 
     try {
       if (op === 'delete') {
@@ -480,7 +477,7 @@ export default function TimesheetDetailPage({ params }: Readonly<{ params: Promi
         await apiUpdateEntry(id, existing!.entryId, newHours as number, projectCode, description)
       }
     } catch (err) {
-      setCellError(err instanceof Error ? err.message : 'Save failed')
+      showSnackbar({ message: err instanceof Error ? err.message : 'Save failed', severity: 'error' })
       // Rollback optimistic update
       setRows((prev) =>
         prev.map((r) =>
@@ -564,12 +561,11 @@ export default function TimesheetDetailPage({ params }: Readonly<{ params: Promi
 
   async function handleSubmit() {
     setSubmitLoading(true)
-    setSubmitError('')
     try {
       const res = await fetch(`/api/timesheets/${id}/submit`, { method: 'POST' })
       if (!res.ok) {
         const data = await res.json()
-        setSubmitError(data.error ?? 'Failed to submit')
+        showSnackbar({ message: data.error ?? 'Failed to submit', severity: 'error' })
         return
       }
       await fetchTimesheet()
@@ -635,13 +631,6 @@ export default function TimesheetDetailPage({ params }: Readonly<{ params: Promi
         <Alert severity={status === 'rejected' ? 'error' : 'warning'} sx={{ mb: 2 }}>
           <strong>{status === 'rejected' ? 'Rejected' : 'Revision requested'}:</strong>{' '}
           {timesheet.rejectionReason}
-        </Alert>
-      )}
-
-      {/* ── Cell-save error (dismissible) ── */}
-      {cellError && (
-        <Alert severity="error" onClose={() => setCellError(null)} sx={{ mb: 2 }}>
-          {cellError}
         </Alert>
       )}
 
@@ -959,75 +948,6 @@ export default function TimesheetDetailPage({ params }: Readonly<{ params: Promi
         </TableContainer>
       </Paper>
 
-      {/* ── Week summary by project ── */}
-      {weekTotal > 0 && (
-        <Box sx={{ mt: 3 }}>
-          <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
-            Week summary
-          </Typography>
-          <Box
-            sx={{
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 1,
-              overflow: 'hidden',
-            }}
-          >
-            {rows
-              .map((row) => ({ row, total: rowTotal(row, weekDayIsos) }))
-              .filter(({ total }) => total > 0)
-              .map(({ row, total }, idx, arr) => (
-                <Box
-                  key={row.rowKey}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1.5,
-                    px: 2,
-                    py: 1,
-                    borderBottom: idx < arr.length - 1 ? '1px solid' : 'none',
-                    borderColor: 'divider',
-                  }}
-                >
-                  {row.projectCode && (
-                    <Chip
-                      label={row.projectCode}
-                      size="small"
-                      variant="outlined"
-                      sx={{ fontFamily: 'monospace', fontSize: '0.7rem', height: 22, flexShrink: 0 }}
-                    />
-                  )}
-                  <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
-                    {row.description || '—'}
-                  </Typography>
-                  <Typography variant="body2" fontWeight={600} sx={{ fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
-                    {formatHours(total)}h
-                  </Typography>
-                </Box>
-              ))}
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                px: 2,
-                py: 1,
-                bgcolor: 'action.hover',
-                borderTop: '2px solid',
-                borderColor: 'divider',
-              }}
-            >
-              <Typography variant="body2" fontWeight={600} color="text.secondary">
-                Total
-              </Typography>
-              <Typography variant="body2" fontWeight={700} color="primary">
-                {formatHours(weekTotal)}h
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
-      )}
-
       {/* ── Footer bar: week total summary + submit ── */}
       <Stack
         direction="row"
@@ -1045,11 +965,6 @@ export default function TimesheetDetailPage({ params }: Readonly<{ params: Promi
 
         {editable && (
           <Stack direction="column" alignItems="flex-end" gap={1}>
-            {submitError && (
-              <Alert severity="error" sx={{ py: 0.5 }}>
-                {submitError}
-              </Alert>
-            )}
             <Button
               variant="contained"
               color="primary"

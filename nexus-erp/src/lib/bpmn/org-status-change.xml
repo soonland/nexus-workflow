@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  org-status-change.bpmn
+  Pure state machine — all business logic lives in nexus-erp routes.
+  Process: Start
+         → userTask (await-manager-decision)
+             [boundary timer 7d, interrupting] → end-timeout (lazy cleanup in nexus-erp)
+         → XOR Gateway (route-decision)
+             [decision === 'approved'] → end-approved
+             [default]                → end-denied
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_org_status_change"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="org-status-change" name="Organization Status Change Request" isExecutable="true">
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_await_decision</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="await-manager-decision" name="Await Manager Decision" assignee="perm:organizations:approve-status-change">
+      <bpmn:incoming>flow_to_await_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_to_route</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:boundaryEvent id="timeout-boundary" attachedToRef="await-manager-decision" cancelActivity="true">
+      <bpmn:outgoing>flow_timeout_to_end</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>P7D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:endEvent id="end-timeout" name="Timed Out">
+      <bpmn:incoming>flow_timeout_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:exclusiveGateway id="route-decision" name="Route Decision" default="flow_to_end_denied">
+      <bpmn:incoming>flow_to_route</bpmn:incoming>
+      <bpmn:outgoing>flow_to_end_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_to_end_denied</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="end-approved" name="Approved">
+      <bpmn:incoming>flow_to_end_approved</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end-denied" name="Denied">
+      <bpmn:incoming>flow_to_end_denied</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_to_await_decision" sourceRef="start"                 targetRef="await-manager-decision"/>
+    <bpmn:sequenceFlow id="flow_to_route"          sourceRef="await-manager-decision" targetRef="route-decision"/>
+    <bpmn:sequenceFlow id="flow_timeout_to_end"    sourceRef="timeout-boundary"       targetRef="end-timeout"/>
+
+    <bpmn:sequenceFlow id="flow_to_end_approved" sourceRef="route-decision" targetRef="end-approved">
+      <bpmn:conditionExpression>decision === 'approved'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_to_end_denied" sourceRef="route-decision" targetRef="end-denied"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   update-profile-info.bpmn
-  Process: Start → userTask (HR Review, assignee=${hrManagerId})
+  Process: Start → userTask (HR Review, assignee=perm:employees:approve-profile-update)
          → XOR Gateway
              [decision === 'approved'] → EndEvent (Approved)
              [default]                 → EndEvent (Denied)
@@ -17,7 +17,7 @@
       <bpmn:outgoing>flow_to_review</bpmn:outgoing>
     </bpmn:startEvent>
 
-    <bpmn:userTask id="task_hr_review" name="HR Review" assignee="${hrManagerId}">
+    <bpmn:userTask id="task_hr_review" name="HR Review" assignee="perm:employees:approve-profile-update">
       <bpmn:incoming>flow_to_review</bpmn:incoming>
       <bpmn:outgoing>flow_to_decision</bpmn:outgoing>
     </bpmn:userTask>

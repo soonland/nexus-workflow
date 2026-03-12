@@ -24,13 +24,19 @@ export async function GET(req: NextRequest) {
         ? { weekStart: { gte: new Date(from), lte: new Date(to) } }
         : {}),
     },
-    include: { entries: { select: { hours: true } } },
+    include: { entries: { select: { date: true, hours: true, projectCode: true, description: true }, orderBy: [{ date: 'asc' }, { createdAt: 'asc' }] } },
     orderBy: { weekStart: 'desc' },
   })
 
   const result = timesheets.map(({ entries, ...ts }) => ({
     ...ts,
     totalHours: entries.reduce((sum, e) => sum + Number(e.hours), 0),
+    entries: entries.map((e) => ({
+      date: e.date.toISOString().split('T')[0],
+      hours: Number(e.hours),
+      projectCode: e.projectCode,
+      description: e.description,
+    })),
   }))
 
   return NextResponse.json(result)

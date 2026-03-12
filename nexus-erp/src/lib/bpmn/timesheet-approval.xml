@@ -4,7 +4,7 @@
   Process: Start
          → userTask (Manager Review, assignee=${managerId})
          → XOR Gateway (manager decision)
-             [approved]           → userTask (HR Review, assignee=dept:${hrDeptId})
+             [approved]           → userTask (HR Review, assignee=perm:timesheets:hr-approve)
              [revision_requested] → EndEvent (Revision Requested by Manager)
              [default]            → EndEvent (Rejected by Manager)
          → XOR Gateway (hr decision)
@@ -35,7 +35,7 @@
       <bpmn:outgoing>flow_manager_rejected</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    <bpmn:userTask id="task_hr_review" name="HR Review" assignee="dept:${hrDeptId}">
+    <bpmn:userTask id="task_hr_review" name="HR Review" assignee="perm:timesheets:hr-approve">
       <bpmn:incoming>flow_manager_approved</bpmn:incoming>
       <bpmn:outgoing>flow_hr_to_decision</bpmn:outgoing>
     </bpmn:userTask>

@@ -35,7 +35,7 @@ function buildBreadcrumbs(pathname: string): { label: string; href: string }[] {
   let accumulated = ''
   for (const seg of segments) {
     accumulated += `/${seg}`
-    if (/^[0-9a-f-]{8,}$/i.test(seg)) continue
+    if (/^[0-9a-f-]{8,}$/i.test(seg) || /^[a-zA-Z0-9]{20,}$/.test(seg)) continue
     const label = seg.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
     crumbs.push({ label, href: accumulated })
   }

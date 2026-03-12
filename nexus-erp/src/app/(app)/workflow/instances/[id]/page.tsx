@@ -62,7 +62,7 @@ export default async function InstanceDetailPage({ params }: { params: Promise<{
         <IconButton component={NextLink} href="/workflow/instances" size="small">
           <ArrowBackRoundedIcon />
         </IconButton>
-        <Typography variant="h3" sx={{ fontFamily: 'monospace' }}>{id.slice(0, 8)}…</Typography>
+        <Typography variant="h3">{instance.definitionId}</Typography>
         <Chip label={instance.status} size="small" color={STATUS_COLORS[instance.status] ?? 'default'} />
         <Box sx={{ ml: 'auto' }}>
           <InstanceActions instanceId={id} status={instance.status} />

@@ -5,7 +5,6 @@ import { completeTask, getTask } from '@/lib/workflow'
 import { db } from '@/db/client'
 
 const completeSchema = z.object({
-  managerId: z.string(),
   decision: z.enum(['approved', 'rejected', 'revision_requested']),
   rejectionReason: z.string().optional(),
 })
@@ -15,8 +14,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth()
-  if (!session || session.user.role !== 'manager') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const { id } = await params
@@ -26,7 +25,8 @@ export async function POST(
     return NextResponse.json({ error: parsed.error.errors[0]?.message ?? 'Invalid input' }, { status: 400 })
   }
 
-  const { managerId, decision, rejectionReason } = parsed.data
+  const { decision, rejectionReason } = parsed.data
+  const completedById = session.user.id
 
   let taskData
   try {
@@ -38,7 +38,7 @@ export async function POST(
   const outputVariables: Record<string, unknown> = { decision }
   if (rejectionReason) outputVariables.rejectionReason = rejectionReason
 
-  await completeTask(id, managerId, outputVariables)
+  await completeTask(id, completedById, outputVariables)
 
   const instanceId = taskData.task.instanceId
   const variables = taskData.variables as Record<string, unknown>
@@ -74,6 +74,22 @@ export async function POST(
     }
   }
 
+  // Sync organization status
+  if (variables.organizationId) {
+    const org = await db.organization.findFirst({
+      where: { workflowInstanceId: instanceId },
+    })
+    if (org) {
+      const requestedStatus = variables.requestedStatus as 'active' | 'inactive' | undefined
+      await db.organization.update({
+        where: { id: org.id },
+        data: decision === 'approved' && requestedStatus
+          ? { status: requestedStatus, workflowInstanceId: null }
+          : { workflowInstanceId: null, statusChangeReason: null },
+      })
+    }
+  }
+
   // Sync profile update request status
   if (variables.updateRequestId) {
     const request = await db.employeeProfileUpdateRequest.findUnique({
@@ -94,14 +110,14 @@ export async function POST(
         })
         await db.employeeProfileUpdateRequest.update({
           where: { id: request.id },
-          data: { status: 'APPROVED', resolvedById: managerId },
+          data: { status: 'APPROVED', resolvedById: completedById },
         })
       } else {
         await db.employeeProfileUpdateRequest.update({
           where: { id: request.id },
           data: {
             status: 'DENIED',
-            resolvedById: managerId,
+            resolvedById: completedById,
             rejectionReason: rejectionReason ?? null,
           },
         })

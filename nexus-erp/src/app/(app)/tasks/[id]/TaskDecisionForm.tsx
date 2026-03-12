@@ -6,35 +6,31 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
-import Alert from '@mui/material/Alert'
 import Stack from '@mui/material/Stack'
 import CircularProgress from '@mui/material/CircularProgress'
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
+import { useSnackbar } from '@/components/SnackbarContext'
 
 export default function TaskDecisionForm({
   taskId,
-  managerId,
 }: {
   taskId: string
-  managerId: string
 }) {
   const router = useRouter()
+  const { showSnackbar } = useSnackbar()
   const [decision, setDecision] = useState<'approved' | 'rejected' | ''>('')
   const [rejectionReason, setRejectionReason] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!decision) return
     setLoading(true)
-    setError('')
     const res = await fetch(`/api/tasks/${taskId}/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        managerId,
         decision,
         rejectionReason: decision === 'rejected' ? rejectionReason : undefined,
       }),
@@ -42,7 +38,7 @@ export default function TaskDecisionForm({
     setLoading(false)
     if (!res.ok) {
       const data = await res.json()
-      setError(data.error ?? 'Failed to submit decision')
+      showSnackbar({ message: data.error ?? 'Failed to submit decision', severity: 'error' })
     } else {
       router.push('/tasks')
     }
@@ -52,10 +48,6 @@ export default function TaskDecisionForm({
     <Box component="form" onSubmit={handleSubmit}>
       <Stack spacing={2.5}>
         <Typography variant="h6">Your Decision</Typography>
-
-        {error && (
-          <Alert severity="error">{error}</Alert>
-        )}
 
         {/* Approve / Reject toggle buttons */}
         <Stack direction="row" spacing={2}>

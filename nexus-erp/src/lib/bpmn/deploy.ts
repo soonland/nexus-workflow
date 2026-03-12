@@ -26,3 +26,7 @@ export async function ensureTimesheetDefinitionDeployed(): Promise<void> {
 export async function ensureProfileUpdateDefinitionDeployed(): Promise<void> {
   await ensureDeployed('update-profile-info', 'update-profile-info.xml')
 }
+
+export async function ensureOrgStatusChangeDefinitionDeployed(): Promise<void> {
+  await ensureDeployed('org-status-change', 'org-status-change.xml')
+}

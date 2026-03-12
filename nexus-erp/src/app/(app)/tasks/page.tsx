@@ -15,6 +15,7 @@ import Stack from '@mui/material/Stack'
 import InboxRoundedIcon from '@mui/icons-material/InboxRounded'
 import { listTasks } from '@/lib/workflow'
 import { db } from '@/db/client'
+import { getEffectivePermissions } from '@/lib/permissions'
 
 interface Task {
   id: string
@@ -26,28 +27,26 @@ interface Task {
 
 export default async function TasksPage() {
   const session = await auth()
-  if (session?.user.role !== 'manager') redirect('/dashboard')
+  if (!session) redirect('/login')
 
-  // Personal tasks assigned directly to this user
-  const personalResult = await listTasks({ assignee: session.user.id, status: 'open', pageSize: 50 })
-  const allTasks: Task[] = [...personalResult.items]
-  const seen = new Set(personalResult.items.map((t) => t.id))
+  // Build all assignee patterns this user matches (including group-inherited permissions)
+  const effectivePerms = await getEffectivePermissions(session.user.id, db)
+  const patterns = [
+    `user:${session.user.id}`,
+    `role:${session.user.role}`,
+    ...effectivePerms.map((key) => `perm:${key}`),
+  ]
 
-  // Department tasks — if this user belongs to a department, fetch tasks assigned to it
-  const employee = await db.employee.findUnique({
-    where: { userId: session.user.id },
-    select: { departmentId: true },
+  // Fetch tasks for all patterns in parallel, deduplicate by id
+  const results = await Promise.all(
+    patterns.map((a) => listTasks({ assignee: a, status: 'open', pageSize: 50 })),
+  )
+  const seen = new Set<string>()
+  const allTasks: Task[] = results.flatMap((r) => r.items).filter((t) => {
+    if (seen.has(t.id)) return false
+    seen.add(t.id)
+    return true
   })
-  if (employee?.departmentId) {
-    const deptResult = await listTasks({
-      assignee: `dept:${employee.departmentId}`,
-      status: 'open',
-      pageSize: 50,
-    })
-    for (const task of deptResult.items) {
-      if (!seen.has(task.id)) allTasks.push(task)
-    }
-  }
 
   const tasks = allTasks
   const total = tasks.length

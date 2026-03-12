@@ -54,21 +54,6 @@ export async function POST(
     return NextResponse.json({ request: updated, workflowInstanceId: existing.workflowInstanceId }, { status: 200 })
   }
 
-  // Resolve the HR manager to assign the review task to.
-  // Prefer a manager in the HR department; fall back to any manager.
-  const hrManager = await db.employee.findFirst({
-    where: { user: { role: 'manager' }, department: { name: 'HR' } },
-    include: { user: { select: { id: true } } },
-  })
-  const assignee = hrManager ?? await db.employee.findFirst({
-    where: { user: { role: 'manager' } },
-    include: { user: { select: { id: true } } },
-  })
-
-  if (!assignee) {
-    return NextResponse.json({ error: 'No manager available to review the request' }, { status: 422 })
-  }
-
   // Create the staging record
   const request = await db.employeeProfileUpdateRequest.create({
     data: { employeeId: id, ...contactData },
@@ -80,7 +65,6 @@ export async function POST(
     {
       updateRequestId: request.id,
       employeeId: id,
-      hrManagerId: assignee.user.id,
     },
     `profile-update-${request.id}`,
   )

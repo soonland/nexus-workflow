@@ -45,18 +45,12 @@ export async function POST(
   const managerId = ts.employee.manager.user.id
   const totalHours = ts.entries.reduce((sum, e) => sum + Number(e.hours), 0)
 
-  const hrDept = await db.department.findFirst({ where: { name: 'HR' } })
-  if (!hrDept) {
-    return NextResponse.json({ error: 'HR department not found — cannot submit for approval' }, { status: 422 })
-  }
-
   const instance = await startInstance(
     'timesheet-approval',
     {
       timesheetId: ts.id,
       employeeId: ts.employeeId,
       managerId,
-      hrDeptId: hrDept.id,
       weekStart: ts.weekStart.toISOString().split('T')[0],
       totalHours,
     },

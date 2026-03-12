@@ -4,8 +4,33 @@ import { db } from '@/db/client'
 import { auth } from '@/auth'
 
 const patchSchema = z.object({
-  name: z.string().min(1).max(100),
+  name: z.string().min(1).max(100).optional(),
+  memberIds: z.array(z.string()).optional(),
 })
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth()
+  if (!session || session.user.role !== 'manager') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const { id } = await params
+  const department = await db.department.findUnique({
+    where: { id },
+    include: {
+      employees: {
+        select: { id: true, fullName: true },
+        orderBy: { fullName: 'asc' },
+      },
+      _count: { select: { employees: true } },
+    },
+  })
+  if (!department) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return NextResponse.json(department)
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -23,12 +48,31 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.errors[0]?.message ?? 'Invalid input' }, { status: 400 })
   }
 
+  const { name, memberIds } = parsed.data
+
   try {
-    const department = await db.department.update({
-      where: { id },
-      data: { name: parsed.data.name },
+    await db.$transaction(async (tx) => {
+      if (name !== undefined) {
+        await tx.department.update({ where: { id }, data: { name } })
+      }
+      if (memberIds !== undefined) {
+        await tx.employee.updateMany({
+          where: { departmentId: id, id: { notIn: memberIds } },
+          data: { departmentId: null },
+        })
+        if (memberIds.length > 0) {
+          await tx.employee.updateMany({
+            where: { id: { in: memberIds } },
+            data: { departmentId: id },
+          })
+        }
+      }
     })
-    return NextResponse.json(department)
+    const updated = await db.department.findUnique({
+      where: { id },
+      include: { _count: { select: { employees: true } } },
+    })
+    return NextResponse.json(updated)
   } catch {
     return NextResponse.json({ error: 'Not found or name already exists' }, { status: 409 })
   }

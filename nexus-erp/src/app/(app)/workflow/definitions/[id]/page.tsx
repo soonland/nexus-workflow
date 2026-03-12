@@ -73,7 +73,7 @@ export default async function DefinitionDetailPage({
         <IconButton component={NextLink} href="/workflow/definitions" size="small">
           <ArrowBackRoundedIcon />
         </IconButton>
-        <Typography variant="h3" sx={{ fontFamily: 'monospace' }}>{def.id}</Typography>
+        <Typography variant="h3">{def.name ?? def.id}</Typography>
         <Chip label={`v${def.version}`} size="small" variant="outlined" />
         {def.isDeployable
           ? <CheckCircleRoundedIcon fontSize="small" color="success" />

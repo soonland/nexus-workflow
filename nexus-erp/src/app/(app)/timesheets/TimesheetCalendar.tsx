@@ -1,23 +1,34 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import NextLink from 'next/link'
 import Box from '@mui/material/Box'
+import Chip from '@mui/material/Chip'
 import Typography from '@mui/material/Typography'
 import IconButton from '@mui/material/IconButton'
 import CircularProgress from '@mui/material/CircularProgress'
+import Collapse from '@mui/material/Collapse'
 import Tooltip from '@mui/material/Tooltip'
 import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded'
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded'
+import ExpandLessRoundedIcon from '@mui/icons-material/ExpandLessRounded'
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded'
 import TodayRoundedIcon from '@mui/icons-material/TodayRounded'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
+
+type TimesheetEntry = {
+  date: string
+  hours: number
+  projectCode: string | null
+  description: string | null
+}
 
 type Timesheet = {
   id: string
   weekStart: string
-  totalHours: string
+  totalHours: number
   status: string
-  notes: string | null
+  entries: TimesheetEntry[]
 }
 
 const STATUS_CONFIG: Record<string, { label: string; bgColor: string; borderColor: string; textColor: string }> = {
@@ -135,6 +146,51 @@ export default function TimesheetCalendar() {
 
   const todayStr = formatDate(today)
 
+  const [summaryOpen, setSummaryOpen] = useState(true)
+  // Re-open when the user navigates to a different month
+  const prevMonthKey = useRef(`${year}-${month}`)
+  if (`${year}-${month}` !== prevMonthKey.current) {
+    prevMonthKey.current = `${year}-${month}`
+    setSummaryOpen(true)
+  }
+
+  // Aggregate all entries across visible timesheets, grouped by project
+  const monthlySummary = useMemo(() => {
+    const map = new Map<string, { projectCode: string; description: string; hours: number }>()
+    for (const ts of timesheets) {
+      for (const e of ts.entries) {
+        const key = `${e.projectCode ?? ''}|||${e.description ?? ''}`
+        const existing = map.get(key)
+        if (existing) {
+          existing.hours += e.hours
+        } else {
+          map.set(key, {
+            projectCode: e.projectCode ?? '',
+            description: e.description ?? '',
+            hours: e.hours,
+          })
+        }
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.hours - a.hours)
+  }, [timesheets])
+
+  const monthlyTotal = monthlySummary.reduce((sum, row) => sum + row.hours, 0)
+
+  // Map dateStr → array of { entry, statusCfg } for quick day-cell lookup
+  const dateToEntries = useMemo(() => {
+    const map = new Map<string, Array<{ entry: TimesheetEntry; statusCfg: typeof STATUS_CONFIG[string] }>>()
+    for (const ts of timesheets) {
+      const cfg = STATUS_CONFIG[ts.status] ?? STATUS_CONFIG.draft
+      for (const entry of ts.entries) {
+        const list = map.get(entry.date) ?? []
+        list.push({ entry, statusCfg: cfg })
+        map.set(entry.date, list)
+      }
+    }
+    return map
+  }, [timesheets])
+
   return (
     <Box>
       {/* Month navigation */}
@@ -164,7 +220,7 @@ export default function TimesheetCalendar() {
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(7, 1fr)',
+          gridTemplateColumns: 'repeat(7, 1fr) minmax(96px, auto)',
           border: '1px solid',
           borderColor: 'divider',
           borderBottom: 'none',
@@ -179,7 +235,7 @@ export default function TimesheetCalendar() {
             sx={{
               py: 1,
               textAlign: 'center',
-              borderRight: i < 6 ? '1px solid' : 'none',
+              borderRight: '1px solid',
               borderColor: 'divider',
             }}
           >
@@ -193,6 +249,16 @@ export default function TimesheetCalendar() {
             </Typography>
           </Box>
         ))}
+        <Box sx={{ py: 1, textAlign: 'center' }}>
+          <Typography
+            variant="caption"
+            fontWeight={600}
+            color="text.secondary"
+            sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
+          >
+            Week
+          </Typography>
+        </Box>
       </Box>
 
       {/* Calendar weeks */}
@@ -215,8 +281,8 @@ export default function TimesheetCalendar() {
               key={monday.toISOString()}
               sx={{ borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider' }}
             >
-              {/* Day number cells */}
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+              {/* Day number cells + week summary column */}
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr) minmax(96px, auto)' }}>
                 {[0, 1, 2, 3, 4, 5, 6].map(offset => {
                   const day = addDays(monday, offset)
                   const dayStr = formatDate(day)
@@ -258,84 +324,215 @@ export default function TimesheetCalendar() {
                           {day.getDate()}
                         </Typography>
                       </Box>
+                      {/* Entry stack */}
+                      {(() => {
+                        const dayEntries = dateToEntries.get(dayStr)
+                        if (!dayEntries?.length) return null
+                        return (
+                          <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                            {dayEntries.map(({ entry, statusCfg }, i) => (
+                              <Box
+                                key={i}
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 0.5,
+                                  px: 0.75,
+                                  py: 0.125,
+                                  borderRadius: 0.5,
+                                  bgcolor: statusCfg.bgColor,
+                                  border: '1px solid',
+                                  borderColor: statusCfg.borderColor,
+                                  overflow: 'hidden',
+                                }}
+                              >
+                                {entry.projectCode && (
+                                  <Typography
+                                    component="span"
+                                    sx={{
+                                      fontSize: '0.6rem',
+                                      fontFamily: 'monospace',
+                                      fontWeight: 700,
+                                      color: statusCfg.textColor,
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {entry.projectCode}
+                                  </Typography>
+                                )}
+                                <Typography
+                                  component="span"
+                                  sx={{
+                                    fontSize: '0.6rem',
+                                    color: statusCfg.textColor,
+                                    opacity: entry.projectCode ? 0.7 : 1,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    flex: entry.projectCode ? 1 : 'none',
+                                  }}
+                                >
+                                  {entry.hours % 1 === 0 ? entry.hours : entry.hours.toFixed(1)}h
+                                  {!entry.projectCode && entry.description ? ` · ${entry.description}` : ''}
+                                </Typography>
+                              </Box>
+                            ))}
+                          </Box>
+                        )
+                      })()}
                     </Box>
                   )
                 })}
-              </Box>
 
-              {/* Timesheet badge spanning the full week */}
-              <Box sx={{ px: 1, pb: 1 }}>
-                {ts && statusCfg ? (
-                  <Box
-                    component={NextLink}
-                    href={`/timesheets/${ts.id}`}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      px: 1.5,
-                      py: 0.75,
-                      borderRadius: 1,
-                      bgcolor: statusCfg.bgColor,
-                      border: '1px solid',
-                      borderColor: statusCfg.borderColor,
-                      textDecoration: 'none',
-                      transition: 'opacity 0.15s',
-                      '&:hover': { opacity: 0.75 },
-                    }}
-                  >
-                    <Typography variant="caption" fontWeight={700} color={statusCfg.textColor}>
-                      {Number(ts.totalHours)}h
-                    </Typography>
-                    <Typography variant="caption" color={statusCfg.textColor} sx={{ opacity: 0.5 }}>·</Typography>
-                    <Typography variant="caption" color={statusCfg.textColor}>
-                      {statusCfg.label}
-                    </Typography>
-                    {ts.notes && (
-                      <>
-                        <Typography variant="caption" color={statusCfg.textColor} sx={{ opacity: 0.5 }}>·</Typography>
-                        <Typography
-                          variant="caption"
-                          color={statusCfg.textColor}
-                          sx={{ opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}
-                        >
-                          {ts.notes}
-                        </Typography>
-                      </>
-                    )}
-                  </Box>
-                ) : (
-                  <Box
-                    component={NextLink}
-                    href={`/timesheets/new?weekStart=${mondayStr}`}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 0.5,
-                      px: 1.5,
-                      py: 0.75,
-                      borderRadius: 1,
-                      border: '1px dashed',
-                      borderColor: 'divider',
-                      textDecoration: 'none',
-                      color: 'text.disabled',
-                      transition: 'all 0.15s',
-                      '&:hover': {
-                        borderColor: 'primary.main',
-                        color: 'primary.main',
-                        bgcolor: 'primary.50',
-                      },
-                    }}
-                  >
-                    <AddRoundedIcon sx={{ fontSize: 13 }} />
-                    <Typography variant="caption">Log hours</Typography>
-                  </Box>
-                )}
+                {/* Week summary — 8th column */}
+                <Box
+                  sx={{
+                    borderLeft: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: 'grey.50',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    px: 1,
+                    py: 1,
+                  }}
+                >
+                  {ts && statusCfg ? (
+                    <Box
+                      component={NextLink}
+                      href={`/timesheets/${ts.id}`}
+                      sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 0.25,
+                        px: 1,
+                        py: 0.5,
+                        borderRadius: 1,
+                        bgcolor: statusCfg.bgColor,
+                        border: '1px solid',
+                        borderColor: statusCfg.borderColor,
+                        textDecoration: 'none',
+                        transition: 'opacity 0.15s',
+                        '&:hover': { opacity: 0.75 },
+                        width: '100%',
+                      }}
+                    >
+                      <Typography variant="caption" fontWeight={700} color={statusCfg.textColor}>
+                        {Number(ts.totalHours)}h
+                      </Typography>
+                      <Typography variant="caption" color={statusCfg.textColor} sx={{ opacity: 0.75, fontSize: '0.65rem' }}>
+                        {statusCfg.label}
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Box
+                      component={NextLink}
+                      href={`/timesheets/new?weekStart=${mondayStr}`}
+                      sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 0.25,
+                        px: 1,
+                        py: 0.5,
+                        borderRadius: 1,
+                        border: '1px dashed',
+                        borderColor: 'divider',
+                        textDecoration: 'none',
+                        color: 'text.disabled',
+                        transition: 'all 0.15s',
+                        width: '100%',
+                        '&:hover': {
+                          borderColor: 'primary.main',
+                          color: 'primary.main',
+                          bgcolor: 'primary.50',
+                        },
+                      }}
+                    >
+                      <AddRoundedIcon sx={{ fontSize: 14 }} />
+                      <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>Log hours</Typography>
+                    </Box>
+                  )}
+                </Box>
               </Box>
             </Box>
           )
         })}
       </Box>
+
+      {/* Monthly summary by project */}
+      {monthlySummary.length > 0 && (
+        <Box sx={{ mt: 4 }}>
+          <Box
+            onClick={() => setSummaryOpen((o) => !o)}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              mb: summaryOpen ? 1.5 : 0,
+              cursor: 'pointer',
+              userSelect: 'none',
+              '&:hover': { opacity: 0.75 },
+            }}
+          >
+            <Typography variant="subtitle2" fontWeight={600}>
+              Monthly summary
+            </Typography>
+            {summaryOpen ? <ExpandLessRoundedIcon fontSize="small" /> : <ExpandMoreRoundedIcon fontSize="small" />}
+          </Box>
+          <Collapse in={summaryOpen}>
+          <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
+            {monthlySummary.map((row, idx) => (
+              <Box
+                key={`${row.projectCode}|||${row.description}`}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                  px: 2,
+                  py: 1,
+                  borderBottom: idx < monthlySummary.length - 1 ? '1px solid' : 'none',
+                  borderColor: 'divider',
+                }}
+              >
+                {row.projectCode && (
+                  <Chip
+                    label={row.projectCode}
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontFamily: 'monospace', fontSize: '0.7rem', height: 22, flexShrink: 0 }}
+                  />
+                )}
+                <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
+                  {row.description || '—'}
+                </Typography>
+                <Typography variant="body2" fontWeight={600} sx={{ fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                  {row.hours % 1 === 0 ? row.hours : row.hours.toFixed(1)}h
+                </Typography>
+              </Box>
+            ))}
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                px: 2,
+                py: 1,
+                bgcolor: 'action.hover',
+                borderTop: '2px solid',
+                borderColor: 'divider',
+              }}
+            >
+              <Typography variant="body2" fontWeight={600} color="text.secondary">Total</Typography>
+              <Typography variant="body2" fontWeight={700} color="primary">
+                {monthlyTotal % 1 === 0 ? monthlyTotal : monthlyTotal.toFixed(1)}h
+              </Typography>
+            </Box>
+          </Box>
+          </Collapse>
+        </Box>
+      )}
     </Box>
   )
 }

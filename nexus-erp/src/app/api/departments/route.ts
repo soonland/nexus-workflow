@@ -5,6 +5,7 @@ import { auth } from '@/auth'
 
 const createSchema = z.object({
   name: z.string().min(1).max(100),
+  memberIds: z.array(z.string()).optional(),
 })
 
 export async function GET() {
@@ -35,6 +36,12 @@ export async function POST(req: NextRequest) {
       data: { name: parsed.data.name },
       include: { _count: { select: { employees: true } } },
     })
+    if (parsed.data.memberIds?.length) {
+      await db.employee.updateMany({
+        where: { id: { in: parsed.data.memberIds } },
+        data: { departmentId: department.id },
+      })
+    }
     return NextResponse.json(department, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'A department with that name already exists' }, { status: 409 })

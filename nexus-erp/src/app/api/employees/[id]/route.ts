@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
+import { canAccess } from '@/lib/access'
 
 const patchSchema = z.object({
   fullName: z.string().min(1).optional(),
@@ -22,17 +23,85 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth()
-  if (!session || session.user.role !== 'manager') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
+
   const emp = await db.employee.findUnique({
     where: { id },
-    include: { user: { select: { email: true, role: true } }, manager: true },
+    include: {
+      user: {
+        select: {
+          email: true,
+          role: true,
+          permissions: { include: { permission: true } },
+          groups: {
+            include: {
+              group: {
+                select: {
+                  id: true,
+                  name: true,
+                  permissions: { select: { permissionKey: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+      manager: { select: { id: true, fullName: true } },
+      department: { select: { id: true, name: true } },
+    },
   })
   if (!emp) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json(emp)
+
+  const allowed = await canAccess(session, 'employees', 'read', emp.userId, db)
+  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  // Compute effective permissions (direct + inherited via groups)
+  const directPerms = emp.user.permissions.map((up) => ({
+    key: up.permission.key,
+    label: up.permission.label,
+    source: 'direct' as const,
+  }))
+  const groupPerms = emp.user.groups.flatMap((gm) =>
+    gm.group.permissions.map((gp) => ({
+      key: gp.permissionKey,
+      label: '',
+      source: 'group' as const,
+      groupId: gm.group.id,
+      groupName: gm.group.name,
+    }))
+  )
+  // Merge: for each unique key collect all sources
+  const permMap = new Map<string, { key: string; label: string; direct: boolean; groups: { id: string; name: string }[] }>()
+  for (const p of directPerms) {
+    permMap.set(p.key, { key: p.key, label: p.label, direct: true, groups: [] })
+  }
+  for (const p of groupPerms) {
+    const existing = permMap.get(p.key)
+    if (existing) {
+      existing.groups.push({ id: p.groupId, name: p.groupName })
+    } else {
+      permMap.set(p.key, { key: p.key, label: p.key, direct: false, groups: [{ id: p.groupId, name: p.groupName }] })
+    }
+  }
+
+  return NextResponse.json({
+    id: emp.id,
+    fullName: emp.fullName,
+    hireDate: emp.hireDate,
+    phone: emp.phone,
+    street: emp.street,
+    city: emp.city,
+    state: emp.state,
+    postalCode: emp.postalCode,
+    country: emp.country,
+    department: emp.department,
+    manager: emp.manager,
+    user: { email: emp.user.email, role: emp.user.role },
+    groups: emp.user.groups.map((gm) => ({ id: gm.group.id, name: gm.group.name })),
+    effectivePermissions: Array.from(permMap.values()),
+  })
 }
 
 const contactOnlyFields = ['phone', 'street', 'city', 'state', 'postalCode', 'country'] as const

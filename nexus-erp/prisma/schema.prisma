@@ -12,6 +12,16 @@ enum Role {
   manager
 }
 
+enum PermissionType {
+  crud
+  workflow
+}
+
+enum GroupType {
+  security
+  default
+}
+
 enum TimesheetStatus {
   draft
   submitted
@@ -23,22 +33,92 @@ enum TimesheetStatus {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String    @map("password_hash")
+  id           String            @id @default(cuid())
+  email        String            @unique
+  passwordHash String            @map("password_hash")
   role         Role
-  createdAt    DateTime  @default(now()) @map("created_at")
+  createdAt    DateTime          @default(now()) @map("created_at")
   employee     Employee?
+  permissions  UserPermission[]
+  groups       GroupMembership[]
 
   @@map("users")
 }
 
+model Permission {
+  key         String               @id
+  label       String
+  type        PermissionType       @default(workflow)
+  users       UserPermission[]
+  groups      GroupPermission[]
+  departments DepartmentPermission[]
+
+  @@map("permissions")
+}
+
+model Group {
+  id          String            @id @default(cuid())
+  name        String            @unique
+  description String?
+  type        GroupType         @default(security)
+  permissions GroupPermission[]
+  members     GroupMembership[]
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@map("groups")
+}
+
+model GroupPermission {
+  groupId       String     @map("group_id")
+  permissionKey String     @map("permission_key")
+  group         Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  permission    Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+
+  @@id([groupId, permissionKey])
+  @@map("group_permissions")
+}
+
+model DepartmentPermission {
+  departmentId  String     @map("department_id")
+  permissionKey String     @map("permission_key")
+  department    Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  permission    Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+
+  @@id([departmentId, permissionKey])
+  @@map("department_permissions")
+}
+
+model GroupMembership {
+  userId   String   @map("user_id")
+  groupId  String   @map("group_id")
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  @@id([userId, groupId])
+  @@map("group_memberships")
+}
+
+model UserPermission {
+  userId        String     @map("user_id")
+  permissionKey String     @map("permission_key")
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission    Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+  grantedAt     DateTime   @default(now()) @map("granted_at")
+  grantedById   String?    @map("granted_by_id")
+
+  @@id([userId, permissionKey])
+  @@map("user_permissions")
+}
+
 model Department {
-  id        String     @id @default(cuid())
-  name      String     @unique
-  employees Employee[]
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
+  id          String                 @id @default(cuid())
+  name        String                 @unique
+  employees   Employee[]
+  permissions DepartmentPermission[]
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
 
   @@map("departments")
 }
@@ -62,6 +142,7 @@ model Employee {
   reports               Employee[]                     @relation("EmployeeManager")
   timesheets            Timesheet[]
   profileUpdateRequests EmployeeProfileUpdateRequest[]
+  organizations         Organization[]
   createdAt  DateTime    @default(now()) @map("created_at")
   updatedAt  DateTime    @updatedAt @map("updated_at")
 
@@ -115,6 +196,38 @@ model Timesheet {
   @@index([status])
   @@index([workflowInstanceId])
   @@map("timesheets")
+}
+
+enum OrganizationStatus {
+  active
+  inactive
+  archived
+}
+
+model Organization {
+  id             String             @id @default(cuid())
+  name           String
+  legalName      String?            @map("legal_name")
+  industry       String?
+  taxId          String?            @map("tax_id")
+  registrationNo String?            @map("registration_no")
+  status         OrganizationStatus @default(active)
+  email          String?
+  phone          String?
+  website        String?
+  street         String?
+  city           String?
+  state          String?
+  postalCode     String?            @map("postal_code")
+  country        String?
+  owner          Employee?          @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  ownerId        String?            @map("owner_id")
+  statusChangeReason String?        @map("status_change_reason")
+  workflowInstanceId String?        @map("workflow_instance_id")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  @@map("organizations")
 }
 
 model TimesheetEntry {

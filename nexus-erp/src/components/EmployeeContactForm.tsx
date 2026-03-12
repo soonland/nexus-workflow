@@ -10,6 +10,7 @@ import Alert from '@mui/material/Alert'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import Chip from '@mui/material/Chip'
+import { useSnackbar } from '@/components/SnackbarContext'
 
 interface ContactFormValues {
   phone: string | null
@@ -43,21 +44,20 @@ export default function EmployeeContactForm({
   pendingRequest,
 }: EmployeeContactFormProps) {
   const router = useRouter()
+  const { showSnackbar } = useSnackbar()
   const [form, setForm] = useState<ContactFormValues>(
     pendingRequest
       ? { phone: pendingRequest.phone, street: pendingRequest.street, city: pendingRequest.city, state: pendingRequest.state, postalCode: pendingRequest.postalCode, country: pendingRequest.country }
       : defaultValues
   )
-  const [status, setStatus] = useState<'idle' | 'saving' | 'submitted' | 'error'>('idle')
-  const [errorMsg, setErrorMsg] = useState('')
+  const [saving, setSaving] = useState(false)
 
   function set(field: keyof ContactFormValues, value: string | null) {
     setForm((prev) => ({ ...prev, [field]: value }))
-    if (status !== 'idle') setStatus('idle')
   }
 
   async function handleSubmit() {
-    setStatus('saving')
+    setSaving(true)
     try {
       const res = await fetch(`/api/employees/${employeeId}/profile-update-requests`, {
         method: 'POST',
@@ -68,11 +68,15 @@ export default function EmployeeContactForm({
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error ?? `Error ${res.status}`)
       }
-      setStatus('submitted')
+      showSnackbar({
+        message: pendingRequest ? 'Your pending request has been updated.' : 'Your update request has been submitted and is pending HR review.',
+        severity: 'success',
+      })
       router.refresh()
     } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : 'Unknown error')
-      setStatus('error')
+      showSnackbar({ message: e instanceof Error ? e.message : 'Unknown error', severity: 'error' })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -90,13 +94,6 @@ export default function EmployeeContactForm({
           </Box>
         </Alert>
       )}
-      {status === 'submitted' && (
-        <Alert severity="success">
-          {pendingRequest ? 'Your pending request has been updated.' : 'Your update request has been submitted and is pending HR review.'}
-        </Alert>
-      )}
-      {status === 'error' && <Alert severity="error">{errorMsg}</Alert>}
-
       <Grid container spacing={2}>
         <Grid size={{ xs: 12 }}>
           <TextField
@@ -150,8 +147,8 @@ export default function EmployeeContactForm({
       </Grid>
 
       <Box>
-        <Button variant="contained" onClick={handleSubmit} disabled={status === 'saving'}>
-          {status === 'saving' ? 'Submitting…' : 'Submit for Review'}
+        <Button variant="contained" onClick={handleSubmit} disabled={saving}>
+          {saving ? 'Submitting…' : 'Submit for Review'}
         </Button>
       </Box>
     </Stack>

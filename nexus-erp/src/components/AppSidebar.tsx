@@ -28,6 +28,7 @@ import PlayCircleRoundedIcon from '@mui/icons-material/PlayCircleRounded'
 import SchemaRoundedIcon from '@mui/icons-material/SchemaRounded'
 import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded'
 import CorporateFareRoundedIcon from '@mui/icons-material/CorporateFareRounded'
+import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded'
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
 import ManageSearchRoundedIcon from '@mui/icons-material/ManageSearchRounded'
 import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded'
@@ -42,6 +43,7 @@ export interface NavItem {
   href: string
   icon: React.ReactElement
   managerOnly?: boolean
+  requiresEmployee?: boolean
 }
 
 export interface NavSection {
@@ -62,9 +64,9 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Operations',
     items: [
-      { label: 'Timesheets', href: '/timesheets', icon: <AccessTimeRoundedIcon fontSize="small" /> },
+      { label: 'Timesheets', href: '/timesheets', icon: <AccessTimeRoundedIcon fontSize="small" />, requiresEmployee: true },
       { label: 'Employees',  href: '/employees',  icon: <PeopleRoundedIcon fontSize="small" />, managerOnly: true },
-      { label: 'Task Inbox', href: '/tasks',      icon: <InboxRoundedIcon fontSize="small" />,  managerOnly: true },
+      { label: 'Task Inbox', href: '/tasks',      icon: <InboxRoundedIcon fontSize="small" /> },
     ],
   },
   {
@@ -89,6 +91,7 @@ const NAV_SECTIONS: NavSection[] = [
     managerOnly: true,
     items: [
       { label: 'Departments', href: '/departments',      icon: <CorporateFareRoundedIcon fontSize="small" /> },
+      { label: 'Groups',      href: '/groups',           icon: <GroupsRoundedIcon fontSize="small" /> },
       { label: 'Settings',    href: '/admin/settings',   icon: <SettingsRoundedIcon fontSize="small" /> },
       { label: 'Audit Log',   href: '/admin/audit-log',  icon: <ManageSearchRoundedIcon fontSize="small" /> },
     ],
@@ -104,9 +107,10 @@ export const SIDEBAR_COLLAPSED_WIDTH = 64
 
 interface AppSidebarProps {
   role: 'employee' | 'manager'
+  hasEmployee: boolean
 }
 
-export default function AppSidebar({ role }: AppSidebarProps) {
+export default function AppSidebar({ role, hasEmployee }: AppSidebarProps) {
   const pathname = usePathname()
   const { collapsed, setCollapsed } = useSidebar()
   const isManager = role === 'manager'
@@ -186,7 +190,9 @@ export default function AppSidebar({ role }: AppSidebarProps) {
       <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', py: 1 }}>
         {NAV_SECTIONS.map((section, si) => {
           if (section.managerOnly && !isManager) return null
-          const visibleItems = section.items.filter((item) => !item.managerOnly || isManager)
+          const visibleItems = section.items.filter((item) =>
+            (!item.managerOnly || isManager) && (!item.requiresEmployee || hasEmployee)
+          )
           if (visibleItems.length === 0) return null
 
           return (

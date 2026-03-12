@@ -9,11 +9,11 @@ import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
-import Alert from '@mui/material/Alert'
 import Stack from '@mui/material/Stack'
 import IconButton from '@mui/material/IconButton'
 import CircularProgress from '@mui/material/CircularProgress'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
+import { useSnackbar } from '@/components/SnackbarContext'
 
 async function createTimesheet(weekStart: string) {
   return fetch('/api/timesheets', {
@@ -26,10 +26,10 @@ async function createTimesheet(weekStart: string) {
 function NewTimesheetForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { showSnackbar } = useSnackbar()
   const prefilledWeekStart = searchParams.get('weekStart') ?? ''
 
   const [weekStart, setWeekStart] = useState(prefilledWeekStart)
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   // Auto-create when a weekStart is prefilled from the calendar
@@ -50,11 +50,11 @@ function NewTimesheetForm() {
             return
           }
         }
-        setError('A timesheet for this week already exists.')
+        showSnackbar({ message: 'A timesheet for this week already exists.', severity: 'error' })
         setLoading(false)
       } else {
         const data = await res.json()
-        setError(data.error ?? 'Failed to create timesheet')
+        showSnackbar({ message: data.error ?? 'Failed to create timesheet', severity: 'error' })
         setLoading(false)
       }
     })
@@ -64,14 +64,13 @@ function NewTimesheetForm() {
     e.preventDefault()
     if (!weekStart) return
     setLoading(true)
-    setError('')
     const res = await createTimesheet(weekStart)
     if (res.ok) {
       const { timesheet } = await res.json()
       router.push(`/timesheets/${timesheet.id}`)
     } else {
       const data = await res.json()
-      setError(data.error ?? 'Failed to create timesheet')
+      showSnackbar({ message: data.error ?? 'Failed to create timesheet', severity: 'error' })
       setLoading(false)
     }
   }
@@ -98,7 +97,6 @@ function NewTimesheetForm() {
         <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
           <Box component="form" onSubmit={handleSubmit}>
             <Stack spacing={3}>
-              {error && <Alert severity="error">{error}</Alert>}
               <TextField
                 id="weekStart"
                 label="Week Start (Monday)"
