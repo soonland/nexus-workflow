@@ -38,6 +38,7 @@ model User {
   passwordHash String            @map("password_hash")
   role         Role
   theme        String?           @default("system")
+  locale       String?           @default("fr")
   createdAt    DateTime          @default(now()) @map("created_at")
   employee     Employee?
   permissions  UserPermission[]

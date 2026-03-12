@@ -7,6 +7,7 @@ declare module 'next-auth' {
       role: 'employee' | 'manager'
       employeeId: string | null
       theme: string
+      locale: string
     } & DefaultSession['user']
   }
 
@@ -14,6 +15,7 @@ declare module 'next-auth' {
     role: 'employee' | 'manager'
     employeeId: string | null
     theme: string
+    locale: string
   }
 }
 
@@ -22,5 +24,6 @@ declare module '@auth/core/jwt' {
     role: 'employee' | 'manager'
     employeeId: string | null
     theme: string
+    locale: string
   }
 }

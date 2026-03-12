@@ -27,7 +27,9 @@ export default auth((req) => {
   }
 
   if (isLoggedIn && isAuthPage) {
-    return NextResponse.redirect(new URL(`/${locale}/dashboard`, req.nextUrl))
+    // Redirect to the locale stored in the user's profile, not the URL locale
+    const sessionLocale = (req.auth?.user?.locale as string | undefined) ?? locale
+    return NextResponse.redirect(new URL(`/${sessionLocale}/dashboard`, req.nextUrl))
   }
 
   return handleI18nRouting(req)
