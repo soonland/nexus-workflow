@@ -154,4 +154,30 @@ describe('JsEvaluator — error handling', () => {
     // Variables not in the context are undefined — no throw, just undefined
     expect(evaluator.evaluate('undeclaredVar', ctx())).toBeUndefined()
   })
+
+  it('re-throws non-syntax, non-timeout runtime errors from the vm (e.g. TypeError)', () => {
+    // null.property throws TypeError inside the vm — not a SyntaxError or timeout.
+    // Errors crossing vm boundaries fail instanceof checks, so we check the name instead.
+    let thrown: unknown
+    try {
+      evaluator.evaluate('null.nonExistentProperty', ctx())
+    } catch (e) {
+      thrown = e
+    }
+    // The error should propagate from the re-throw branch (not wrapped by our error types)
+    expect(thrown).toBeDefined()
+    expect((thrown as any).name).toBe('TypeError')
+  })
+
+  it('re-thrown vm errors are not wrapped in WorkflowError subtypes', () => {
+    let thrown: unknown
+    try {
+      evaluator.evaluate('null.nonExistentProperty', ctx())
+    } catch (e) {
+      thrown = e
+    }
+    // Should not be any of our custom WorkflowError subclasses
+    expect(thrown).toBeDefined()
+    expect((thrown as any).code).toBeUndefined() // WorkflowError always has a code
+  })
 })

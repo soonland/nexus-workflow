@@ -391,6 +391,42 @@ describe('tasks HTTP API', () => {
       expect(res.status).toBe(404)
     })
 
+    it('422: completing a cancelled task returns 422', async () => {
+      const { taskId, instanceId } = await startUserTaskProcess(app, store)
+
+      // Cancel the task directly in the store to simulate a cancelled state
+      const task = await store.getUserTask(taskId)
+      await store.executeTransaction([{
+        op: 'updateUserTask',
+        task: { ...task!, status: 'cancelled' as const, completedAt: new Date() },
+      }])
+
+      const res = await app.fetch(
+        new Request(`http://localhost/tasks/${taskId}/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ completedBy: 'user-1' }),
+        }),
+      )
+      expect(res.status).toBe(422)
+      const body = await res.json()
+      expect(body.error).toBe('INVALID_STATE')
+    })
+
+    it('400: non-JSON body returns 400', async () => {
+      const { taskId } = await startUserTaskProcess(app, store)
+      const res = await app.fetch(
+        new Request(`http://localhost/tasks/${taskId}/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: 'not-json',
+        }),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBe('INVALID_BODY')
+    })
+
     it('422: completing an already-completed task returns 422', async () => {
       const { taskId } = await startUserTaskProcess(app, store)
       await app.fetch(
@@ -463,6 +499,18 @@ describe('tasks HTTP API', () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({}),
+        }),
+      )
+      expect(res.status).toBe(400)
+    })
+
+    it('400: non-JSON body returns 400', async () => {
+      const { taskId } = await startUserTaskProcess(app, store)
+      const res = await app.fetch(
+        new Request(`http://localhost/tasks/${taskId}/claim`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: 'not-json',
         }),
       )
       expect(res.status).toBe(400)

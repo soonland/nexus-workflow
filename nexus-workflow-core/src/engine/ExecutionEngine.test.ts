@@ -1,14 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { execute } from './ExecutionEngine.js'
 import type { EngineState, EngineCommand } from './ExecutionEngine.js'
-import { RuntimeError } from '../model/errors.js'
+import { RuntimeError, DefinitionError } from '../model/errors.js'
 import {
+  buildDefinition,
   buildSimpleSequenceDefinition,
   buildServiceTaskDefinition,
   buildUserTaskDefinition,
   buildXorGatewayDefinition,
   buildParallelGatewayDefinition,
 } from '../../tests/fixtures/builders/ProcessDefinitionBuilder.js'
+import type { BpmnFlowElement, SequenceFlow, StartEventElement, EndEventElement, ManualTaskElement, ScriptTaskElement, ServiceTaskElement } from '../model/types.js'
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -385,5 +387,364 @@ describe('ExecutionEngine — Parallel Gateway', () => {
 
     expect(s1.gatewayJoinStates).toHaveLength(1)
     expect(s1.gatewayJoinStates[0]?.arrivedFromFlows).toHaveLength(1)
+  })
+})
+
+// ─── DefinitionError paths ────────────────────────────────────────────────────
+//
+// getElement and getFlow throw DefinitionError for missing ids — these are
+// defensive guards that protect against corrupted definitions or bad flow refs.
+
+describe('ExecutionEngine — DefinitionError for missing elements/flows', () => {
+  beforeEach(() => { idCounter = 0 })
+
+  it('throws DefinitionError when the start event element id does not exist in elements', () => {
+    const def = buildDefinition({
+      startEventId: 'nonexistent-start',
+      elements: [],
+      sequenceFlows: [],
+    })
+    expect(() => execute(def, { type: 'StartProcess' }, null, options)).toThrow(DefinitionError)
+  })
+
+  it('throws DefinitionError when a sequence flow references a missing target element', () => {
+    // Build a definition where the start event has an outgoing flow pointing at
+    // a non-existent element — this triggers getElement inside moveTokenToFlow → getFlow → getElement
+    const start: StartEventElement = {
+      id: 'start_1',
+      type: 'startEvent',
+      eventDefinition: { type: 'none' },
+      incomingFlows: [],
+      outgoingFlows: ['flow_bad'],
+    }
+    const badFlow: SequenceFlow = { id: 'flow_bad', sourceRef: 'start_1', targetRef: 'missing_element' }
+    const def = buildDefinition({
+      elements: [start],
+      sequenceFlows: [badFlow],
+      startEventId: 'start_1',
+    })
+    expect(() => execute(def, { type: 'StartProcess' }, null, options)).toThrow(DefinitionError)
+  })
+
+  it('throws DefinitionError when CompleteServiceTask references a token whose element is missing', () => {
+    // Start a valid process to get a waiting token, then surgically remove the element from the
+    // definition to trigger getElement failure during handleCompleteTask → advanceToken → getOutgoingFlows
+    const def = buildServiceTaskDefinition()
+    const { newState: s0 } = execute(def, { type: 'StartProcess' }, null, options)
+    const taskToken = s0.tokens.find(t => t.status === 'waiting')!
+
+    // Remove all elements so getElement fails for the task element
+    const corruptDef = { ...def, elements: [] }
+    expect(() =>
+      execute(corruptDef, { type: 'CompleteServiceTask', tokenId: taskToken.id }, s0, options)
+    ).toThrow(DefinitionError)
+  })
+
+  it('throws DefinitionError when a flow id in outgoingFlows does not exist in sequenceFlows (getFlow path)', () => {
+    // Build a start element whose outgoingFlows lists a flow id not present in sequenceFlows,
+    // triggering the getFlow DefinitionError at line 881.
+    const start: StartEventElement = {
+      id: 'start_1',
+      type: 'startEvent',
+      eventDefinition: { type: 'none' },
+      incomingFlows: [],
+      outgoingFlows: ['flow_nonexistent'],
+    }
+    const end: EndEventElement = {
+      id: 'end_1',
+      type: 'endEvent',
+      eventDefinition: { type: 'none' },
+      incomingFlows: [],
+      outgoingFlows: [],
+    }
+    // sequenceFlows is intentionally empty — 'flow_nonexistent' is not defined
+    const def = buildDefinition({
+      elements: [start, end],
+      sequenceFlows: [],
+      startEventId: 'start_1',
+    })
+    expect(() => execute(def, { type: 'StartProcess' }, null, options)).toThrow(DefinitionError)
+  })
+})
+
+// ─── Inclusive Gateway (engine integration) ────────────────────────────────────
+//
+// This exercises findInclusiveJoinIncoming (lines 838–866) which is called when
+// an inclusive gateway split pre-registers join state for downstream joins.
+
+describe('ExecutionEngine — Inclusive Gateway split + join', () => {
+  beforeEach(() => { idCounter = 0 })
+
+  /**
+   * Direct inclusive split→join where the split's outgoing flows ARE the join's incoming flows.
+   * This is the topology that findInclusiveJoinIncoming can detect and pre-register.
+   *
+   * [Start] → [OR split] --flow_a (amount > 100)--> [OR join] → [End]
+   *                       --flow_b (amount > 50) --> [OR join]
+   *                       --flow_c (default)     --> [OR join]
+   */
+  function buildInclusiveGatewayDefinition(): ReturnType<typeof buildSimpleSequenceDefinition> {
+    const elements: BpmnFlowElement[] = [
+      {
+        id: 'start_1', type: 'startEvent', eventDefinition: { type: 'none' },
+        incomingFlows: [], outgoingFlows: ['flow_1'],
+      } as StartEventElement,
+      {
+        id: 'gw_split', type: 'inclusiveGateway', defaultFlow: 'flow_c',
+        incomingFlows: ['flow_1'], outgoingFlows: ['flow_a', 'flow_b', 'flow_c'],
+      } as any,
+      // No intermediate tasks — split flows connect DIRECTLY to the join so
+      // findInclusiveJoinIncoming can match the activated flow IDs to join incoming IDs.
+      {
+        id: 'gw_join', type: 'inclusiveGateway',
+        incomingFlows: ['flow_a', 'flow_b', 'flow_c'], outgoingFlows: ['flow_end'],
+      } as any,
+      {
+        id: 'end_1', type: 'endEvent', eventDefinition: { type: 'none' },
+        incomingFlows: ['flow_end'], outgoingFlows: [],
+      } as EndEventElement,
+    ]
+
+    const sequenceFlows: SequenceFlow[] = [
+      { id: 'flow_1',   sourceRef: 'start_1',  targetRef: 'gw_split' },
+      { id: 'flow_a',   sourceRef: 'gw_split', targetRef: 'gw_join', conditionExpression: 'amount > 100' },
+      { id: 'flow_b',   sourceRef: 'gw_split', targetRef: 'gw_join', conditionExpression: 'amount > 50' },
+      { id: 'flow_c',   sourceRef: 'gw_split', targetRef: 'gw_join', isDefault: true },
+      { id: 'flow_end', sourceRef: 'gw_join',  targetRef: 'end_1' },
+    ]
+
+    return buildDefinition({ elements, sequenceFlows, startEventId: 'start_1' })
+  }
+
+  /**
+   * Split → service tasks → join: intermediate tasks between split and join.
+   * Used to test completion of a multi-task inclusive gateway scenario.
+   * The join state is supplied explicitly via the engine state (as would happen
+   * in practice when the WorkflowEngine populates it from the split command).
+   */
+  function buildInclusiveGatewayWithTasksDefinition(): ReturnType<typeof buildSimpleSequenceDefinition> {
+    const elements: BpmnFlowElement[] = [
+      {
+        id: 'start_1', type: 'startEvent', eventDefinition: { type: 'none' },
+        incomingFlows: [], outgoingFlows: ['flow_1'],
+      } as StartEventElement,
+      {
+        id: 'gw_split', type: 'inclusiveGateway', defaultFlow: 'flow_c',
+        incomingFlows: ['flow_1'], outgoingFlows: ['flow_a', 'flow_b', 'flow_c'],
+      } as any,
+      {
+        id: 'task_a', type: 'serviceTask', taskType: 'branch-a',
+        incomingFlows: ['flow_a'], outgoingFlows: ['flow_join_a'],
+      } as ServiceTaskElement,
+      {
+        id: 'task_b', type: 'serviceTask', taskType: 'branch-b',
+        incomingFlows: ['flow_b'], outgoingFlows: ['flow_join_b'],
+      } as ServiceTaskElement,
+      {
+        id: 'task_c', type: 'serviceTask', taskType: 'branch-c',
+        incomingFlows: ['flow_c'], outgoingFlows: ['flow_join_c'],
+      } as ServiceTaskElement,
+      {
+        id: 'gw_join', type: 'inclusiveGateway',
+        incomingFlows: ['flow_join_a', 'flow_join_b', 'flow_join_c'], outgoingFlows: ['flow_end'],
+      } as any,
+      {
+        id: 'end_1', type: 'endEvent', eventDefinition: { type: 'none' },
+        incomingFlows: ['flow_end'], outgoingFlows: [],
+      } as EndEventElement,
+    ]
+
+    const sequenceFlows: SequenceFlow[] = [
+      { id: 'flow_1',      sourceRef: 'start_1',  targetRef: 'gw_split' },
+      { id: 'flow_a',      sourceRef: 'gw_split', targetRef: 'task_a', conditionExpression: 'amount > 100' },
+      { id: 'flow_b',      sourceRef: 'gw_split', targetRef: 'task_b', conditionExpression: 'amount > 50' },
+      { id: 'flow_c',      sourceRef: 'gw_split', targetRef: 'task_c', isDefault: true },
+      { id: 'flow_join_a', sourceRef: 'task_a',   targetRef: 'gw_join' },
+      { id: 'flow_join_b', sourceRef: 'task_b',   targetRef: 'gw_join' },
+      { id: 'flow_join_c', sourceRef: 'task_c',   targetRef: 'gw_join' },
+      { id: 'flow_end',    sourceRef: 'gw_join',  targetRef: 'end_1' },
+    ]
+
+    return buildDefinition({ elements, sequenceFlows, startEventId: 'start_1' })
+  }
+
+  it('activates two branches when amount > 100 (flow_a and flow_b both true)', () => {
+    const def = buildInclusiveGatewayDefinition()
+    // When both conditions fire and the join sees 2 of 2 activated flows it should fire immediately
+    const { newState } = execute(
+      def,
+      { type: 'StartProcess', variables: { amount: { type: 'number', value: 150 } } },
+      null,
+      options,
+    )
+    // flow_a and flow_b both activate; join fires immediately since both arrive in same tick
+    expect(newState.instance.status).toBe('completed')
+  })
+
+  it('activates only one branch when amount <= 100 but > 50 (only flow_b true)', () => {
+    const def = buildInclusiveGatewayDefinition()
+    const { newState } = execute(
+      def,
+      { type: 'StartProcess', variables: { amount: { type: 'number', value: 75 } } },
+      null,
+      options,
+    )
+    // Only flow_b fires → join gets 1 of 1 expected → completes immediately
+    expect(newState.instance.status).toBe('completed')
+  })
+
+  it('takes the default branch when no conditions are met and completes', () => {
+    const def = buildInclusiveGatewayDefinition()
+    const { newState } = execute(
+      def,
+      { type: 'StartProcess', variables: { amount: { type: 'number', value: 10 } } },
+      null,
+      options,
+    )
+    expect(newState.instance.status).toBe('completed')
+  })
+
+  it('pre-registers join state at split time when activated flows are join inputs (findInclusiveJoinIncoming runs)', () => {
+    // The direct split→join topology: findInclusiveJoinIncoming can see that flow_a
+    // and flow_b (the activated outgoing flows from the split) are also incoming flows
+    // of gw_join. So it pre-registers join state before the join receives any token.
+    // With amount=150 both flow_a (amount>100) and flow_b (amount>50) fire and both
+    // reach the join in the same runLoop tick — the join fires and the process completes.
+    const def = buildInclusiveGatewayDefinition()
+    const { newState } = execute(
+      def,
+      { type: 'StartProcess', variables: { amount: { type: 'number', value: 150 } } },
+      null,
+      options,
+    )
+    // When both branches fire and the join receives both in the same tick, the process
+    // completes (join state is consumed). No pending join state remains.
+    expect(newState.instance.status).toBe('completed')
+  })
+
+  it('join state is consumed when the join fires — no dangling state remains', () => {
+    // With amount=75, only flow_b is activated (flow_a false, default flow_c not taken).
+    // The join sees 1 of 1 expected → fires immediately → process completes.
+    const def = buildInclusiveGatewayDefinition()
+    const { newState } = execute(
+      def,
+      { type: 'StartProcess', variables: { amount: { type: 'number', value: 75 } } },
+      null,
+      options,
+    )
+    expect(newState.instance.status).toBe('completed')
+    // Join state should be cleared after join fires
+    expect(newState.gatewayJoinStates).toHaveLength(0)
+  })
+})
+
+// ─── Manual Task ──────────────────────────────────────────────────────────────
+
+describe('ExecutionEngine — ManualTask', () => {
+  beforeEach(() => { idCounter = 0 })
+
+  function buildManualTaskDefinition(): ReturnType<typeof buildSimpleSequenceDefinition> {
+    const start: StartEventElement = {
+      id: 'start_1',
+      type: 'startEvent',
+      eventDefinition: { type: 'none' },
+      incomingFlows: [],
+      outgoingFlows: ['flow_1'],
+    }
+    const manualTask: ManualTaskElement = {
+      id: 'manual_1',
+      type: 'manualTask',
+      incomingFlows: ['flow_1'],
+      outgoingFlows: ['flow_2'],
+    }
+    const end: EndEventElement = {
+      id: 'end_1',
+      type: 'endEvent',
+      eventDefinition: { type: 'none' },
+      incomingFlows: ['flow_2'],
+      outgoingFlows: [],
+    }
+    return buildDefinition({
+      elements: [start, manualTask, end],
+      sequenceFlows: [
+        { id: 'flow_1', sourceRef: 'start_1', targetRef: 'manual_1' },
+        { id: 'flow_2', sourceRef: 'manual_1', targetRef: 'end_1' },
+      ],
+      startEventId: 'start_1',
+    })
+  }
+
+  it('auto-completes a manual task and runs the process to completion', () => {
+    const def = buildManualTaskDefinition()
+    const { newState } = execute(def, { type: 'StartProcess' }, null, options)
+    expect(newState.instance.status).toBe('completed')
+  })
+
+  it('no tokens are left waiting after a manual task auto-completes', () => {
+    const def = buildManualTaskDefinition()
+    const { newState } = execute(def, { type: 'StartProcess' }, null, options)
+    expect(newState.tokens.filter(t => t.status === 'waiting')).toHaveLength(0)
+  })
+})
+
+// ─── Script Task ──────────────────────────────────────────────────────────────
+
+describe('ExecutionEngine — ScriptTask', () => {
+  beforeEach(() => { idCounter = 0 })
+
+  function buildScriptTaskDefinition(): ReturnType<typeof buildSimpleSequenceDefinition> {
+    const start: StartEventElement = {
+      id: 'start_1',
+      type: 'startEvent',
+      eventDefinition: { type: 'none' },
+      incomingFlows: [],
+      outgoingFlows: ['flow_1'],
+    }
+    const scriptTask: ScriptTaskElement = {
+      id: 'script_1',
+      type: 'scriptTask',
+      scriptLanguage: 'javascript',
+      script: 'return 1 + 1',
+      incomingFlows: ['flow_1'],
+      outgoingFlows: ['flow_2'],
+    }
+    const end: EndEventElement = {
+      id: 'end_1',
+      type: 'endEvent',
+      eventDefinition: { type: 'none' },
+      incomingFlows: ['flow_2'],
+      outgoingFlows: [],
+    }
+    return buildDefinition({
+      elements: [start, scriptTask, end],
+      sequenceFlows: [
+        { id: 'flow_1', sourceRef: 'start_1', targetRef: 'script_1' },
+        { id: 'flow_2', sourceRef: 'script_1', targetRef: 'end_1' },
+      ],
+      startEventId: 'start_1',
+    })
+  }
+
+  it('suspends the token at a script task waiting for external completion', () => {
+    const def = buildScriptTaskDefinition()
+    const { newState } = execute(def, { type: 'StartProcess' }, null, options)
+    const waiting = newState.tokens.filter(t => t.status === 'waiting')
+    expect(waiting).toHaveLength(1)
+    expect(waiting[0]?.elementId).toBe('script_1')
+  })
+
+  it('script task token waitingFor type is external', () => {
+    const def = buildScriptTaskDefinition()
+    const { newState } = execute(def, { type: 'StartProcess' }, null, options)
+    const scriptToken = newState.tokens.find(t => t.elementId === 'script_1')!
+    expect(scriptToken.waitingFor?.type).toBe('external')
+  })
+
+  it('completes on CompleteServiceTask and runs to completion', () => {
+    const def = buildScriptTaskDefinition()
+    const { newState: s0 } = execute(def, { type: 'StartProcess' }, null, options)
+    const scriptToken = s0.tokens.find(t => t.status === 'waiting')!
+    const { newState } = execute(def, { type: 'CompleteServiceTask', tokenId: scriptToken.id }, s0, options)
+    expect(newState.instance.status).toBe('completed')
   })
 })

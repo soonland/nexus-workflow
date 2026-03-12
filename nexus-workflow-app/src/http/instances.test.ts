@@ -214,6 +214,62 @@ describe('instances HTTP API', () => {
       expect(res.status).toBe(422)
     })
 
+    it('400: non-JSON content-type body returns 400', async () => {
+      await seedDefinition(store, SIMPLE_BPMN)
+      const res = await app.fetch(
+        new Request('http://localhost/definitions/simple-proc/instances', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: 'not-valid-json',
+        }),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBe('INVALID_BODY')
+    })
+
+    it('400: variables value as an array returns 400', async () => {
+      await seedDefinition(store, SIMPLE_BPMN)
+      const res = await app.fetch(
+        new Request('http://localhost/definitions/simple-proc/instances', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ variables: [1, 2, 3] }),
+        }),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBe('INVALID_BODY')
+    })
+
+    it('400: correlationKey that is not a string returns 400', async () => {
+      await seedDefinition(store, SIMPLE_BPMN)
+      const res = await app.fetch(
+        new Request('http://localhost/definitions/simple-proc/instances', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ correlationKey: 42 }),
+        }),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBe('INVALID_BODY')
+    })
+
+    it('400: businessKey that is not a string returns 400', async () => {
+      await seedDefinition(store, SIMPLE_BPMN)
+      const res = await app.fetch(
+        new Request('http://localhost/definitions/simple-proc/instances', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ businessKey: true }),
+        }),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBe('INVALID_BODY')
+    })
+
     it('events: ProcessInstanceStarted event is published to the event bus', async () => {
       await seedDefinition(store, SIMPLE_BPMN)
       const emitted: ExecutionEvent[] = []
@@ -564,6 +620,24 @@ describe('instances HTTP API', () => {
         }),
       )
       expect(res.status).toBe(404)
+    })
+
+    it('200: deleting a completed instance re-emits ProcessInstanceTerminated and returns the instance', async () => {
+      await seedDefinition(store, SIMPLE_BPMN)
+      // simple-proc completes immediately
+      const { instance } = await startInstance(app, 'simple-proc')
+      expect(instance.status).toBe('completed')
+
+      const published: string[] = []
+      eventBus.subscribe(ev => { published.push(ev.type) })
+
+      const res = await app.fetch(
+        new Request(`http://localhost/instances/${instance.id}`, { method: 'DELETE' }),
+      )
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.instance.id).toBe(instance.id)
+      expect(published).toContain('ProcessInstanceTerminated')
     })
 
     it('open user tasks are cancelled when the instance is terminated', async () => {

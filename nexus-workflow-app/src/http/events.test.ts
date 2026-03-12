@@ -125,6 +125,48 @@ describe('events HTTP API', () => {
 
       expect(published.length).toBeGreaterThan(0)
     })
+
+    it('returns 500 when instance state not found after subscription lookup', async () => {
+      // Seed a subscription pointing to a non-existent instance
+      // This simulates a stale subscription (instance was deleted externally)
+      await store.executeTransaction([{
+        op: 'saveSubscription',
+        subscription: {
+          id: 'orphan-sub',
+          instanceId: 'non-existent-instance',
+          tokenId: 'tok-orphan',
+          type: 'message',
+          messageName: 'OrphanMessage',
+          status: 'active',
+          createdAt: new Date(),
+        },
+      }])
+
+      const res = await post(app, '/messages', { messageName: 'OrphanMessage' })
+      expect(res.status).toBe(500)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('INTERNAL_ERROR')
+    })
+
+    it('returns 400 when correlationValue is not a string', async () => {
+      const res = await post(app, '/messages', { messageName: 'OrderShipped', correlationValue: 42 })
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('INVALID_BODY')
+    })
+
+    it('returns 400 when body is an array', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify([{ messageName: 'OrderShipped' }]),
+        }),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('INVALID_BODY')
+    })
   })
 
   // ─── Signals ────────────────────────────────────────────────────────────────
@@ -180,6 +222,50 @@ describe('events HTTP API', () => {
         }),
       )
       expect(res.status).toBe(400)
+    })
+
+    it('returns 400 when body is an array', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/signals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify([{ signalName: 'EmergencyStop' }]),
+        }),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('INVALID_BODY')
+    })
+
+    it('skips instances where execution throws (RuntimeError) and continues with others', async () => {
+      // Seed a stale subscription pointing to a non-existent instance.
+      // The coordinator will try to load it, get no state (loadEngineState returns null),
+      // and skip it. This exercises the "if (!state) continue" path.
+      await store.executeTransaction([{
+        op: 'saveSubscription',
+        subscription: {
+          id: 'stale-signal-sub',
+          instanceId: 'non-existent-instance-for-signal',
+          tokenId: 'tok-stale',
+          type: 'signal',
+          signalName: 'EmergencyStop',
+          status: 'active',
+          createdAt: new Date(),
+        },
+      }])
+
+      // Also seed a real instance waiting for the signal
+      const { instanceId } = await seedAndStart(store, SIGNAL_BPMN)
+
+      const res = await post(app, '/signals', { signalName: 'EmergencyStop' })
+
+      expect(res.status).toBe(200)
+      const body = await res.json() as { delivered: number }
+      // Only the real instance should count as delivered (stale is skipped)
+      expect(body.delivered).toBe(1)
+
+      const instance = await store.getInstance(instanceId)
+      expect(instance?.status).toBe('completed')
     })
   })
 })

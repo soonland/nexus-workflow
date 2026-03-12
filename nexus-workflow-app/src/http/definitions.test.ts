@@ -391,4 +391,119 @@ describe('definitions HTTP API', () => {
       expect(typeof body.error).toBe('string')
     })
   })
+
+  // ─── GET /definitions/:id/xml ────────────────────────────────────────────────
+
+  describe('GET /definitions/:id/xml', () => {
+    it('200: returns stored XML with Content-Type application/xml', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/definitions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/xml' },
+          body: VALID_BPMN,
+        }),
+      )
+      expect(res.status).toBe(201)
+
+      const xmlRes = await app.fetch(new Request('http://localhost/definitions/simple-process/xml'))
+      expect(xmlRes.status).toBe(200)
+      expect(xmlRes.headers.get('Content-Type')).toContain('application/xml')
+      const text = await xmlRes.text()
+      expect(text).toContain('simple-process')
+    })
+
+    it('200: ?version=N returns XML for that specific version', async () => {
+      // Deploy twice to create version 1 (first deploy)
+      await app.fetch(
+        new Request('http://localhost/definitions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/xml' },
+          body: VALID_BPMN,
+        }),
+      )
+
+      const xmlRes = await app.fetch(new Request('http://localhost/definitions/simple-process/xml?version=1'))
+      expect(xmlRes.status).toBe(200)
+      const text = await xmlRes.text()
+      expect(text.length).toBeGreaterThan(0)
+    })
+
+    it('404: returns 404 when definition xml does not exist', async () => {
+      const res = await app.fetch(new Request('http://localhost/definitions/does-not-exist/xml'))
+      expect(res.status).toBe(404)
+      const body = await res.json()
+      expect(body).toHaveProperty('error', 'NOT_FOUND')
+    })
+  })
+
+  // ─── DELETE /definitions/:id ─────────────────────────────────────────────────
+
+  describe('DELETE /definitions/:id', () => {
+    it('200: deletes a definition that has no active instances', async () => {
+      await store.saveDefinition(makeDefinition())
+      inMemoryXmlStore.xmlMap.set('proc-1@1', '<xml/>')
+
+      const res = await app.fetch(
+        new Request('http://localhost/definitions/proc-1', { method: 'DELETE' }),
+      )
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body).toHaveProperty('deleted', 'proc-1')
+    })
+
+    it('200: deleted definition XML is no longer retrievable via GET /xml', async () => {
+      await store.saveDefinition(makeDefinition())
+      inMemoryXmlStore.xmlMap.set('proc-1@1', '<xml/>')
+
+      await app.fetch(new Request('http://localhost/definitions/proc-1', { method: 'DELETE' }))
+
+      // The XML is removed from the xml store — GET /xml should 404
+      const xmlRes = await app.fetch(new Request('http://localhost/definitions/proc-1/xml'))
+      expect(xmlRes.status).toBe(404)
+    })
+
+    it('404: returns 404 when definition does not exist', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/definitions/no-such-def', { method: 'DELETE' }),
+      )
+      expect(res.status).toBe(404)
+      const body = await res.json()
+      expect(body).toHaveProperty('error', 'NOT_FOUND')
+    })
+
+    it('409: returns conflict when definition has active instances', async () => {
+      // Use a BPMN that stays active (user task waits for input, does not auto-complete)
+      const USER_TASK_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com">
+  <process id="active-proc" name="Active Process" isExecutable="true">
+    <startEvent id="start-1"><outgoing>f1</outgoing></startEvent>
+    <userTask id="task-1" name="Review"><incoming>f1</incoming><outgoing>f2</outgoing></userTask>
+    <endEvent id="end-1"><incoming>f2</incoming></endEvent>
+    <sequenceFlow id="f1" sourceRef="start-1" targetRef="task-1"/>
+    <sequenceFlow id="f2" sourceRef="task-1" targetRef="end-1"/>
+  </process>
+</definitions>`
+
+      const { parseBpmn, execute } = await import('nexus-workflow-core')
+      const { definition } = parseBpmn(USER_TASK_BPMN)
+      await store.saveDefinition(definition!)
+      inMemoryXmlStore.xmlMap.set(`${definition!.id}@${definition!.version}`, USER_TASK_BPMN)
+
+      // Start the instance — it will stay active because a user task is waiting
+      const result = execute(definition!, { type: 'StartProcess' }, null)
+      const ops = [
+        { op: 'createInstance' as const, instance: result.newState.instance },
+        { op: 'saveTokens' as const, tokens: result.newState.tokens },
+        ...result.newState.scopes.map(scope => ({ op: 'saveScope' as const, scope })),
+      ]
+      await store.executeTransaction(ops)
+
+      const res = await app.fetch(
+        new Request(`http://localhost/definitions/${definition!.id}`, { method: 'DELETE' }),
+      )
+      expect(res.status).toBe(409)
+      const body = await res.json()
+      expect(body).toHaveProperty('error', 'HAS_ACTIVE_INSTANCES')
+    })
+  })
 })

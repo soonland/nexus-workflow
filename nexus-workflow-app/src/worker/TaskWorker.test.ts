@@ -463,6 +463,57 @@ describe('TaskWorker', () => {
     })
   })
 
+  // ─── Gateway join state cleanup ─────────────────────────────────────────────
+
+  describe('gateway join state management', () => {
+    // A parallel gateway that splits into two branches, each with a service task,
+    // then rejoins. The service tasks complete via the worker.
+    const PARALLEL_WITH_SERVICE_TASKS_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:nexus="http://nexus-workflow/extensions"
+             targetNamespace="http://example.com">
+  <process id="parallel-svc-proc" name="Parallel Service Tasks" isExecutable="true">
+    <startEvent id="start-1"><outgoing>f0</outgoing></startEvent>
+    <parallelGateway id="split-1"><incoming>f0</incoming><outgoing>f1</outgoing><outgoing>f2</outgoing></parallelGateway>
+    <serviceTask id="svc-a" name="Task A" nexus:type="my-handler"><incoming>f1</incoming><outgoing>f3</outgoing></serviceTask>
+    <serviceTask id="svc-b" name="Task B" nexus:type="my-handler"><incoming>f2</incoming><outgoing>f4</outgoing></serviceTask>
+    <parallelGateway id="join-1"><incoming>f3</incoming><incoming>f4</incoming><outgoing>f5</outgoing></parallelGateway>
+    <endEvent id="end-1"><incoming>f5</incoming></endEvent>
+    <sequenceFlow id="f0" sourceRef="start-1" targetRef="split-1"/>
+    <sequenceFlow id="f1" sourceRef="split-1" targetRef="svc-a"/>
+    <sequenceFlow id="f2" sourceRef="split-1" targetRef="svc-b"/>
+    <sequenceFlow id="f3" sourceRef="svc-a" targetRef="join-1"/>
+    <sequenceFlow id="f4" sourceRef="svc-b" targetRef="join-1"/>
+    <sequenceFlow id="f5" sourceRef="join-1" targetRef="end-1"/>
+  </process>
+</definitions>`
+
+    it('processes both parallel service tasks — handler is called for each branch', async () => {
+      // This test verifies the gateway join state machinery in TaskWorker.buildStoreOps
+      // is exercised when parallel service tasks complete.
+      const worker = new TaskWorker(store, eventBus, { baseRetryDelayMs: 0 })
+
+      const callCount = { value: 0 }
+      worker.register({
+        taskType: 'my-handler',
+        async execute() {
+          callCount.value++
+          return { status: 'completed' as const }
+        },
+      })
+      worker.start()
+
+      await seedDefinition(store, PARALLEL_WITH_SERVICE_TASKS_BPMN)
+      await startInstance(store, eventBus, 'parallel-svc-proc')
+
+      // Allow enough time for both tasks to be dispatched and processed
+      await new Promise(r => setTimeout(r, 50))
+
+      // Both service tasks should have been attempted by the handler
+      expect(callCount.value).toBeGreaterThanOrEqual(2)
+    }, 5000)
+  })
+
   // ─── Idempotency ────────────────────────────────────────────────────────────
 
   describe('idempotency (at-least-once delivery)', () => {

@@ -232,6 +232,301 @@ describe('BpmnXmlParser — validation', () => {
   })
 })
 
+// ─── Script task ──────────────────────────────────────────────────────────────
+
+describe('BpmnXmlParser — script task', () => {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+  <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D1" targetNamespace="x">
+    <bpmn:process id="proc_1" isExecutable="true">
+      <bpmn:startEvent id="start_1"><bpmn:outgoing>flow_1</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:scriptTask id="script_1" scriptFormat="javascript">
+        <bpmn:incoming>flow_1</bpmn:incoming>
+        <bpmn:outgoing>flow_2</bpmn:outgoing>
+        <bpmn:script>x + 1</bpmn:script>
+      </bpmn:scriptTask>
+      <bpmn:endEvent id="end_1"><bpmn:incoming>flow_2</bpmn:incoming></bpmn:endEvent>
+      <bpmn:sequenceFlow id="flow_1" sourceRef="start_1" targetRef="script_1"/>
+      <bpmn:sequenceFlow id="flow_2" sourceRef="script_1" targetRef="end_1"/>
+    </bpmn:process>
+  </bpmn:definitions>`
+
+  it('parses a scriptTask element', () => {
+    const { definition, errors } = parseBpmn(xml)
+    expect(errors).toHaveLength(0)
+    const task = definition!.elements.find(e => e.id === 'script_1')
+    expect(task?.type).toBe('scriptTask')
+  })
+
+  it('extracts the scriptLanguage from scriptFormat attribute', () => {
+    const { definition } = parseBpmn(xml)
+    const task = definition!.elements.find(e => e.id === 'script_1') as any
+    expect(task?.scriptLanguage).toBe('javascript')
+  })
+
+  it('extracts the script body text (exercises extractText with plain string)', () => {
+    const { definition } = parseBpmn(xml)
+    const task = definition!.elements.find(e => e.id === 'script_1') as any
+    // The parser uses extractText on raw['script'] — this exercises the string trim path
+    expect(task?.script).toBe('x + 1')
+  })
+})
+
+// ─── Manual task ──────────────────────────────────────────────────────────────
+
+describe('BpmnXmlParser — manual task', () => {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+  <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D1" targetNamespace="x">
+    <bpmn:process id="proc_1" isExecutable="true">
+      <bpmn:startEvent id="start_1"><bpmn:outgoing>flow_1</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:manualTask id="manual_1">
+        <bpmn:incoming>flow_1</bpmn:incoming>
+        <bpmn:outgoing>flow_2</bpmn:outgoing>
+      </bpmn:manualTask>
+      <bpmn:endEvent id="end_1"><bpmn:incoming>flow_2</bpmn:incoming></bpmn:endEvent>
+      <bpmn:sequenceFlow id="flow_1" sourceRef="start_1" targetRef="manual_1"/>
+      <bpmn:sequenceFlow id="flow_2" sourceRef="manual_1" targetRef="end_1"/>
+    </bpmn:process>
+  </bpmn:definitions>`
+
+  it('parses a manualTask element', () => {
+    const { definition, errors } = parseBpmn(xml)
+    expect(errors).toHaveLength(0)
+    const task = definition!.elements.find(e => e.id === 'manual_1')
+    expect(task?.type).toBe('manualTask')
+  })
+})
+
+// ─── Call activity ────────────────────────────────────────────────────────────
+
+describe('BpmnXmlParser — call activity', () => {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+  <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D1" targetNamespace="x">
+    <bpmn:process id="proc_1" isExecutable="true">
+      <bpmn:startEvent id="start_1"><bpmn:outgoing>flow_1</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:callActivity id="call_1" calledElement="sub-process-1">
+        <bpmn:incoming>flow_1</bpmn:incoming>
+        <bpmn:outgoing>flow_2</bpmn:outgoing>
+      </bpmn:callActivity>
+      <bpmn:endEvent id="end_1"><bpmn:incoming>flow_2</bpmn:incoming></bpmn:endEvent>
+      <bpmn:sequenceFlow id="flow_1" sourceRef="start_1" targetRef="call_1"/>
+      <bpmn:sequenceFlow id="flow_2" sourceRef="call_1" targetRef="end_1"/>
+    </bpmn:process>
+  </bpmn:definitions>`
+
+  it('parses a callActivity element', () => {
+    const { definition, errors } = parseBpmn(xml)
+    expect(errors).toHaveLength(0)
+    const ca = definition!.elements.find(e => e.id === 'call_1')
+    expect(ca?.type).toBe('callActivity')
+  })
+
+  it('extracts calledElement from the attribute', () => {
+    const { definition } = parseBpmn(xml)
+    const ca = definition!.elements.find(e => e.id === 'call_1') as any
+    expect(ca?.calledElement).toBe('sub-process-1')
+  })
+})
+
+// ─── Terminate end event ───────────────────────────────────────────────────────
+
+describe('BpmnXmlParser — terminate end event', () => {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+  <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D1" targetNamespace="x">
+    <bpmn:process id="proc_1" isExecutable="true">
+      <bpmn:startEvent id="start_1"><bpmn:outgoing>flow_1</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:endEvent id="end_terminate">
+        <bpmn:incoming>flow_1</bpmn:incoming>
+        <bpmn:terminateEventDefinition/>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="flow_1" sourceRef="start_1" targetRef="end_terminate"/>
+    </bpmn:process>
+  </bpmn:definitions>`
+
+  it('parses a terminate end event definition', () => {
+    const { definition } = parseBpmn(xml)
+    const end = definition!.elements.find(e => e.id === 'end_terminate') as any
+    expect(end?.eventDefinition?.type).toBe('terminate')
+  })
+})
+
+// ─── User task attributes ─────────────────────────────────────────────────────
+
+describe('BpmnXmlParser — user task attributes', () => {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+  <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D1" targetNamespace="x">
+    <bpmn:process id="proc_1" isExecutable="true">
+      <bpmn:startEvent id="start_1"><bpmn:outgoing>flow_1</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:userTask id="ut_1" name="Approve Request" assignee="alice" formKey="form-123">
+        <bpmn:incoming>flow_1</bpmn:incoming>
+        <bpmn:outgoing>flow_2</bpmn:outgoing>
+      </bpmn:userTask>
+      <bpmn:endEvent id="end_1"><bpmn:incoming>flow_2</bpmn:incoming></bpmn:endEvent>
+      <bpmn:sequenceFlow id="flow_1" sourceRef="start_1" targetRef="ut_1"/>
+      <bpmn:sequenceFlow id="flow_2" sourceRef="ut_1" targetRef="end_1"/>
+    </bpmn:process>
+  </bpmn:definitions>`
+
+  it('parses a userTask element', () => {
+    const { definition, errors } = parseBpmn(xml)
+    expect(errors).toHaveLength(0)
+    const task = definition!.elements.find(e => e.id === 'ut_1')
+    expect(task?.type).toBe('userTask')
+  })
+
+  it('extracts the assignee attribute', () => {
+    const { definition } = parseBpmn(xml)
+    const task = definition!.elements.find(e => e.id === 'ut_1') as any
+    expect(task?.assignee).toBe('alice')
+  })
+
+  it('extracts the formKey attribute', () => {
+    const { definition } = parseBpmn(xml)
+    const task = definition!.elements.find(e => e.id === 'ut_1') as any
+    expect(task?.formKey).toBe('form-123')
+  })
+})
+
+// ─── Intermediate signal catch event ──────────────────────────────────────────
+
+describe('BpmnXmlParser — intermediate signal catch event', () => {
+  it('parses the signal catch event element', () => {
+    const { definition } = parseBpmn(loadFixture('intermediate-signal.bpmn'))
+    const el = definition!.elements.find(e => e.type === 'intermediateCatchEvent')
+    expect(el).toBeDefined()
+  })
+
+  it('sets the eventDefinition type to signal', () => {
+    const { definition } = parseBpmn(loadFixture('intermediate-signal.bpmn'))
+    const el = definition!.elements.find(e => e.type === 'intermediateCatchEvent') as any
+    expect(el?.eventDefinition?.type).toBe('signal')
+  })
+})
+
+// ─── Validation — unresolved flow source ──────────────────────────────────────
+
+describe('BpmnXmlParser — validation: unresolved flow source', () => {
+  it('returns an UNRESOLVED_FLOW_SOURCE error when sourceRef is missing', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+    <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D1" targetNamespace="x">
+      <bpmn:process id="proc_1" isExecutable="true">
+        <bpmn:startEvent id="start_1"><bpmn:outgoing>flow_1</bpmn:outgoing></bpmn:startEvent>
+        <bpmn:endEvent id="end_1"><bpmn:incoming>flow_1</bpmn:incoming></bpmn:endEvent>
+        <bpmn:sequenceFlow id="flow_1" sourceRef="MISSING_SOURCE" targetRef="end_1"/>
+      </bpmn:process>
+    </bpmn:definitions>`
+    const { errors } = parseBpmn(xml)
+    expect(errors.some(e => e.code === 'UNRESOLVED_FLOW_SOURCE')).toBe(true)
+  })
+})
+
+// ─── Validation — missing end event ───────────────────────────────────────────
+
+describe('BpmnXmlParser — validation: missing end event', () => {
+  it('returns a MISSING_END_EVENT error when the process has only a start event', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+    <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D1" targetNamespace="x">
+      <bpmn:process id="proc_1" isExecutable="true">
+        <bpmn:startEvent id="start_1"/>
+      </bpmn:process>
+    </bpmn:definitions>`
+    const { errors } = parseBpmn(xml)
+    expect(errors.some(e => e.code === 'MISSING_END_EVENT')).toBe(true)
+  })
+})
+
+// ─── extractText — numeric and #text object paths ─────────────────────────────
+//
+// The parser's extractText helper has three non-trivial paths:
+//   1. value is a string → trim and return
+//   2. value is a number → String(value)
+//   3. value is an object with a '#text' key → use that
+//
+// Path 1 is exercised by every script text extraction above.
+// Paths 2 and 3 are exercised by having fast-xml-parser produce those shapes.
+// The timer duration (timeDuration) element uses extractText and, when the duration
+// is a pure number like "3600", fast-xml-parser may return a number primitive.
+// We simulate both shapes through inline XML.
+
+describe('BpmnXmlParser — extractText paths', () => {
+  it('extracts timer duration from a timeDuration element (string shape)', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+    <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D1" targetNamespace="x">
+      <bpmn:process id="proc_1" isExecutable="true">
+        <bpmn:startEvent id="start_1"><bpmn:outgoing>flow_1</bpmn:outgoing></bpmn:startEvent>
+        <bpmn:intermediateCatchEvent id="timer_1">
+          <bpmn:incoming>flow_1</bpmn:incoming>
+          <bpmn:outgoing>flow_2</bpmn:outgoing>
+          <bpmn:timerEventDefinition>
+            <bpmn:timeDuration>PT2H</bpmn:timeDuration>
+          </bpmn:timerEventDefinition>
+        </bpmn:intermediateCatchEvent>
+        <bpmn:endEvent id="end_1"><bpmn:incoming>flow_2</bpmn:incoming></bpmn:endEvent>
+        <bpmn:sequenceFlow id="flow_1" sourceRef="start_1" targetRef="timer_1"/>
+        <bpmn:sequenceFlow id="flow_2" sourceRef="timer_1" targetRef="end_1"/>
+      </bpmn:process>
+    </bpmn:definitions>`
+
+    const { definition } = parseBpmn(xml)
+    const el = definition!.elements.find(e => e.id === 'timer_1') as any
+    expect(el?.eventDefinition?.timerExpression).toBe('PT2H')
+  })
+
+  it('extracts timer duration when the value is a pure number (number shape → String())', () => {
+    // fast-xml-parser converts numeric-only text to a JS number.
+    // A timeDuration of "3600" becomes the number 3600, triggering extractText's number branch.
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+    <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D1" targetNamespace="x">
+      <bpmn:process id="proc_1" isExecutable="true">
+        <bpmn:startEvent id="start_1"><bpmn:outgoing>flow_1</bpmn:outgoing></bpmn:startEvent>
+        <bpmn:intermediateCatchEvent id="timer_1">
+          <bpmn:incoming>flow_1</bpmn:incoming>
+          <bpmn:outgoing>flow_2</bpmn:outgoing>
+          <bpmn:timerEventDefinition>
+            <bpmn:timeDuration>3600</bpmn:timeDuration>
+          </bpmn:timerEventDefinition>
+        </bpmn:intermediateCatchEvent>
+        <bpmn:endEvent id="end_1"><bpmn:incoming>flow_2</bpmn:incoming></bpmn:endEvent>
+        <bpmn:sequenceFlow id="flow_1" sourceRef="start_1" targetRef="timer_1"/>
+        <bpmn:sequenceFlow id="flow_2" sourceRef="timer_1" targetRef="end_1"/>
+      </bpmn:process>
+    </bpmn:definitions>`
+
+    const { definition } = parseBpmn(xml)
+    const el = definition!.elements.find(e => e.id === 'timer_1') as any
+    // extractText converts the number 3600 to the string "3600"
+    expect(el?.eventDefinition?.timerExpression).toBe('3600')
+  })
+
+  it('extracts condition expression when fast-xml-parser wraps text in a #text object', () => {
+    // When a conditionExpression element contains mixed content, fast-xml-parser
+    // may produce { '#text': 'amount > 100' }. This exercises the obj['#text'] branch.
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+    <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D1" targetNamespace="x">
+      <bpmn:process id="proc_1" isExecutable="true">
+        <bpmn:startEvent id="start_1"><bpmn:outgoing>flow_1</bpmn:outgoing></bpmn:startEvent>
+        <bpmn:exclusiveGateway id="gw_1" default="flow_b">
+          <bpmn:incoming>flow_1</bpmn:incoming>
+          <bpmn:outgoing>flow_a</bpmn:outgoing>
+          <bpmn:outgoing>flow_b</bpmn:outgoing>
+        </bpmn:exclusiveGateway>
+        <bpmn:endEvent id="end_a"><bpmn:incoming>flow_a</bpmn:incoming></bpmn:endEvent>
+        <bpmn:endEvent id="end_b"><bpmn:incoming>flow_b</bpmn:incoming></bpmn:endEvent>
+        <bpmn:sequenceFlow id="flow_1" sourceRef="start_1" targetRef="gw_1"/>
+        <bpmn:sequenceFlow id="flow_a" sourceRef="gw_1" targetRef="end_a">
+          <bpmn:conditionExpression xsi:type="tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">amount &gt; 100</bpmn:conditionExpression>
+        </bpmn:sequenceFlow>
+        <bpmn:sequenceFlow id="flow_b" sourceRef="gw_1" targetRef="end_b"/>
+      </bpmn:process>
+    </bpmn:definitions>`
+
+    const { definition } = parseBpmn(xml)
+    const condFlow = definition!.sequenceFlows.find(f => f.id === 'flow_a')
+    // The condition expression should be extracted correctly regardless of shape
+    expect(condFlow?.conditionExpression).toBeTruthy()
+    expect(typeof condFlow?.conditionExpression).toBe('string')
+  })
+})
+
 // ─── Round-trip: parse then execute ───────────────────────────────────────────
 
 describe('BpmnXmlParser — parse → execute round-trip', () => {

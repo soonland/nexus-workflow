@@ -20,6 +20,20 @@ const SERVICE_TASK_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
 
 // ─── Fixture Helpers ──────────────────────────────────────────────────────────
 
+async function loadState(store: InMemoryStateStore, instanceId: string) {
+  const instance = await store.getInstance(instanceId)
+  if (!instance) return null
+  const tokens = await store.getAllTokens(instanceId)
+  const gatewayJoinStates = await store.listGatewayStates(instanceId)
+  const scopeIds = new Set<string>([instance.rootScopeId, ...tokens.map((t) => t.scopeId)])
+  const scopes = []
+  for (const id of scopeIds) {
+    const scope = await store.getScope(id)
+    if (scope) scopes.push(scope)
+  }
+  return { instance, tokens, scopes, gatewayJoinStates }
+}
+
 async function seedAndStart(
   store: InMemoryStateStore,
   bpmnXml: string,
@@ -147,6 +161,86 @@ describe('admin HTTP API', () => {
       await app.fetch(new Request(`http://localhost/instances/${instanceId}/resume`, { method: 'POST' }))
 
       expect(published).toContain('ProcessInstanceResumed')
+    })
+  })
+
+  // ─── Restart ────────────────────────────────────────────────────────────────
+
+  describe('POST /instances/:id/restart', () => {
+    it('restarts a terminated instance and returns 201 with new instance + tokens', async () => {
+      const { instanceId } = await seedAndStart(store, SERVICE_TASK_BPMN)
+
+      // Cancel the instance to get it to terminated state
+      const { definition: def } = parseBpmn(SERVICE_TASK_BPMN)
+      const state = await loadState(store, instanceId)
+      const cancelResult = execute(def!, { type: 'CancelInstance' }, state!)
+      await store.executeTransaction(computeStoreOps(false, state!, cancelResult.newState))
+
+      const res = await app.fetch(
+        new Request(`http://localhost/instances/${instanceId}/restart`, { method: 'POST' }),
+      )
+
+      expect(res.status).toBe(201)
+      const body = await res.json() as { instance: { status: string }; tokens: unknown[]; restartedFromId: string }
+      expect(body).toHaveProperty('instance')
+      expect(body).toHaveProperty('tokens')
+      expect(body.restartedFromId).toBe(instanceId)
+    })
+
+    it('returns 404 for unknown instance', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/instances/no-such-id/restart', { method: 'POST' }),
+      )
+      expect(res.status).toBe(404)
+    })
+
+    it('returns 422 when instance is not terminated', async () => {
+      const { instanceId } = await seedAndStart(store, SERVICE_TASK_BPMN)
+
+      // Instance is active (waiting on service task), not terminated
+      const res = await app.fetch(
+        new Request(`http://localhost/instances/${instanceId}/restart`, { method: 'POST' }),
+      )
+      expect(res.status).toBe(422)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('INVALID_STATE')
+    })
+
+    it('publishes ProcessInstanceRestarted event after restart', async () => {
+      const { instanceId } = await seedAndStart(store, SERVICE_TASK_BPMN)
+
+      const { definition: def } = parseBpmn(SERVICE_TASK_BPMN)
+      const state = await loadState(store, instanceId)
+      const cancelResult = execute(def!, { type: 'CancelInstance' }, state!)
+      await store.executeTransaction(computeStoreOps(false, state!, cancelResult.newState))
+
+      const published: string[] = []
+      eventBus.subscribe(ev => { published.push(ev.type) })
+
+      await app.fetch(
+        new Request(`http://localhost/instances/${instanceId}/restart`, { method: 'POST' }),
+      )
+
+      expect(published).toContain('ProcessInstanceRestarted')
+    })
+
+    it('new instance created by restart is stored in the store', async () => {
+      const { instanceId } = await seedAndStart(store, SERVICE_TASK_BPMN)
+
+      const { definition: def } = parseBpmn(SERVICE_TASK_BPMN)
+      const state = await loadState(store, instanceId)
+      const cancelResult = execute(def!, { type: 'CancelInstance' }, state!)
+      await store.executeTransaction(computeStoreOps(false, state!, cancelResult.newState))
+
+      const res = await app.fetch(
+        new Request(`http://localhost/instances/${instanceId}/restart`, { method: 'POST' }),
+      )
+      const body = await res.json() as { instance: { id: string } }
+      const newId = body.instance.id
+      expect(newId).not.toBe(instanceId)
+
+      const stored = await store.getInstance(newId)
+      expect(stored).not.toBeNull()
     })
   })
 
