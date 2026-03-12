@@ -1,0 +1,49 @@
+version: 2
+
+updates:
+  # Root (shared ESLint/Prettier config)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+
+  # nexus-workflow-core
+  - package-ecosystem: npm
+    directory: /nexus-workflow-core
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - nexus-workflow-core
+
+  # nexus-workflow-app
+  - package-ecosystem: npm
+    directory: /nexus-workflow-app
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - nexus-workflow-app
+
+  # nexus-erp
+  - package-ecosystem: npm
+    directory: /nexus-erp
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - nexus-erp
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
