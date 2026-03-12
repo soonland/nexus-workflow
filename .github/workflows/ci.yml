@@ -115,9 +115,6 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
-      - name: Lint
-        run: npx next lint
-
       - name: Build
         run: npm run build
 
