@@ -6,12 +6,14 @@ declare module 'next-auth' {
       id: string
       role: 'employee' | 'manager'
       employeeId: string | null
+      theme: string
     } & DefaultSession['user']
   }
 
   interface User {
     role: 'employee' | 'manager'
     employeeId: string | null
+    theme: string
   }
 }
 
@@ -19,5 +21,6 @@ declare module '@auth/core/jwt' {
   interface JWT {
     role: 'employee' | 'manager'
     employeeId: string | null
+    theme: string
   }
 }

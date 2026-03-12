@@ -30,9 +30,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           >
             <TopBar
               email={session.user.email ?? ''}
-              role={session.user.role}
               employeeId={session.user.employeeId ?? null}
+              role={session.user.role}
               signOutAction={signOutAction}
+              userId={session.user.id}
             />
 
             <Box sx={{ flex: 1, p: { xs: 2, sm: 3 }, overflowY: 'auto' }}>
