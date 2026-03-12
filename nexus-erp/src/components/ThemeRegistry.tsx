@@ -54,14 +54,9 @@ const ThemeRegistry = ({ children, initialTheme }: ThemeRegistryProps) => {
     )
   })
 
-  const [themeId, setThemeIdState] = React.useState<ThemeId>(() => {
-    // On the client, prefer localStorage over the server-side initial value
-    if (typeof window !== 'undefined') {
-      const stored = window.localStorage.getItem('nexus-theme')
-      if (stored) return stored as ThemeId
-    }
-    return (initialTheme as ThemeId) || 'system'
-  })
+  const [themeId, setThemeIdState] = React.useState<ThemeId>(
+    (initialTheme as ThemeId) || 'system',
+  )
 
   // Resolve "system" to light/dark based on OS preference
   const [systemDark, setSystemDark] = React.useState(false)
@@ -78,7 +73,7 @@ const ThemeRegistry = ({ children, initialTheme }: ThemeRegistryProps) => {
 
   const setThemeId = React.useCallback((id: ThemeId) => {
     setThemeIdState(id)
-    window.localStorage.setItem('nexus-theme', id)
+    document.cookie = `nexus-theme=${id}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
   }, [])
 
   // Extend the base theme with NextLink as the global ButtonBase LinkComponent so that
