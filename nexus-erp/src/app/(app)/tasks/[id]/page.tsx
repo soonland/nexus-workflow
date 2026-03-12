@@ -1,5 +1,4 @@
 import { redirect, notFound } from 'next/navigation'
-import NextLink from 'next/link'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Card from '@mui/material/Card'
@@ -69,7 +68,7 @@ const TaskDetailPage = async ({ params }: { params: Promise<{ id: string }> }) =
     <Box sx={{ maxWidth: 640 }}>
       {/* Page header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-        <IconButton component={NextLink} href="/tasks" size="small">
+        <IconButton href="/tasks" size="small">
           <ArrowBackRoundedIcon />
         </IconButton>
         <Typography variant="h3">Review Task</Typography>

@@ -1,10 +1,11 @@
 'use client'
 
 import * as React from 'react'
+import NextLink from 'next/link'
 import createCache from '@emotion/cache'
 import { useServerInsertedHTML } from 'next/navigation'
 import { CacheProvider } from '@emotion/react'
-import { ThemeProvider } from '@mui/material/styles'
+import { ThemeProvider, createTheme } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import { getTheme, type ThemeId } from '@/lib/theme'
 import { ThemeContext } from '@/contexts/ThemeContext'
@@ -80,7 +81,17 @@ const ThemeRegistry = ({ children, initialTheme }: ThemeRegistryProps) => {
     window.localStorage.setItem('nexus-theme', id)
   }, [])
 
-  const muiTheme = getTheme(resolvedId)
+  // Extend the base theme with NextLink as the global ButtonBase LinkComponent so that
+  // MUI components (Button, IconButton, CardActionArea…) with an `href` prop use
+  // client-side navigation without needing component={NextLink} in every call site.
+  const muiTheme = React.useMemo(
+    () => createTheme(getTheme(resolvedId), {
+      components: {
+        MuiButtonBase: { defaultProps: { LinkComponent: NextLink } },
+      },
+    }),
+    [resolvedId],
+  )
 
   return (
     <ThemeContext.Provider value={{ themeId, setThemeId }}>

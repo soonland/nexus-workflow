@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import NextLink from 'next/link'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
@@ -100,7 +99,7 @@ const TasksPage = async () => {
                   </TableCell>
                   <TableCell align="right">
                     <Button
-                      component={NextLink}
+                     
                       href={`/tasks/${task.id}`}
                       size="small"
                       variant="contained"
