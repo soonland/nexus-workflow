@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { evaluateInclusiveSplit, evaluateInclusiveJoin } from './InclusiveGateway.js'
 import { DefinitionError, RuntimeError } from '../model/errors.js'
 import type { SequenceFlow, InclusiveGatewayJoinState } from '../model/types.js'
+import { evaluateInclusiveSplit, evaluateInclusiveJoin } from './InclusiveGateway.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

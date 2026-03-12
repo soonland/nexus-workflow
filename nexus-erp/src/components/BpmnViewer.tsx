@@ -10,7 +10,7 @@ interface Props {
   xml: string
 }
 
-export default function BpmnViewer({ xml }: Props) {
+const BpmnViewer = ({ xml }: Props) => {
   const containerRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const viewerRef = useRef<any>(null)
@@ -94,3 +94,4 @@ export default function BpmnViewer({ xml }: Props) {
     </Box>
   )
 }
+export default BpmnViewer

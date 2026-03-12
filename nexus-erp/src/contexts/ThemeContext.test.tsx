@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest'
-import * as React from 'react'
 import { ThemeContext, useTheme } from './ThemeContext'
 
 describe('ThemeContext', () => {

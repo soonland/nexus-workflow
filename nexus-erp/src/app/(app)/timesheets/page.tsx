@@ -1,10 +1,10 @@
-import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
+import { auth } from '@/auth'
 import TimesheetCalendar from './TimesheetCalendar'
 
-export default async function TimesheetsPage() {
+const TimesheetsPage = async () => {
   const session = await auth()
   if (!session?.user.employeeId) redirect('/dashboard')
 
@@ -20,3 +20,4 @@ export default async function TimesheetsPage() {
     </Box>
   )
 }
+export default TimesheetsPage

@@ -2,8 +2,7 @@
 
 import * as React from 'react'
 import Snackbar from '@mui/material/Snackbar'
-import Alert from '@mui/material/Alert'
-import type { AlertColor } from '@mui/material/Alert'
+import Alert, { type AlertColor } from '@mui/material/Alert'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,7 +30,7 @@ const SnackbarContext = React.createContext<SnackbarContextValue>({
 // Provider
 // ---------------------------------------------------------------------------
 
-export function SnackbarProvider({ children }: { children: React.ReactNode }) {
+export const SnackbarProvider = ({ children }: { children: React.ReactNode }) => {
   const [open, setOpen] = React.useState(false)
   const [current, setCurrent] = React.useState<Required<SnackbarOptions>>({
     message: '',

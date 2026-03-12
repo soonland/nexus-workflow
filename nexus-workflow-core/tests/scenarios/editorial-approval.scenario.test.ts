@@ -16,12 +16,11 @@
  *     [default]  → Rejected
  */
 
-import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { execute } from '../../src/engine/ExecutionEngine.js'
+import { describe, it, expect } from 'vitest'
+import { execute, type EngineState } from '../../src/engine/ExecutionEngine.js'
 import { parseBpmn } from '../../src/parser/BpmnXmlParser.js'
-import type { EngineState } from '../../src/engine/ExecutionEngine.js'
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
 

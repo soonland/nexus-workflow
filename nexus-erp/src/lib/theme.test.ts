@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getTheme, THEMES } from './theme'
-import type { ThemeId } from './theme'
+import { getTheme, THEMES, type ThemeId } from './theme'
 
 // ---------------------------------------------------------------------------
 // THEMES array — completeness

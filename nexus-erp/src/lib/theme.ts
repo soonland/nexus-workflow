@@ -1,5 +1,4 @@
-import { createTheme } from '@mui/material/styles'
-import type { Theme } from '@mui/material/styles'
+import { createTheme, type Theme } from '@mui/material/styles'
 
 export type ThemeId = 'light' | 'dark' | 'system' | 'nexus-light-pro' | 'nexus-dark-pro'
 

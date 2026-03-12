@@ -1,4 +1,3 @@
-import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import NextLink from 'next/link'
 import Box from '@mui/material/Box'
@@ -13,6 +12,7 @@ import TableCell from '@mui/material/TableCell'
 import Stack from '@mui/material/Stack'
 import Button from '@mui/material/Button'
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded'
+import { auth } from '@/auth'
 import { listInstances } from '@/lib/workflow'
 import InstanceActions from '@/components/InstanceActions'
 
@@ -32,11 +32,11 @@ const STATUS_OPTIONS = [
   { value: 'terminated', label: 'Terminated' },
 ]
 
-export default async function WorkflowInstancesPage({
+const WorkflowInstancesPage = async ({
   searchParams,
 }: {
   searchParams: Promise<{ status?: string; page?: string }>
-}) {
+}) => {
   const session = await auth()
   if (session?.user.role !== 'manager') redirect('/dashboard')
 
@@ -190,3 +190,4 @@ export default async function WorkflowInstancesPage({
     </Box>
   )
 }
+export default WorkflowInstancesPage

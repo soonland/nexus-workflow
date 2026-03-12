@@ -50,6 +50,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return token
     },
     session({ session, token }) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       session.user.id = token.sub!
       session.user.role = token.role as 'employee' | 'manager'
       session.user.employeeId = token.employeeId as string | null

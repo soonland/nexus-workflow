@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseBpmn, InMemoryStateStore, InMemoryEventBus, execute } from 'nexus-workflow-core'
-import type { ExecutionEvent, EngineState } from 'nexus-workflow-core'
+import { parseBpmn, execute } from 'nexus-workflow-core'
 import { normalizeVariables, unwrapVariables, buildUserTaskCreationOps, computeStoreOps } from './engineHelpers.js'
 
 // ─── normalizeVariables ───────────────────────────────────────────────────────

@@ -1,14 +1,14 @@
 import * as React from 'react'
-import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import Box from '@mui/material/Box'
-import AppSidebar, { SIDEBAR_EXPANDED_WIDTH } from '@/components/AppSidebar'
+import { auth } from '@/auth'
+import AppSidebar from '@/components/AppSidebar'
 import TopBar from '@/components/TopBar'
 import { SidebarProvider } from '@/components/SidebarContext'
 import { SnackbarProvider } from '@/components/SnackbarContext'
 import { signOutAction } from '@/lib/actions'
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+const AppLayout = async ({ children }: { children: React.ReactNode }) => {
   const session = await auth()
   if (!session) redirect('/login')
 
@@ -45,3 +45,4 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     </SidebarProvider>
   )
 }
+export default AppLayout

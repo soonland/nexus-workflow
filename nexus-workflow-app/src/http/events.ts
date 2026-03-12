@@ -1,7 +1,5 @@
 import { Hono } from 'hono'
-import { execute, RuntimeError } from 'nexus-workflow-core'
-import type { StateStore, VariableValue } from 'nexus-workflow-core'
-import type { EventBus } from 'nexus-workflow-core'
+import { execute, RuntimeError, type StateStore, type VariableValue, type EventBus } from 'nexus-workflow-core'
 import { loadEngineState, computeStoreOps, buildUserTaskCreationOps } from './engineHelpers.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -43,7 +41,8 @@ export function createEventsRouter(store: StateStore, eventBus: EventBus): Hono 
     }
 
     // Messages are 1-to-1: deliver to the first matching subscription
-    const sub = subscriptions[0]!
+    const sub = subscriptions[0]
+    if (!sub) return c.json({ error: 'INTERNAL_ERROR', message: 'No matching subscription found' }, 500)
     const state = await loadEngineState(store, sub.instanceId)
     if (!state) return c.json({ error: 'INTERNAL_ERROR', message: 'Instance state not found' }, 500)
 

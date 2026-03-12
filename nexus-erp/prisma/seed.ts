@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { PrismaClient } from '@prisma/client'
 import { hash } from 'bcryptjs'
 
@@ -119,7 +120,7 @@ async function main() {
   console.log('  HR dept permissions: timesheets:hr-approve, employees:approve-profile-update')
 
   // ── HR special user (no employee record) ──────────────────────────────────
-  const hrUser = await db.user.create({
+  const _hrUser = await db.user.create({
     data: {
       email:        'hr@nexus.local',
       passwordHash: await hash('password123', 12),

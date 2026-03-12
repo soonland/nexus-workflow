@@ -1,4 +1,3 @@
-import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
@@ -15,10 +14,11 @@ import CancelRoundedIcon from '@mui/icons-material/CancelRounded'
 import SchemaRoundedIcon from '@mui/icons-material/SchemaRounded'
 import NextLink from 'next/link'
 import Button from '@mui/material/Button'
+import { auth } from '@/auth'
 import { listDefinitions, listInstances, WorkflowDefinition } from '@/lib/workflow'
 import DeleteDefinitionButton from '@/components/DeleteDefinitionButton'
 
-export default async function WorkflowDefinitionsPage() {
+const WorkflowDefinitionsPage = async () => {
   const session = await auth()
   if (session?.user.role !== 'manager') redirect('/dashboard')
 
@@ -110,3 +110,4 @@ export default async function WorkflowDefinitionsPage() {
     </Box>
   )
 }
+export default WorkflowDefinitionsPage

@@ -1,9 +1,9 @@
-import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
+import { auth } from '@/auth'
 import { db } from '@/db/client'
 import OrganizationForm from '@/components/OrganizationForm'
 
-export default async function NewOrganizationPage() {
+const NewOrganizationPage = async () => {
   const session = await auth()
   if (session?.user.role !== 'manager') redirect('/dashboard')
 
@@ -21,3 +21,4 @@ export default async function NewOrganizationPage() {
     />
   )
 }
+export default NewOrganizationPage

@@ -1,9 +1,9 @@
-import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
+import { auth } from '@/auth'
 import { db } from '@/db/client'
 import OrganizationsTable from '@/components/OrganizationsTable'
 
-export default async function OrganizationsPage() {
+const OrganizationsPage = async () => {
   const session = await auth()
   if (!session) redirect('/dashboard')
 
@@ -24,3 +24,4 @@ export default async function OrganizationsPage() {
     />
   )
 }
+export default OrganizationsPage

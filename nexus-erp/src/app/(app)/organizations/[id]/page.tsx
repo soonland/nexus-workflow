@@ -1,9 +1,9 @@
-import { auth } from '@/auth'
 import { redirect, notFound } from 'next/navigation'
+import { auth } from '@/auth'
 import { db } from '@/db/client'
 import OrganizationForm from '@/components/OrganizationForm'
 
-export default async function OrganizationDetailPage({ params }: { params: Promise<{ id: string }> }) {
+const OrganizationDetailPage = async ({ params }: { params: Promise<{ id: string }> }) => {
   const session = await auth()
   if (!session) redirect('/dashboard')
 
@@ -64,3 +64,4 @@ export default async function OrganizationDetailPage({ params }: { params: Promi
     />
   )
 }
+export default OrganizationDetailPage

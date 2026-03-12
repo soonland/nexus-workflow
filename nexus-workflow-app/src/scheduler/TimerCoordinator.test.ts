@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { parseBpmn, InMemoryStateStore, InMemoryEventBus, InMemoryScheduler, execute } from 'nexus-workflow-core'
+import { parseBpmn, InMemoryStateStore, InMemoryEventBus, InMemoryScheduler, execute ,type  ProcessDefinition,type  ExecutionEvent } from 'nexus-workflow-core'
 // 5 minutes + 1 second in ms — enough to make timer-1 (PT5M) and timer-boundary (PT1H) both "due"
 const ADVANCE_PAST_5M = 5 * 60 * 1000 + 1000
 const ADVANCE_PAST_1H = 60 * 60 * 1000 + 1000
-import type { ProcessDefinition, ExecutionEvent } from 'nexus-workflow-core'
 import { TimerCoordinator } from './TimerCoordinator.js'
 
 // ─── BPMN Fixtures ─────────────────────────────────────────────────────────
@@ -218,7 +217,7 @@ describe('TimerCoordinator', () => {
 
       if (timerToken) {
         // Simulate duplicate: call onTimerFired again (token no longer waiting → no-op)
-        const instance = await store.getInstance(instanceId)
+        const _instance = await store.getInstance(instanceId)
         // Re-call coordinator's logic by scheduling a fake timer with same tokenId
         // (This is an internal idempotency check — token is no longer 'waiting')
         const coordinator2 = new TimerCoordinator(store, eventBus, inMemoryScheduler)

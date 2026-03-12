@@ -36,7 +36,7 @@ interface PermissionMatrixProps {
 
 // ── Cell indicator ────────────────────────────────────────────────────────────
 
-function PermCell({
+const PermCell = ({
   permKey,
   grantedKeys,
   onToggle,
@@ -48,7 +48,7 @@ function PermCell({
   onToggle: (key: string, checked: boolean) => void
   inheritedSources?: Record<string, InheritedSource[]>
   exists: boolean
-}) {
+}) => {
   if (!exists) {
     return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }} />
   }
@@ -118,12 +118,12 @@ function PermCell({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function PermissionMatrix({
+const PermissionMatrix = ({
   allPermissions,
   grantedKeys,
   onToggle,
   inheritedSources,
-}: PermissionMatrixProps) {
+}: PermissionMatrixProps) => {
   const permKeySet = new Set(allPermissions.map((p) => p.key))
 
   return (
@@ -362,3 +362,4 @@ export default function PermissionMatrix({
     </Box>
   )
 }
+export default PermissionMatrix

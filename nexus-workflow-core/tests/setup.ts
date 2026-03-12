@@ -53,7 +53,7 @@ interface CustomMatchers {
 }
 
 declare module 'vitest' {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   interface Assertion extends CustomMatchers {}
   interface AsymmetricMatchersContaining extends CustomMatchers {}
 }

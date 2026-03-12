@@ -10,14 +10,12 @@ import Divider from '@mui/material/Divider'
 import Grid from '@mui/material/Grid'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
-import Stack from '@mui/material/Stack'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined'
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined'
-import NextLink from 'next/link'
 import { useSnackbar } from '@/components/SnackbarContext'
 import PermissionMatrix, { type InheritedSource } from '@/components/PermissionMatrix'
 
@@ -84,7 +82,7 @@ interface EmployeeEditFormProps {
 
 // ── Section header ────────────────────────────────────────────────────────────
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+const SectionLabel = ({ children }: { children: React.ReactNode }) => {
   return (
     <Typography
       variant="overline"
@@ -98,7 +96,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 // ── Tab panel wrapper ─────────────────────────────────────────────────────────
 
-function TabPanel({
+const TabPanel = ({
   value,
   index,
   children,
@@ -106,7 +104,7 @@ function TabPanel({
   value: number
   index: number
   children: React.ReactNode
-}) {
+}) => {
   return (
     <Box
       role="tabpanel"
@@ -121,7 +119,7 @@ function TabPanel({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function EmployeeEditForm({
+const EmployeeEditForm = ({
   employeeId,
   userId,
   defaultValues,
@@ -133,7 +131,7 @@ export default function EmployeeEditForm({
   deptPermissions = [],
   allGroups = [],
   userGroups = [],
-}: EmployeeEditFormProps) {
+}: EmployeeEditFormProps) => {
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
 
@@ -575,3 +573,4 @@ export default function EmployeeEditForm({
     </>
   )
 }
+export default EmployeeEditForm

@@ -1,0 +1,7 @@
+{
+  "name": "nexus-workflow",
+  "private": true,
+  "scripts": {
+    "lint": "npm run lint --prefix nexus-workflow-core && npm run lint --prefix nexus-workflow-app && npm run lint --prefix nexus-erp"
+  }
+}

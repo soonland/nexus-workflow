@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { evaluateExclusiveSplit } from './ExclusiveGateway.js'
 import { DefinitionError, RuntimeError } from '../model/errors.js'
 import type { SequenceFlow } from '../model/types.js'
+import { evaluateExclusiveSplit } from './ExclusiveGateway.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

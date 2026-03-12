@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Hono } from 'hono'
-import { parseBpmn, InMemoryStateStore, InMemoryEventBus } from 'nexus-workflow-core'
-import type { Token, UserTaskRecord, ExecutionEvent } from 'nexus-workflow-core'
+import { parseBpmn, InMemoryStateStore, InMemoryEventBus ,type  Token,type  ExecutionEvent } from 'nexus-workflow-core'
 import { createInstancesRouter } from './instances.js'
 import { createTasksRouter } from './tasks.js'
 
@@ -392,7 +391,7 @@ describe('tasks HTTP API', () => {
     })
 
     it('422: completing a cancelled task returns 422', async () => {
-      const { taskId, instanceId } = await startUserTaskProcess(app, store)
+      const { taskId, instanceId: _instanceId } = await startUserTaskProcess(app, store)
 
       // Cancel the task directly in the store to simulate a cancelled state
       const task = await store.getUserTask(taskId)

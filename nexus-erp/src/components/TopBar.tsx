@@ -21,11 +21,10 @@ import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded'
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded'
 import NavigateNextRoundedIcon from '@mui/icons-material/NavigateNextRounded'
 import { usePathname, useRouter } from 'next/navigation'
+import { useTheme } from '@/contexts/ThemeContext'
+import { THEMES, type ThemeId } from '@/lib/theme'
 import { useSidebar } from './SidebarContext'
 import { SIDEBAR_EXPANDED_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './AppSidebar'
-import { useTheme } from '@/contexts/ThemeContext'
-import { THEMES } from '@/lib/theme'
-import type { ThemeId } from '@/lib/theme'
 
 interface TopBarProps {
   email: string
@@ -65,7 +64,7 @@ function stringToColor(str: string) {
   return colors[Math.abs(hash) % colors.length]
 }
 
-export default function TopBar({ email, employeeId, role, signOutAction, userId }: TopBarProps) {
+const TopBar = ({ email, employeeId, role, signOutAction, userId }: TopBarProps) => {
   const pathname = usePathname()
   const router = useRouter()
   const { collapsed } = useSidebar()
@@ -246,3 +245,4 @@ export default function TopBar({ email, employeeId, role, signOutAction, userId 
     </AppBar>
   )
 }
+export default TopBar

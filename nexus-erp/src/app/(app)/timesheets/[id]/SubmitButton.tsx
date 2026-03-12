@@ -7,7 +7,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Box from '@mui/material/Box'
 import { useSnackbar } from '@/components/SnackbarContext'
 
-export default function SubmitButton({ timesheetId }: { timesheetId: string }) {
+const SubmitButton = ({ timesheetId }: { timesheetId: string }) => {
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
   const [loading, setLoading] = useState(false)
@@ -39,3 +39,4 @@ export default function SubmitButton({ timesheetId }: { timesheetId: string }) {
     </Box>
   )
 }
+export default SubmitButton

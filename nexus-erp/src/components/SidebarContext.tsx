@@ -12,7 +12,7 @@ const SidebarContext = React.createContext<SidebarContextValue>({
   setCollapsed: () => {},
 })
 
-export function SidebarProvider({ children }: { children: React.ReactNode }) {
+export const SidebarProvider = ({ children }: { children: React.ReactNode }) => {
   const [collapsed, setCollapsed] = React.useState(false)
   return (
     <SidebarContext.Provider value={{ collapsed, setCollapsed }}>

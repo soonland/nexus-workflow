@@ -1,4 +1,3 @@
-import { auth } from '@/auth'
 import { redirect, notFound } from 'next/navigation'
 import NextLink from 'next/link'
 import Box from '@mui/material/Box'
@@ -16,6 +15,7 @@ import TableBody from '@mui/material/TableBody'
 import TableRow from '@mui/material/TableRow'
 import TableCell from '@mui/material/TableCell'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
+import { auth } from '@/auth'
 import { getInstance, getInstanceEvents } from '@/lib/workflow'
 import InstanceActions from '@/components/InstanceActions'
 
@@ -27,7 +27,7 @@ const TOKEN_STATUS_COLORS: Record<string, 'default' | 'success' | 'warning' | 'e
   active: 'primary', waiting: 'warning', suspended: 'warning', cancelled: 'default', completed: 'success',
 }
 
-function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+const DetailRow = ({ label, children }: { label: string; children: React.ReactNode }) => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
       <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -38,7 +38,7 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
   )
 }
 
-export default async function InstanceDetailPage({ params }: { params: Promise<{ id: string }> }) {
+const InstanceDetailPage = async ({ params }: { params: Promise<{ id: string }> }) => {
   const session = await auth()
   if (session?.user.role !== 'manager') redirect('/dashboard')
 
@@ -218,3 +218,4 @@ export default async function InstanceDetailPage({ params }: { params: Promise<{
     </Box>
   )
 }
+export default InstanceDetailPage

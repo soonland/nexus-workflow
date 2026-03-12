@@ -1,6 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
-import { getEffectivePermissions } from './permissions'
-import type { Resource, CrudAction } from './permissions'
+import { getEffectivePermissions, type Resource, type CrudAction } from './permissions'
 
 interface Session {
   user: { id: string; role: string; employeeId?: string | null }

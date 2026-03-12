@@ -1,11 +1,11 @@
-import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
-import { db } from '@/db/client'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
+import { db } from '@/db/client'
+import { auth } from '@/auth'
 import EmployeesTable from '@/components/EmployeesTable'
 
-export default async function EmployeesPage() {
+const EmployeesPage = async () => {
   const session = await auth()
   if (session?.user.role !== 'manager') redirect('/dashboard')
 
@@ -26,3 +26,4 @@ export default async function EmployeesPage() {
     </Box>
   )
 }
+export default EmployeesPage

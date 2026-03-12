@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Hono } from 'hono'
-import { InMemoryStateStore } from 'nexus-workflow-core'
-import type { ProcessDefinition } from 'nexus-workflow-core'
+import { InMemoryStateStore ,type  ProcessDefinition } from 'nexus-workflow-core'
 import { createDefinitionsRouter } from './definitions.js'
 
 // ─── BPMN Fixtures ────────────────────────────────────────────────────────────

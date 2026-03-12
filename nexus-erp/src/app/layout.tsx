@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description: 'Employee management and timesheet approval',
 }
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
+const RootLayout = async ({ children }: { children: React.ReactNode }) => {
   const session = await auth()
   const initialTheme = session?.user?.theme ?? 'system'
 
@@ -30,3 +30,4 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     </html>
   )
 }
+export default RootLayout

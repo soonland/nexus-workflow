@@ -12,11 +12,11 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import { useSnackbar } from '@/components/SnackbarContext'
 
-export default function TaskDecisionForm({
+const TaskDecisionForm = ({
   taskId,
 }: {
   taskId: string
-}) {
+}) => {
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
   const [decision, setDecision] = useState<'approved' | 'rejected' | ''>('')
@@ -98,3 +98,4 @@ export default function TaskDecisionForm({
     </Box>
   )
 }
+export default TaskDecisionForm

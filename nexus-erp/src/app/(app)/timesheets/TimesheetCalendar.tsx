@@ -122,7 +122,7 @@ function getCalendarRange(year: number, month: number): { from: string; to: stri
   return { from: formatDate(firstMonday), to: formatDate(lastSunday) }
 }
 
-export default function TimesheetCalendar() {
+const TimesheetCalendar = () => {
   const today = new Date()
   const [viewDate, setViewDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1))
   const [timesheets, setTimesheets] = useState<Timesheet[]>([])
@@ -536,3 +536,4 @@ export default function TimesheetCalendar() {
     </Box>
   )
 }
+export default TimesheetCalendar

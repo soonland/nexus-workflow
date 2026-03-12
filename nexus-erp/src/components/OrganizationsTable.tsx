@@ -32,7 +32,7 @@ interface OrganizationsTableProps {
   isManager: boolean
 }
 
-function StatusChip({ status }: { status: OrgRow['status'] }) {
+const StatusChip = ({ status }: { status: OrgRow['status'] }) => {
   const map = {
     active: { label: 'Active', color: 'success' as const },
     inactive: { label: 'Inactive', color: 'warning' as const },
@@ -42,7 +42,7 @@ function StatusChip({ status }: { status: OrgRow['status'] }) {
   return <Chip label={label} color={color} size="small" />
 }
 
-export default function OrganizationsTable({ organizations, isManager }: OrganizationsTableProps) {
+const OrganizationsTable = ({ organizations, isManager }: OrganizationsTableProps) => {
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
 
@@ -147,3 +147,4 @@ export default function OrganizationsTable({ organizations, isManager }: Organiz
     </>
   )
 }
+export default OrganizationsTable

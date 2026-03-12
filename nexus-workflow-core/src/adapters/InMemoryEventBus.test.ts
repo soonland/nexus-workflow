@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { InMemoryEventBus } from './InMemoryEventBus.js'
 import type { ExecutionEvent } from '../interfaces/EventBus.js'
+import { InMemoryEventBus } from './InMemoryEventBus.js'
 
 const started = (instanceId = 'inst-1'): ExecutionEvent => ({
   type: 'ProcessInstanceStarted',

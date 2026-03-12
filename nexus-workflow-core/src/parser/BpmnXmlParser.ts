@@ -16,7 +16,6 @@ import type {
   CallActivityElement,
   GatewayElement,
   EventDefinition,
-  EventDefinitionType,
 } from '../model/types.js'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
@@ -162,7 +161,7 @@ function parseElements(
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
-function base(raw: Record<string, unknown>, flows: SequenceFlow[]) {
+function base(raw: Record<string, unknown>, _flows: SequenceFlow[]) {
   const id = String(raw['@_id'] ?? '')
   const incoming = toStringArray(raw['incoming'])
   const outgoing = toStringArray(raw['outgoing'])

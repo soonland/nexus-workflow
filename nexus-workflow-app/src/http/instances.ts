@@ -1,13 +1,5 @@
 import { Hono } from 'hono'
-import { execute, RuntimeError, DefinitionError } from 'nexus-workflow-core'
-import type {
-  StateStore,
-  EngineCommand,
-  InstanceQuery,
-  InstanceStatus,
-  VariableValue,
-} from 'nexus-workflow-core'
-import type { EventBus } from 'nexus-workflow-core'
+import { execute, RuntimeError, DefinitionError, type StateStore, type EngineCommand, type InstanceQuery, type InstanceStatus, type VariableValue, type EventBus } from 'nexus-workflow-core'
 import { loadEngineState, computeStoreOps, buildUserTaskCreationOps, normalizeVariables, unwrapVariables } from './engineHelpers.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -101,16 +93,19 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
     if (qCorrelationKey) query.correlationKey = qCorrelationKey
     const qBusinessKey = c.req.query('businessKey')
     if (qBusinessKey) query.businessKey = qBusinessKey
-    if (c.req.query('status')) {
-      const s = c.req.query('status')!
-      const statuses = s.split(',').map(x => x.trim()) as InstanceStatus[]
-      query.status = statuses.length === 1 ? statuses[0]! : statuses
+    const qStatus = c.req.query('status')
+    if (qStatus) {
+      const statuses = qStatus.split(',').map(x => x.trim()) as InstanceStatus[]
+      const firstStatus = statuses[0]
+      query.status = statuses.length === 1 && firstStatus !== undefined ? firstStatus : statuses
     }
-    if (c.req.query('startedAfter')) {
-      query.startedAfter = new Date(c.req.query('startedAfter')!)
+    const qStartedAfter = c.req.query('startedAfter')
+    if (qStartedAfter) {
+      query.startedAfter = new Date(qStartedAfter)
     }
-    if (c.req.query('startedBefore')) {
-      query.startedBefore = new Date(c.req.query('startedBefore')!)
+    const qStartedBefore = c.req.query('startedBefore')
+    if (qStartedBefore) {
+      query.startedBefore = new Date(qStartedBefore)
     }
 
     const result = await store.findInstances(query)

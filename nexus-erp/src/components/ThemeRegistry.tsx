@@ -6,8 +6,7 @@ import { useServerInsertedHTML } from 'next/navigation'
 import { CacheProvider } from '@emotion/react'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
-import { getTheme } from '@/lib/theme'
-import type { ThemeId } from '@/lib/theme'
+import { getTheme, type ThemeId } from '@/lib/theme'
 import { ThemeContext } from '@/contexts/ThemeContext'
 
 interface ThemeRegistryProps {
@@ -15,7 +14,7 @@ interface ThemeRegistryProps {
   initialTheme: string
 }
 
-export default function ThemeRegistry({ children, initialTheme }: ThemeRegistryProps) {
+const ThemeRegistry = ({ children, initialTheme }: ThemeRegistryProps) => {
   const [{ cache, flush }] = React.useState(() => {
     const cache = createCache({ key: 'mui' })
     cache.compat = true
@@ -94,3 +93,4 @@ export default function ThemeRegistry({ children, initialTheme }: ThemeRegistryP
     </ThemeContext.Provider>
   )
 }
+export default ThemeRegistry

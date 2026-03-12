@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { evaluateParallelSplit, evaluateParallelJoin } from './ParallelGateway.js'
 import { RuntimeError } from '../model/errors.js'
 import type { SequenceFlow, ParallelGatewayJoinState } from '../model/types.js'
+import { evaluateParallelSplit, evaluateParallelJoin } from './ParallelGateway.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { InMemoryEventBus } from 'nexus-workflow-core'
-import type { ExecutionEvent } from 'nexus-workflow-core'
+import { InMemoryEventBus ,type  ExecutionEvent } from 'nexus-workflow-core'
 
 // Mock ioredis before importing the module under test
 vi.mock('ioredis', () => {
@@ -15,8 +14,8 @@ vi.mock('ioredis', () => {
   }
 })
 
-import { RedisStreamPublisher, STREAM_KEY } from './RedisStreamPublisher.js'
 import { Redis } from 'ioredis'
+import { RedisStreamPublisher, STREAM_KEY } from './RedisStreamPublisher.js'
 
 function getMockRedisInstance() {
   return (Redis as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value as {

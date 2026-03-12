@@ -10,7 +10,6 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
 import Table from '@mui/material/Table'
-import { useSnackbar } from '@/components/SnackbarContext'
 import TableHead from '@mui/material/TableHead'
 import TableBody from '@mui/material/TableBody'
 import TableRow from '@mui/material/TableRow'
@@ -18,6 +17,7 @@ import TableCell from '@mui/material/TableCell'
 import CircularProgress from '@mui/material/CircularProgress'
 import TimelineRoundedIcon from '@mui/icons-material/TimelineRounded'
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded'
+import { useSnackbar } from '@/components/SnackbarContext'
 
 interface StoredEvent {
   id: string
@@ -26,7 +26,7 @@ interface StoredEvent {
   data: Record<string, unknown>
 }
 
-export default function EventLogPage() {
+const EventLogPage = () => {
   const { showSnackbar } = useSnackbar()
   const [instanceId, setInstanceId] = useState('')
   const [loading, setLoading] = useState(false)
@@ -138,3 +138,4 @@ export default function EventLogPage() {
     </Box>
   )
 }
+export default EventLogPage

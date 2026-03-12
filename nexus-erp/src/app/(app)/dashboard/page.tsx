@@ -1,6 +1,4 @@
 import * as React from 'react'
-import { auth } from '@/auth'
-import { db } from '@/db/client'
 import NextLink from 'next/link'
 import Box from '@mui/material/Box'
 import Grid from '@mui/material/Grid'
@@ -26,6 +24,8 @@ import FiberManualRecordRoundedIcon from '@mui/icons-material/FiberManualRecordR
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import HourglassTopRoundedIcon from '@mui/icons-material/HourglassTopRounded'
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded'
+import { db } from '@/db/client'
+import { auth } from '@/auth'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ interface ActivityItem {
 
 // ─── KpiCard ──────────────────────────────────────────────────────────────────
 
-function KpiCard({ title, value, icon, iconBg, iconColor, trend, href, linkLabel }: KpiCardProps) {
+const KpiCard = ({ title, value, icon, iconBg, iconColor, trend, href, linkLabel }: KpiCardProps) => {
   const inner = (
     <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
@@ -128,7 +128,7 @@ function KpiCard({ title, value, icon, iconBg, iconColor, trend, href, linkLabel
 
 // ─── WorkflowStatusWidget ─────────────────────────────────────────────────────
 
-function WorkflowStatusWidget({ items }: { items: WorkflowStatusItem[] }) {
+const WorkflowStatusWidget = ({ items }: { items: WorkflowStatusItem[] }) => {
   const total = items.reduce((s, i) => s + i.count, 0)
 
   return (
@@ -190,7 +190,7 @@ function WorkflowStatusWidget({ items }: { items: WorkflowStatusItem[] }) {
 
 // ─── ActivityFeed ─────────────────────────────────────────────────────────────
 
-function ActivityFeed({ items }: { items: ActivityItem[] }) {
+const ActivityFeed = ({ items }: { items: ActivityItem[] }) => {
   const typeColor: Record<ActivityItem['type'], string> = {
     timesheet: '#4F46E5',
     task: '#F59E0B',
@@ -263,7 +263,7 @@ function ActivityFeed({ items }: { items: ActivityItem[] }) {
 
 // ─── Page (server component) ──────────────────────────────────────────────────
 
-export default async function DashboardPage() {
+const DashboardPage = async () => {
   const session = await auth()
   const isManager = session?.user.role === 'manager'
 
@@ -291,7 +291,7 @@ export default async function DashboardPage() {
   if (isManager) {
     try {
       const res = await fetch(
-        `${process.env.WORKFLOW_API_URL ?? 'http://localhost:3000'}/tasks?assignee=${session!.user.id}&status=open&pageSize=1`,
+        `${process.env.WORKFLOW_API_URL ?? 'http://localhost:3000'}/tasks?assignee=${session.user.id}&status=open&pageSize=1`,
         { cache: 'no-store' },
       )
       if (res.ok) {
@@ -432,3 +432,4 @@ export default async function DashboardPage() {
     </Box>
   )
 }
+export default DashboardPage
