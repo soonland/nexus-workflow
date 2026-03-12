@@ -34,6 +34,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           email: user.email,
           role: user.role,
           employeeId: user.employee?.id ?? null,
+          theme: user.theme ?? 'system',
         }
       },
     }),
@@ -44,6 +45,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         token.role = user.role
         token.employeeId = user.employeeId
+        token.theme = user.theme
       }
       return token
     },
@@ -51,6 +53,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.user.id = token.sub!
       session.user.role = token.role as 'employee' | 'manager'
       session.user.employeeId = token.employeeId as string | null
+      session.user.theme = (token.theme as string) ?? 'system'
       return session
     },
   },

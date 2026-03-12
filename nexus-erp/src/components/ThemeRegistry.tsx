@@ -6,9 +6,16 @@ import { useServerInsertedHTML } from 'next/navigation'
 import { CacheProvider } from '@emotion/react'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
-import { theme } from '@/lib/theme'
+import { getTheme } from '@/lib/theme'
+import type { ThemeId } from '@/lib/theme'
+import { ThemeContext } from '@/contexts/ThemeContext'
 
-export default function ThemeRegistry({ children }: { children: React.ReactNode }) {
+interface ThemeRegistryProps {
+  children: React.ReactNode
+  initialTheme: string
+}
+
+export default function ThemeRegistry({ children, initialTheme }: ThemeRegistryProps) {
   const [{ cache, flush }] = React.useState(() => {
     const cache = createCache({ key: 'mui' })
     cache.compat = true
@@ -47,12 +54,43 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
     )
   })
 
+  const [themeId, setThemeIdState] = React.useState<ThemeId>(() => {
+    // On the client, prefer localStorage over the server-side initial value
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem('nexus-theme')
+      if (stored) return stored as ThemeId
+    }
+    return (initialTheme as ThemeId) || 'system'
+  })
+
+  // Resolve "system" to light/dark based on OS preference
+  const [systemDark, setSystemDark] = React.useState(false)
+  React.useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    setSystemDark(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
+  const resolvedId: ThemeId =
+    themeId === 'system' ? (systemDark ? 'dark' : 'light') : themeId
+
+  const setThemeId = React.useCallback((id: ThemeId) => {
+    setThemeIdState(id)
+    window.localStorage.setItem('nexus-theme', id)
+  }, [])
+
+  const muiTheme = getTheme(resolvedId)
+
   return (
-    <CacheProvider value={cache}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        {children}
-      </ThemeProvider>
-    </CacheProvider>
+    <ThemeContext.Provider value={{ themeId, setThemeId }}>
+      <CacheProvider value={cache}>
+        <ThemeProvider theme={muiTheme}>
+          <CssBaseline />
+          {children}
+        </ThemeProvider>
+      </CacheProvider>
+    </ThemeContext.Provider>
   )
 }
