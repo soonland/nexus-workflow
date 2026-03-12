@@ -12,7 +12,6 @@ import Stack from '@mui/material/Stack'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded'
 import SchemaRoundedIcon from '@mui/icons-material/SchemaRounded'
-import NextLink from 'next/link'
 import Button from '@mui/material/Button'
 import { auth } from '@/auth'
 import { listDefinitions, listInstances, WorkflowDefinition } from '@/lib/workflow'
@@ -92,7 +91,7 @@ const WorkflowDefinitionsPage = async () => {
                     <Stack direction="row" spacing={1} justifyContent="flex-end">
                       <DeleteDefinitionButton definitionId={def.id} disabled={inUseIds.has(def.id)} />
                       <Button
-                        component={NextLink}
+                       
                         href={`/workflow/definitions/${def.id}`}
                         size="small"
                         variant="contained"

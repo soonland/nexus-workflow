@@ -1,5 +1,4 @@
 import { redirect, notFound } from 'next/navigation'
-import NextLink from 'next/link'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Paper from '@mui/material/Paper'
@@ -170,7 +169,7 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
       {/* ── Page breadcrumb / back nav ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
         <IconButton
-          component={NextLink}
+         
           href={isManager ? '/employees' : '/dashboard'}
           size="small"
           sx={{ color: 'text.secondary' }}

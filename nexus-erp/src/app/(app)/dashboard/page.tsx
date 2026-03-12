@@ -1,5 +1,4 @@
 import * as React from 'react'
-import NextLink from 'next/link'
 import Box from '@mui/material/Box'
 import Grid from '@mui/material/Grid'
 import Typography from '@mui/material/Typography'
@@ -118,7 +117,7 @@ const KpiCard = ({ title, value, icon, iconBg, iconColor, trend, href, linkLabel
   return (
     <Card>
       {href ? (
-        <CardActionArea component={NextLink} href={href}>{inner}</CardActionArea>
+        <CardActionArea href={href}>{inner}</CardActionArea>
       ) : (
         inner
       )}
@@ -174,8 +173,7 @@ const WorkflowStatusWidget = ({ items }: { items: WorkflowStatusItem[] }) => {
         </Stack>
         <Box sx={{ mt: 2.5, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button
-            component={NextLink}
-            href="/workflow/instances"
+                       href="/workflow/instances"
             size="small"
             endIcon={<ArrowForwardRoundedIcon />}
             sx={{ px: 0, color: 'primary.main', fontWeight: 600 }}
@@ -346,8 +344,7 @@ const DashboardPage = async () => {
               variant="outlined"
               size="small"
               startIcon={<InboxRoundedIcon />}
-              component={NextLink}
-              href="/tasks"
+                           href="/tasks"
             >
               Open Tasks
               {pendingTaskCount > 0 && (
@@ -364,8 +361,7 @@ const DashboardPage = async () => {
             variant="contained"
             size="small"
             startIcon={<AddRoundedIcon />}
-            component={NextLink}
-            href="/timesheets/new"
+                       href="/timesheets/new"
           >
             New Timesheet
           </Button>

@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import NextLink from 'next/link'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Card from '@mui/material/Card'
@@ -66,7 +65,7 @@ const WorkflowInstancesPage = async ({
           {STATUS_OPTIONS.map((opt) => (
             <Button
               key={opt.value}
-              component={NextLink}
+             
               href={opt.value ? `/workflow/instances?status=${opt.value}` : '/workflow/instances'}
               size="small"
               variant={(status ?? '') === opt.value ? 'contained' : 'outlined'}
@@ -107,7 +106,7 @@ const WorkflowInstancesPage = async ({
                 >
                   <TableCell>
                     <Button
-                      component={NextLink}
+                     
                       href={`/workflow/instances/${inst.id}`}
                       variant="text"
                       size="small"
@@ -143,7 +142,7 @@ const WorkflowInstancesPage = async ({
                     <Stack direction="row" spacing={1} justifyContent="flex-end">
                       <InstanceActions instanceId={inst.id} status={inst.status} />
                       <Button
-                        component={NextLink}
+                       
                         href={`/workflow/instances/${inst.id}`}
                         size="small"
                         variant="contained"
@@ -164,7 +163,7 @@ const WorkflowInstancesPage = async ({
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 2 }}>
           {page > 0 && (
             <Button
-              component={NextLink}
+             
               href={`/workflow/instances?${status ? `status=${status}&` : ''}page=${page - 1}`}
               variant="outlined"
               size="small"
@@ -177,7 +176,7 @@ const WorkflowInstancesPage = async ({
           </Typography>
           {(page + 1) * pageSize < total && (
             <Button
-              component={NextLink}
+             
               href={`/workflow/instances?${status ? `status=${status}&` : ''}page=${page + 1}`}
               variant="outlined"
               size="small"
