@@ -104,11 +104,13 @@ describe('PATCH /api/users/[id]/preferences', () => {
     expect(mockDbUserUpdate).toHaveBeenCalledWith({
       where: { id: 'user-1' },
       data: { theme: 'nexus-dark-pro' },
+      select: { theme: true, locale: true },
     })
   })
 
   it('should return the saved theme in the response body', async () => {
     mockAuth.mockResolvedValue({ user: { id: 'user-1' } })
+    mockDbUserUpdate.mockResolvedValue({ theme: 'nexus-light-pro', locale: null })
     const res = await PATCH(makeRequest({ theme: 'nexus-light-pro' }), makeParams('user-1'))
     expect((res._data as any).theme).toBe('nexus-light-pro')
   })

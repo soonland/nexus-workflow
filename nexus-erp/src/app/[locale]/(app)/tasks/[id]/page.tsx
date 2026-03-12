@@ -11,6 +11,7 @@ import Alert from '@mui/material/Alert'
 import Divider from '@mui/material/Divider'
 
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
+import { getTranslations } from 'next-intl/server'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
 import TaskDecisionForm from './TaskDecisionForm'
@@ -37,6 +38,7 @@ const TaskDetailPage = async ({ params }: { params: Promise<{ id: string }> }) =
   if (!session) redirect('/login')
 
   const { id } = await params
+  const t = await getTranslations('tasks')
 
   const BASE = process.env.WORKFLOW_API_URL ?? 'http://localhost:3000'
   const res = await fetch(`${BASE}/tasks/${id}`, { cache: 'no-store' })
@@ -71,7 +73,7 @@ const TaskDetailPage = async ({ params }: { params: Promise<{ id: string }> }) =
         <IconButton href="/tasks" size="small">
           <ArrowBackRoundedIcon />
         </IconButton>
-        <Typography variant="h3">Review Task</Typography>
+        <Typography variant="h3">{t('detail.reviewTask')}</Typography>
       </Box>
 
       <Stack spacing={3}>
@@ -88,7 +90,7 @@ const TaskDetailPage = async ({ params }: { params: Promise<{ id: string }> }) =
 
             {!isOpen && (
               <Alert severity="info" sx={{ mb: 2 }}>
-                This task has already been completed.
+                {t('detail.alreadyCompleted')}
               </Alert>
             )}
 
@@ -102,12 +104,12 @@ const TaskDetailPage = async ({ params }: { params: Promise<{ id: string }> }) =
         {timesheet && (
           <Card sx={{ borderLeft: '3px solid', borderColor: 'primary.main' }}>
             <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-              <Typography variant="h5" sx={{ mb: 2.5 }}>Timesheet</Typography>
+              <Typography variant="h5" sx={{ mb: 2.5 }}>{t('detail.timesheet')}</Typography>
 
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <Stack spacing={2.5} divider={<Divider />}>
-                    <DetailRow label="Employee">
+                    <DetailRow label={t('detail.fields.employee')}>
                       <Typography variant="body2" fontWeight={500}>
                         {timesheet.employee.fullName}
                       </Typography>
@@ -115,7 +117,7 @@ const TaskDetailPage = async ({ params }: { params: Promise<{ id: string }> }) =
                         {timesheet.employee.user.email}
                       </Typography>
                     </DetailRow>
-                    <DetailRow label="Week Start">
+                    <DetailRow label={t('detail.fields.weekStart')}>
                       <Typography variant="body2" fontWeight={500}>
                         {timesheet.weekStart.toISOString().split('T')[0]}
                       </Typography>
@@ -124,12 +126,12 @@ const TaskDetailPage = async ({ params }: { params: Promise<{ id: string }> }) =
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <Stack spacing={2.5} divider={<Divider />}>
-                    <DetailRow label="Total Hours">
+                    <DetailRow label={t('detail.fields.totalHours')}>
                       <Typography variant="body2" fontWeight={500}>
                         {timesheet.entries.reduce((s, e) => s + Number(e.hours), 0)}h
                       </Typography>
                     </DetailRow>
-                    <DetailRow label="Entries">
+                    <DetailRow label={t('detail.fields.entries')}>
                       <Typography variant="body2" fontWeight={500}>
                         {timesheet.entries.length} line{timesheet.entries.length !== 1 ? 's' : ''}
                       </Typography>

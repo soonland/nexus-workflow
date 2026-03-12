@@ -11,6 +11,7 @@ import TableCell from '@mui/material/TableCell'
 import Stack from '@mui/material/Stack'
 import Button from '@mui/material/Button'
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded'
+import { getTranslations } from 'next-intl/server'
 import { auth } from '@/auth'
 import { listInstances } from '@/lib/workflow'
 import InstanceActions from '@/components/InstanceActions'
@@ -23,14 +24,6 @@ const STATUS_COLORS: Record<string, 'default' | 'success' | 'warning' | 'error' 
   pending: 'info',
 }
 
-const STATUS_OPTIONS = [
-  { value: '', label: 'All' },
-  { value: 'active', label: 'Active' },
-  { value: 'suspended', label: 'Suspended' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'terminated', label: 'Terminated' },
-]
-
 const WorkflowInstancesPage = async ({
   searchParams,
 }: {
@@ -42,6 +35,15 @@ const WorkflowInstancesPage = async ({
   const { status, page: pageParam } = await searchParams
   const page = Number(pageParam ?? 0)
   const pageSize = 20
+  const t = await getTranslations('workflow.instances')
+
+  const STATUS_OPTIONS = [
+    { value: '', label: t('statusFilter.all') },
+    { value: 'active', label: t('statusFilter.active') },
+    { value: 'suspended', label: t('statusFilter.suspended') },
+    { value: 'completed', label: t('statusFilter.completed') },
+    { value: 'terminated', label: t('statusFilter.terminated') },
+  ]
 
   let result
   try {
@@ -55,7 +57,7 @@ const WorkflowInstancesPage = async ({
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-        <Typography variant="h2">Workflow Instances</Typography>
+        <Typography variant="h2">{t('title')}</Typography>
         <Chip label={total} size="small" color="primary" />
       </Box>
 
@@ -82,20 +84,20 @@ const WorkflowInstancesPage = async ({
           <Stack alignItems="center" spacing={2} sx={{ py: 8 }}>
             <AccountTreeRoundedIcon sx={{ fontSize: 56, color: 'text.disabled' }} />
             <Typography variant="body1" color="text.secondary">
-              No instances found.
+              {t('noInstances')}
             </Typography>
           </Stack>
         ) : (
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Instance ID</TableCell>
-                <TableCell>Definition</TableCell>
-                <TableCell>Ver.</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Started</TableCell>
-                <TableCell>Completed</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                <TableCell>{t('columns.instanceId')}</TableCell>
+                <TableCell>{t('columns.definition')}</TableCell>
+                <TableCell>{t('columns.ver')}</TableCell>
+                <TableCell>{t('columns.status')}</TableCell>
+                <TableCell>{t('columns.started')}</TableCell>
+                <TableCell>{t('columns.completed')}</TableCell>
+                <TableCell align="right">{t('columns.actions')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -147,7 +149,7 @@ const WorkflowInstancesPage = async ({
                         size="small"
                         variant="contained"
                       >
-                        View
+                        {t('view')}
                       </Button>
                     </Stack>
                   </TableCell>
@@ -168,20 +170,20 @@ const WorkflowInstancesPage = async ({
               variant="outlined"
               size="small"
             >
-              Previous
+              {t('previous')}
             </Button>
           )}
           <Typography variant="body2" sx={{ alignSelf: 'center', color: 'text.secondary' }}>
-            Page {page + 1} of {Math.ceil(total / pageSize)}
+            {t('page', { page: page + 1, total: Math.ceil(total / pageSize) })}
           </Typography>
           {(page + 1) * pageSize < total && (
             <Button
-             
+
               href={`/workflow/instances?${status ? `status=${status}&` : ''}page=${page + 1}`}
               variant="outlined"
               size="small"
             >
-              Next
+              {t('next')}
             </Button>
           )}
         </Box>

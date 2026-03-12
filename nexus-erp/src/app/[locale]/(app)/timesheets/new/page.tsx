@@ -13,6 +13,7 @@ import Stack from '@mui/material/Stack'
 import IconButton from '@mui/material/IconButton'
 import CircularProgress from '@mui/material/CircularProgress'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
+import { useTranslations } from 'next-intl'
 import { useSnackbar } from '@/components/SnackbarContext'
 
 async function createTimesheet(weekStart: string) {
@@ -27,6 +28,7 @@ const NewTimesheetForm = () => {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { showSnackbar } = useSnackbar()
+  const t = useTranslations('timesheets.new')
   const prefilledWeekStart = searchParams.get('weekStart') ?? ''
 
   const [weekStart, setWeekStart] = useState(prefilledWeekStart)
@@ -50,11 +52,11 @@ const NewTimesheetForm = () => {
             return
           }
         }
-        showSnackbar({ message: 'A timesheet for this week already exists.', severity: 'error' })
+        showSnackbar({ message: t('alreadyExists'), severity: 'error' })
         setLoading(false)
       } else {
         const data = await res.json()
-        showSnackbar({ message: data.error ?? 'Failed to create timesheet', severity: 'error' })
+        showSnackbar({ message: data.error ?? t('createFailed'), severity: 'error' })
         setLoading(false)
       }
     })
@@ -70,7 +72,7 @@ const NewTimesheetForm = () => {
       router.push(`/timesheets/${timesheet.id}`)
     } else {
       const data = await res.json()
-      showSnackbar({ message: data.error ?? 'Failed to create timesheet', severity: 'error' })
+      showSnackbar({ message: data.error ?? t('createFailed'), severity: 'error' })
       setLoading(false)
     }
   }
@@ -79,7 +81,7 @@ const NewTimesheetForm = () => {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 8, justifyContent: 'center' }}>
         <CircularProgress size={24} />
-        <Typography color="text.secondary">Creating timesheet…</Typography>
+        <Typography color="text.secondary">{t('creating')}</Typography>
       </Box>
     )
   }
@@ -90,7 +92,7 @@ const NewTimesheetForm = () => {
         <IconButton component={NextLink} href="/timesheets" size="small">
           <ArrowBackRoundedIcon />
         </IconButton>
-        <Typography variant="h3">New Timesheet</Typography>
+        <Typography variant="h3">{t('title')}</Typography>
       </Box>
 
       <Card>
@@ -99,13 +101,13 @@ const NewTimesheetForm = () => {
             <Stack spacing={3}>
               <TextField
                 id="weekStart"
-                label="Week Start (Monday)"
+                label={t('weekStartLabel')}
                 type="date"
                 required
                 value={weekStart}
                 onChange={e => setWeekStart(e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }}
-                helperText="Select the Monday that starts the week"
+                helperText={t('weekStartHelper')}
                 fullWidth
               />
               <Stack direction="row" spacing={2}>
@@ -116,10 +118,10 @@ const NewTimesheetForm = () => {
                   startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
                   sx={{ flex: 1 }}
                 >
-                  {loading ? 'Creating…' : 'Create Timesheet'}
+                  {loading ? t('creatingBtn') : t('create')}
                 </Button>
                 <Button type="button" variant="outlined" onClick={() => router.back()}>
-                  Cancel
+                  {t('cancel')}
                 </Button>
               </Stack>
             </Stack>

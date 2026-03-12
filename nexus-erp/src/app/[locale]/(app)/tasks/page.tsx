@@ -11,6 +11,7 @@ import TableRow from '@mui/material/TableRow'
 import TableCell from '@mui/material/TableCell'
 import Stack from '@mui/material/Stack'
 import InboxRoundedIcon from '@mui/icons-material/InboxRounded'
+import { getTranslations } from 'next-intl/server'
 import { auth } from '@/auth'
 import { listTasks } from '@/lib/workflow'
 import { db } from '@/db/client'
@@ -27,6 +28,8 @@ interface Task {
 const TasksPage = async () => {
   const session = await auth()
   if (!session) redirect('/login')
+
+  const t = await getTranslations('tasks')
 
   // Build all assignee patterns this user matches (including group-inherited permissions)
   const effectivePerms = await getEffectivePermissions(session.user.id, db)
@@ -54,7 +57,7 @@ const TasksPage = async () => {
     <Box>
       {/* Page header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-        <Typography variant="h2">Task Inbox</Typography>
+        <Typography variant="h2">{t('title')}</Typography>
         {total > 0 && (
           <Chip label={total} size="small" color="primary" />
         )}
@@ -65,16 +68,16 @@ const TasksPage = async () => {
           <Stack alignItems="center" spacing={2} sx={{ py: 8 }}>
             <InboxRoundedIcon sx={{ fontSize: 56, color: 'text.disabled' }} />
             <Typography variant="body1" color="text.secondary">
-              No pending tasks. You are all caught up!
+              {t('noPendingTasks')}
             </Typography>
           </Stack>
         ) : (
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Task Name</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Created</TableCell>
+                <TableCell>{t('taskName')}</TableCell>
+                <TableCell>{t('status')}</TableCell>
+                <TableCell>{t('created')}</TableCell>
                 <TableCell align="right" />
               </TableRow>
             </TableHead>
@@ -105,7 +108,7 @@ const TasksPage = async () => {
                       variant="contained"
                       color="primary"
                     >
-                      Review
+                      {t('review')}
                     </Button>
                   </TableCell>
                 </TableRow>

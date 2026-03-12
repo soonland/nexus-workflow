@@ -1,5 +1,332 @@
 {
   "common": {
     "appName": "Nexus ERP"
+  },
+  "nav": {
+    "sections": {
+      "overview": "Overview",
+      "operations": "Operations",
+      "b2bPortal": "B2B Portal",
+      "workflow": "Workflow",
+      "admin": "Admin"
+    },
+    "items": {
+      "dashboard": "Dashboard",
+      "timesheets": "Timesheets",
+      "employees": "Employees",
+      "taskInbox": "Task Inbox",
+      "organizations": "Organizations",
+      "contracts": "Contracts",
+      "invoices": "Invoices",
+      "purchaseOrders": "Purchase Orders",
+      "activeInstances": "Active Instances",
+      "processDefinitions": "Process Definitions",
+      "eventLog": "Event Log",
+      "departments": "Departments",
+      "groups": "Groups",
+      "settings": "Settings",
+      "auditLog": "Audit Log"
+    },
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar"
+  },
+  "topBar": {
+    "home": "Home",
+    "myProfile": "My Profile",
+    "theme": "Theme",
+    "signOut": "Sign out",
+    "accountMenu": "Account menu"
+  },
+  "auth": {
+    "login": {
+      "subtitle": "Sign in to your account",
+      "emailLabel": "Email",
+      "passwordLabel": "Password",
+      "signingIn": "Signing in\u2026",
+      "signIn": "Sign in",
+      "noAccount": "Don\u2019t have an account?",
+      "register": "Register",
+      "invalidCredentials": "Invalid email or password"
+    },
+    "register": {
+      "subtitle": "Create your account",
+      "fields": {
+        "email": "Email",
+        "password": "Password",
+        "fullName": "Full Name",
+        "department": "Department",
+        "hireDate": "Hire Date"
+      },
+      "creating": "Creating account\u2026",
+      "register": "Register",
+      "hasAccount": "Already have an account?",
+      "signIn": "Sign in",
+      "failed": "Registration failed"
+    }
+  },
+  "timesheets": {
+    "title": "My Timesheets",
+    "subtitle": "Click any week to view details, or log hours on an empty week.",
+    "status": {
+      "draft": "Draft",
+      "submitted": "Submitted",
+      "pendingManagerReview": "Manager Review",
+      "pendingHrReview": "HR Review",
+      "revisionRequested": "Revision Requested",
+      "revisionRequest": "Revision Request",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "new": {
+      "creating": "Creating timesheet\u2026",
+      "title": "New Timesheet",
+      "weekStartLabel": "Week Start (Monday)",
+      "weekStartHelper": "Select the Monday that starts the week",
+      "creatingBtn": "Creating\u2026",
+      "create": "Create Timesheet",
+      "cancel": "Cancel",
+      "alreadyExists": "A timesheet for this week already exists.",
+      "createFailed": "Failed to create timesheet"
+    },
+    "detail": {
+      "title": "Timesheet",
+      "notFound": "Timesheet not found",
+      "networkError": "Network error \u2014 could not load timesheet",
+      "projectDescription": "Project / Description",
+      "total": "Total",
+      "noEntries": "No entries recorded for this week.",
+      "removeRow": "Remove this project row",
+      "codePlaceholder": "Code",
+      "descriptionPlaceholder": "Description",
+      "hoursAriaLabel": "Hours",
+      "projectCodeAriaLabel": "Project code",
+      "descriptionAriaLabel": "Description",
+      "deleteRowAriaLabel": "Delete project row",
+      "addRow": "Add project row",
+      "dailyTotal": "Daily total",
+      "hoursLogged": "{hours} hours logged this week",
+      "noHours": "No hours logged yet",
+      "submitting": "Submitting\u2026",
+      "submitForApproval": "Submit for Approval",
+      "backAriaLabel": "Back to timesheets",
+      "submitFailed": "Failed to submit",
+      "rejectedLabel": "Rejected",
+      "revisionRequestedLabel": "Revision requested",
+      "saveFailed": "Save failed",
+      "weekOf": "Week of"
+    },
+    "calendar": {
+      "days": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun"
+      },
+      "months": {
+        "january": "January",
+        "february": "February",
+        "march": "March",
+        "april": "April",
+        "may": "May",
+        "june": "June",
+        "july": "July",
+        "august": "August",
+        "september": "September",
+        "october": "October",
+        "november": "November",
+        "december": "December"
+      },
+      "week": "Week",
+      "logHours": "Log hours",
+      "monthlySummary": "Monthly summary",
+      "total": "Total",
+      "goToCurrentMonth": "Go to current month"
+    }
+  },
+  "employees": {
+    "title": "Employees",
+    "yourProfile": "Your Profile",
+    "fields": {
+      "department": "Department",
+      "hireDate": "Hire Date",
+      "manager": "Manager",
+      "role": "Role"
+    },
+    "sections": {
+      "employment": "Employment",
+      "contactAddress": "Contact & Address",
+      "preferences": "Preferences"
+    },
+    "preferences": {
+      "language": "Language"
+    },
+    "breadcrumb": {
+      "employees": "Employees",
+      "dashboard": "Dashboard"
+    }
+  },
+  "tasks": {
+    "title": "Task Inbox",
+    "noPendingTasks": "No pending tasks. You are all caught up!",
+    "taskName": "Task Name",
+    "status": "Status",
+    "created": "Created",
+    "review": "Review",
+    "detail": {
+      "reviewTask": "Review Task",
+      "timesheet": "Timesheet",
+      "alreadyCompleted": "This task has already been completed.",
+      "fields": {
+        "employee": "Employee",
+        "weekStart": "Week Start",
+        "totalHours": "Total Hours",
+        "entries": "Entries"
+      }
+    },
+    "decision": {
+      "yourDecision": "Your Decision",
+      "approve": "Approve",
+      "reject": "Reject",
+      "rejectionReason": "Rejection Reason (optional)",
+      "submitting": "Submitting\u2026",
+      "submitDecision": "Submit Decision",
+      "submitFailed": "Failed to submit decision"
+    },
+    "profileUpdate": {
+      "title": "Proposed Contact Changes",
+      "columns": {
+        "field": "Field",
+        "current": "Current",
+        "proposed": "Proposed"
+      },
+      "fields": {
+        "phone": "Phone",
+        "street": "Street",
+        "city": "City",
+        "state": "State",
+        "postalCode": "Postal Code",
+        "country": "Country"
+      }
+    }
+  },
+  "workflow": {
+    "definitions": {
+      "title": "Process Definitions",
+      "noDefinitions": "No process definitions deployed yet.",
+      "columns": {
+        "definitionId": "Definition ID",
+        "name": "Name",
+        "version": "Version",
+        "deployable": "Deployable",
+        "deployedAt": "Deployed At"
+      },
+      "view": "View",
+      "detail": {
+        "metadata": "Metadata",
+        "diagram": "Diagram",
+        "elements": "Elements",
+        "sequenceFlows": "Sequence Flows",
+        "fields": {
+          "definitionId": "Definition ID",
+          "name": "Name",
+          "startEvent": "Start Event",
+          "version": "Version",
+          "deployable": "Deployable",
+          "deployedAt": "Deployed At"
+        },
+        "elementsColumns": {
+          "id": "ID",
+          "type": "Type",
+          "name": "Name",
+          "incoming": "Incoming",
+          "outgoing": "Outgoing"
+        },
+        "flowsColumns": {
+          "id": "ID",
+          "source": "Source",
+          "target": "Target",
+          "condition": "Condition",
+          "default": "Default"
+        }
+      }
+    },
+    "instances": {
+      "title": "Workflow Instances",
+      "noInstances": "No instances found.",
+      "statusFilter": {
+        "all": "All",
+        "active": "Active",
+        "suspended": "Suspended",
+        "completed": "Completed",
+        "terminated": "Terminated"
+      },
+      "columns": {
+        "instanceId": "Instance ID",
+        "definition": "Definition",
+        "ver": "Ver.",
+        "status": "Status",
+        "started": "Started",
+        "completed": "Completed",
+        "actions": "Actions"
+      },
+      "view": "View",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {page} of {total}",
+      "detail": {
+        "instanceDetails": "Instance Details",
+        "activeTokens": "Active Tokens ({count})",
+        "variables": "Variables",
+        "noVariables": "No variables in scope.",
+        "eventLog": "Event Log ({count})",
+        "noEvents": "No events recorded.",
+        "fields": {
+          "instanceId": "Instance ID",
+          "definition": "Definition",
+          "version": "Version",
+          "started": "Started",
+          "completed": "Completed",
+          "status": "Status"
+        },
+        "tokenColumns": {
+          "tokenId": "Token ID",
+          "element": "Element",
+          "type": "Type",
+          "status": "Status",
+          "waitingFor": "Waiting For"
+        },
+        "variableColumns": {
+          "name": "Name",
+          "type": "Type",
+          "value": "Value"
+        },
+        "eventColumns": {
+          "time": "Time",
+          "eventType": "Event Type",
+          "element": "Element"
+        }
+      }
+    },
+    "events": {
+      "title": "Event Log",
+      "searchByInstance": "Search by Instance ID",
+      "instanceIdLabel": "Instance ID",
+      "search": "Search",
+      "placeholder": "Enter an instance ID above to view its event log.",
+      "noEvents": "No events found.",
+      "columns": {
+        "number": "#",
+        "time": "Time",
+        "eventType": "Event Type",
+        "element": "Element"
+      },
+      "eventsCount": "{count, plural, one {# event} other {# events}} for",
+      "instanceNotFound": "Instance \"{instanceId}\" not found.",
+      "fetchFailed": "Failed to fetch events.",
+      "networkError": "Network error."
+    }
   }
 }

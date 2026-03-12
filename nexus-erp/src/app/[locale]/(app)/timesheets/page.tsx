@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
+import { getTranslations } from 'next-intl/server'
 import { auth } from '@/auth'
 import TimesheetCalendar from './TimesheetCalendar'
 
@@ -8,12 +9,14 @@ const TimesheetsPage = async () => {
   const session = await auth()
   if (!session?.user.employeeId) redirect('/dashboard')
 
+  const t = await getTranslations('timesheets')
+
   return (
     <Box>
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h2">My Timesheets</Typography>
+        <Typography variant="h2">{t('title')}</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          Click any week to view details, or log hours on an empty week.
+          {t('subtitle')}
         </Typography>
       </Box>
       <TimesheetCalendar />

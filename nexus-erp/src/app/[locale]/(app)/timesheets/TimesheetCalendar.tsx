@@ -16,6 +16,7 @@ import ExpandLessRoundedIcon from '@mui/icons-material/ExpandLessRounded'
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded'
 import TodayRoundedIcon from '@mui/icons-material/TodayRounded'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
+import { useTranslations } from 'next-intl'
 
 type TimesheetEntry = {
   date: string
@@ -38,35 +39,30 @@ function useStatusConfig(): Record<string, StatusCfg> {
   const theme = useTheme()
   const { palette } = theme
   const isDark = palette.mode === 'dark'
+  const t = useTranslations('timesheets.status')
 
   if (!isDark) {
     return {
-      draft:                  { label: 'Draft',            bgColor: '#F9FAFB',                                    borderColor: '#D1D5DB',                          textColor: '#6B7280' },
-      submitted:              { label: 'Submitted',        bgColor: '#FFFBEB',                                    borderColor: '#F59E0B',                          textColor: '#B45309' },
-      pending_manager_review: { label: 'Manager Review',   bgColor: '#EFF6FF',                                    borderColor: '#3B82F6',                          textColor: '#1D4ED8' },
-      pending_hr_review:      { label: 'HR Review',        bgColor: '#F5F3FF',                                    borderColor: '#8B5CF6',                          textColor: '#6D28D9' },
-      revision_requested:     { label: 'Revision Request', bgColor: '#FFF7ED',                                    borderColor: '#F97316',                          textColor: '#C2410C' },
-      approved:               { label: 'Approved',         bgColor: '#F0FDF4',                                    borderColor: '#22C55E',                          textColor: '#15803D' },
-      rejected:               { label: 'Rejected',         bgColor: '#FFF1F2',                                    borderColor: '#F43F5E',                          textColor: '#BE123C' },
+      draft:                  { label: t('draft'),            bgColor: '#F9FAFB',                                    borderColor: '#D1D5DB',                          textColor: '#6B7280' },
+      submitted:              { label: t('submitted'),        bgColor: '#FFFBEB',                                    borderColor: '#F59E0B',                          textColor: '#B45309' },
+      pending_manager_review: { label: t('pendingManagerReview'),   bgColor: '#EFF6FF',                                    borderColor: '#3B82F6',                          textColor: '#1D4ED8' },
+      pending_hr_review:      { label: t('pendingHrReview'),        bgColor: '#F5F3FF',                                    borderColor: '#8B5CF6',                          textColor: '#6D28D9' },
+      revision_requested:     { label: t('revisionRequest'), bgColor: '#FFF7ED',                                    borderColor: '#F97316',                          textColor: '#C2410C' },
+      approved:               { label: t('approved'),         bgColor: '#F0FDF4',                                    borderColor: '#22C55E',                          textColor: '#15803D' },
+      rejected:               { label: t('rejected'),         bgColor: '#FFF1F2',                                    borderColor: '#F43F5E',                          textColor: '#BE123C' },
     }
   }
 
   return {
-    draft:                  { label: 'Draft',            bgColor: alpha(palette.grey[500], 0.12),            borderColor: alpha(palette.grey[500], 0.35),     textColor: palette.grey[400] },
-    submitted:              { label: 'Submitted',        bgColor: alpha(palette.warning.main, 0.12),         borderColor: alpha(palette.warning.main, 0.45),  textColor: palette.warning.light },
-    pending_manager_review: { label: 'Manager Review',   bgColor: alpha(palette.info.main, 0.12),            borderColor: alpha(palette.info.main, 0.45),     textColor: palette.info.light },
-    pending_hr_review:      { label: 'HR Review',        bgColor: alpha(palette.secondary.main, 0.12),       borderColor: alpha(palette.secondary.main, 0.45), textColor: palette.secondary.light },
-    revision_requested:     { label: 'Revision Request', bgColor: alpha(palette.warning.dark, 0.15),         borderColor: alpha(palette.warning.dark, 0.5),   textColor: palette.warning.main },
-    approved:               { label: 'Approved',         bgColor: alpha(palette.success.main, 0.12),         borderColor: alpha(palette.success.main, 0.45),  textColor: palette.success.light },
-    rejected:               { label: 'Rejected',         bgColor: alpha(palette.error.main, 0.12),           borderColor: alpha(palette.error.main, 0.45),    textColor: palette.error.light },
+    draft:                  { label: t('draft'),            bgColor: alpha(palette.grey[500], 0.12),            borderColor: alpha(palette.grey[500], 0.35),     textColor: palette.grey[400] },
+    submitted:              { label: t('submitted'),        bgColor: alpha(palette.warning.main, 0.12),         borderColor: alpha(palette.warning.main, 0.45),  textColor: palette.warning.light },
+    pending_manager_review: { label: t('pendingManagerReview'),   bgColor: alpha(palette.info.main, 0.12),            borderColor: alpha(palette.info.main, 0.45),     textColor: palette.info.light },
+    pending_hr_review:      { label: t('pendingHrReview'),        bgColor: alpha(palette.secondary.main, 0.12),       borderColor: alpha(palette.secondary.main, 0.45), textColor: palette.secondary.light },
+    revision_requested:     { label: t('revisionRequest'), bgColor: alpha(palette.warning.dark, 0.15),         borderColor: alpha(palette.warning.dark, 0.5),   textColor: palette.warning.main },
+    approved:               { label: t('approved'),         bgColor: alpha(palette.success.main, 0.12),         borderColor: alpha(palette.success.main, 0.45),  textColor: palette.success.light },
+    rejected:               { label: t('rejected'),         bgColor: alpha(palette.error.main, 0.12),           borderColor: alpha(palette.error.main, 0.45),    textColor: palette.error.light },
   }
 }
-
-const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
 
 function formatDate(date: Date): string {
   const y = date.getFullYear()
@@ -110,6 +106,17 @@ function getCalendarRange(year: number, month: number): { from: string; to: stri
 
 const TimesheetCalendar = () => {
   const STATUS_CONFIG = useStatusConfig()
+  const t = useTranslations('timesheets')
+  const DAY_LABELS = [
+    t('calendar.days.mon'), t('calendar.days.tue'), t('calendar.days.wed'),
+    t('calendar.days.thu'), t('calendar.days.fri'), t('calendar.days.sat'), t('calendar.days.sun'),
+  ]
+  const MONTH_NAMES = [
+    t('calendar.months.january'), t('calendar.months.february'), t('calendar.months.march'),
+    t('calendar.months.april'), t('calendar.months.may'), t('calendar.months.june'),
+    t('calendar.months.july'), t('calendar.months.august'), t('calendar.months.september'),
+    t('calendar.months.october'), t('calendar.months.november'), t('calendar.months.december'),
+  ]
   const today = new Date()
   const [viewDate, setViewDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1))
   const [timesheets, setTimesheets] = useState<Timesheet[]>([])
@@ -191,7 +198,7 @@ const TimesheetCalendar = () => {
         <IconButton onClick={() => setViewDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} size="small">
           <ChevronRightRoundedIcon />
         </IconButton>
-        <Tooltip title="Go to current month">
+        <Tooltip title={t('calendar.goToCurrentMonth')}>
           <IconButton
             onClick={() => setViewDate(new Date(today.getFullYear(), today.getMonth(), 1))}
             size="small"
@@ -243,7 +250,7 @@ const TimesheetCalendar = () => {
             color="text.secondary"
             sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
           >
-            Week
+            {t('calendar.week')}
           </Typography>
         </Box>
       </Box>
@@ -438,7 +445,7 @@ const TimesheetCalendar = () => {
                       }}
                     >
                       <AddRoundedIcon sx={{ fontSize: 14 }} />
-                      <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>Log hours</Typography>
+                      <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>{t('calendar.logHours')}</Typography>
                     </Box>
                   )}
                 </Box>
@@ -464,7 +471,7 @@ const TimesheetCalendar = () => {
             }}
           >
             <Typography variant="subtitle2" fontWeight={600}>
-              Monthly summary
+              {t('calendar.monthlySummary')}
             </Typography>
             {summaryOpen ? <ExpandLessRoundedIcon fontSize="small" /> : <ExpandMoreRoundedIcon fontSize="small" />}
           </Box>
@@ -511,7 +518,7 @@ const TimesheetCalendar = () => {
                 borderColor: 'divider',
               }}
             >
-              <Typography variant="body2" fontWeight={600} color="text.secondary">Total</Typography>
+              <Typography variant="body2" fontWeight={600} color="text.secondary">{t('calendar.total')}</Typography>
               <Typography variant="body2" fontWeight={700} color="primary">
                 {monthlyTotal % 1 === 0 ? monthlyTotal : monthlyTotal.toFixed(1)}h
               </Typography>

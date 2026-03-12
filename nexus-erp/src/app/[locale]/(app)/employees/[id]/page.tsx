@@ -13,10 +13,12 @@ import BadgeRoundedIcon from '@mui/icons-material/BadgeRounded'
 import CorporateFareRoundedIcon from '@mui/icons-material/CorporateFareRounded'
 import CalendarTodayRoundedIcon from '@mui/icons-material/CalendarTodayRounded'
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded'
+import { getTranslations, getLocale } from 'next-intl/server'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
 import EmployeeEditForm from '@/components/EmployeeEditForm'
 import EmployeeContactForm from '@/components/EmployeeContactForm'
+import LanguageSelector from '@/app/[locale]/(app)/settings/LanguageSelector'
 
 function getInitials(name: string): string {
   return name
@@ -77,6 +79,11 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
   const isManager = session.user.role === 'manager'
 
   if (!isManager && session.user.employeeId !== id) redirect('/dashboard')
+
+  const [t, locale] = await Promise.all([
+    getTranslations('employees'),
+    getLocale(),
+  ])
 
   const emp = await db.employee.findUnique({
     where: { id },
@@ -177,7 +184,7 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
           <ArrowBackRoundedIcon fontSize="small" />
         </IconButton>
         <Typography variant="body2" color="text.secondary">
-          {isManager ? 'Employees' : 'Dashboard'}
+          {isManager ? t('breadcrumb.employees') : t('breadcrumb.dashboard')}
         </Typography>
       </Box>
 
@@ -214,7 +221,7 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
                 sx={{ fontWeight: 600 }}
               />
               {!isManager && (
-                <Chip label="Your Profile" size="small" color="secondary" variant="outlined" />
+                <Chip label={t('yourProfile')} size="small" color="secondary" variant="outlined" />
               )}
             </Box>
             <Typography variant="body2" color="text.secondary">
@@ -231,7 +238,7 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
           >
             <ReadOnlyField
               icon={<CorporateFareRoundedIcon sx={{ fontSize: 16 }} />}
-              label="Department"
+              label={t('fields.department')}
               value={
                 emp.department ? (
                   <Chip label={emp.department.name} size="small" variant="outlined" />
@@ -242,12 +249,12 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
             />
             <ReadOnlyField
               icon={<CalendarTodayRoundedIcon sx={{ fontSize: 16 }} />}
-              label="Hire Date"
+              label={t('fields.hireDate')}
               value={hireDate}
             />
             <ReadOnlyField
               icon={<PersonRoundedIcon sx={{ fontSize: 16 }} />}
-              label="Manager"
+              label={t('fields.manager')}
               value={emp.manager?.fullName ?? '—'}
             />
           </Stack>
@@ -292,13 +299,13 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
                 color="text.secondary"
                 sx={{ display: 'block', mb: 2 }}
               >
-                Employment
+                {t('sections.employment')}
               </Typography>
               <Grid container spacing={3}>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <ReadOnlyField
                     icon={<CorporateFareRoundedIcon sx={{ fontSize: 16 }} />}
-                    label="Department"
+                    label={t('fields.department')}
                     value={
                       emp.department ? (
                         <Chip label={emp.department.name} size="small" variant="outlined" />
@@ -311,14 +318,14 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <ReadOnlyField
                     icon={<CalendarTodayRoundedIcon sx={{ fontSize: 16 }} />}
-                    label="Hire Date"
+                    label={t('fields.hireDate')}
                     value={hireDate}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <ReadOnlyField
                     icon={<BadgeRoundedIcon sx={{ fontSize: 16 }} />}
-                    label="Role"
+                    label={t('fields.role')}
                     value={
                       <Chip
                         label={emp.user.role}
@@ -331,7 +338,7 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <ReadOnlyField
                     icon={<PersonRoundedIcon sx={{ fontSize: 16 }} />}
-                    label="Manager"
+                    label={t('fields.manager')}
                     value={emp.manager?.fullName ?? '—'}
                   />
                 </Grid>
@@ -345,7 +352,7 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
                 color="text.secondary"
                 sx={{ display: 'block', mb: 2 }}
               >
-                Contact & Address
+                {t('sections.contactAddress')}
               </Typography>
               <EmployeeContactForm
                 employeeId={id}
@@ -372,6 +379,21 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
                     : null
                 }
               />
+            </Box>
+
+            {/* Preferences */}
+            <Box sx={{ p: 3 }}>
+              <Typography
+                variant="overline"
+                color="text.secondary"
+                sx={{ display: 'block', mb: 2 }}
+              >
+                {t('sections.preferences')}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                {t('preferences.language')}
+              </Typography>
+              <LanguageSelector userId={session.user.id} currentLocale={locale} />
             </Box>
           </Stack>
         </Paper>

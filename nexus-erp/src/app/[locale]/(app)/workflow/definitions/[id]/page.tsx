@@ -16,6 +16,7 @@ import TableCell from '@mui/material/TableCell'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded'
+import { getTranslations } from 'next-intl/server'
 import { auth } from '@/auth'
 import { getFullDefinition, getDefinitionXml } from '@/lib/workflow'
 import BpmnViewerLoader from '@/components/BpmnViewerLoader'
@@ -59,9 +60,10 @@ const DefinitionDetailPage = async ({
   const { version: versionParam } = await searchParams
   const version = versionParam !== undefined ? parseInt(versionParam, 10) : undefined
 
-  const [def, xml] = await Promise.all([
+  const [def, xml, t] = await Promise.all([
     getFullDefinition(id, version),
     getDefinitionXml(id, version),
+    getTranslations('workflow.definitions'),
   ])
   if (!def) notFound()
 
@@ -84,33 +86,33 @@ const DefinitionDetailPage = async ({
         {/* Metadata */}
         <Card>
           <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-            <Typography variant="h5" sx={{ mb: 2.5 }}>Metadata</Typography>
+            <Typography variant="h5" sx={{ mb: 2.5 }}>{t('detail.metadata')}</Typography>
             <Grid container spacing={3}>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Stack spacing={2.5} divider={<Divider />}>
-                  <DetailRow label="Definition ID">
+                  <DetailRow label={t('detail.fields.definitionId')}>
                     <Typography variant="body2" fontWeight={500} sx={{ fontFamily: 'monospace' }}>{def.id}</Typography>
                   </DetailRow>
-                  <DetailRow label="Name">
+                  <DetailRow label={t('detail.fields.name')}>
                     <Typography variant="body2" fontWeight={500}>{def.name ?? '—'}</Typography>
                   </DetailRow>
-                  <DetailRow label="Start Event">
+                  <DetailRow label={t('detail.fields.startEvent')}>
                     <Typography variant="body2" fontWeight={500} sx={{ fontFamily: 'monospace' }}>{def.startEventId}</Typography>
                   </DetailRow>
                 </Stack>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Stack spacing={2.5} divider={<Divider />}>
-                  <DetailRow label="Version">
+                  <DetailRow label={t('detail.fields.version')}>
                     <Typography variant="body2" fontWeight={500}>v{def.version}</Typography>
                   </DetailRow>
-                  <DetailRow label="Deployable">
+                  <DetailRow label={t('detail.fields.deployable')}>
                     <Box>{def.isDeployable
                       ? <CheckCircleRoundedIcon fontSize="small" color="success" />
                       : <CancelRoundedIcon fontSize="small" color="error" />
                     }</Box>
                   </DetailRow>
-                  <DetailRow label="Deployed At">
+                  <DetailRow label={t('detail.fields.deployedAt')}>
                     <Typography variant="body2" fontWeight={500}>{new Date(def.deployedAt).toLocaleString()}</Typography>
                   </DetailRow>
                 </Stack>
@@ -123,7 +125,7 @@ const DefinitionDetailPage = async ({
         {xml && (
           <Card>
             <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-              <Typography variant="h5" sx={{ mb: 2 }}>Diagram</Typography>
+              <Typography variant="h5" sx={{ mb: 2 }}>{t('detail.diagram')}</Typography>
               <BpmnViewerLoader xml={xml} />
             </CardContent>
           </Card>
@@ -133,17 +135,17 @@ const DefinitionDetailPage = async ({
         <Card>
           <CardContent sx={{ p: 3, '&:last-child': { pb: 0 } }}>
             <Typography variant="h5">
-              Elements <Chip label={def.elements.length} size="small" sx={{ ml: 1 }} />
+              {t('detail.elements')} <Chip label={def.elements.length} size="small" sx={{ ml: 1 }} />
             </Typography>
           </CardContent>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>ID</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell>Name</TableCell>
-                <TableCell>Incoming</TableCell>
-                <TableCell>Outgoing</TableCell>
+                <TableCell>{t('detail.elementsColumns.id')}</TableCell>
+                <TableCell>{t('detail.elementsColumns.type')}</TableCell>
+                <TableCell>{t('detail.elementsColumns.name')}</TableCell>
+                <TableCell>{t('detail.elementsColumns.incoming')}</TableCell>
+                <TableCell>{t('detail.elementsColumns.outgoing')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -172,17 +174,17 @@ const DefinitionDetailPage = async ({
         <Card>
           <CardContent sx={{ p: 3, '&:last-child': { pb: 0 } }}>
             <Typography variant="h5">
-              Sequence Flows <Chip label={def.sequenceFlows.length} size="small" sx={{ ml: 1 }} />
+              {t('detail.sequenceFlows')} <Chip label={def.sequenceFlows.length} size="small" sx={{ ml: 1 }} />
             </Typography>
           </CardContent>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>ID</TableCell>
-                <TableCell>Source</TableCell>
-                <TableCell>Target</TableCell>
-                <TableCell>Condition</TableCell>
-                <TableCell>Default</TableCell>
+                <TableCell>{t('detail.flowsColumns.id')}</TableCell>
+                <TableCell>{t('detail.flowsColumns.source')}</TableCell>
+                <TableCell>{t('detail.flowsColumns.target')}</TableCell>
+                <TableCell>{t('detail.flowsColumns.condition')}</TableCell>
+                <TableCell>{t('detail.flowsColumns.default')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>

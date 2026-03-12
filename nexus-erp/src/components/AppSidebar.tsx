@@ -14,6 +14,7 @@ import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
 import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
+import { useTranslations } from 'next-intl'
 
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded'
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded'
@@ -52,52 +53,6 @@ export interface NavSection {
   managerOnly?: boolean
 }
 
-// ─── Nav structure ────────────────────────────────────────────────────────────
-
-const NAV_SECTIONS: NavSection[] = [
-  {
-    title: 'Overview',
-    items: [
-      { label: 'Dashboard', href: '/dashboard', icon: <DashboardRoundedIcon fontSize="small" /> },
-    ],
-  },
-  {
-    title: 'Operations',
-    items: [
-      { label: 'Timesheets', href: '/timesheets', icon: <AccessTimeRoundedIcon fontSize="small" />, requiresEmployee: true },
-      { label: 'Employees',  href: '/employees',  icon: <PeopleRoundedIcon fontSize="small" />, managerOnly: true },
-      { label: 'Task Inbox', href: '/tasks',      icon: <InboxRoundedIcon fontSize="small" /> },
-    ],
-  },
-  {
-    title: 'B2B Portal',
-    items: [
-      { label: 'Organizations',  href: '/organizations',   icon: <BusinessRoundedIcon fontSize="small" /> },
-      { label: 'Contracts',      href: '/contracts',        icon: <DescriptionRoundedIcon fontSize="small" /> },
-      { label: 'Invoices',       href: '/invoices',         icon: <ReceiptRoundedIcon fontSize="small" /> },
-      { label: 'Purchase Orders',href: '/purchase-orders',  icon: <ShoppingCartRoundedIcon fontSize="small" /> },
-    ],
-  },
-  {
-    title: 'Workflow',
-    items: [
-      { label: 'Active Instances',    href: '/workflow/instances',   icon: <PlayCircleRoundedIcon fontSize="small" /> },
-      { label: 'Process Definitions', href: '/workflow/definitions', icon: <SchemaRoundedIcon fontSize="small" /> },
-      { label: 'Event Log',           href: '/workflow/events',      icon: <EventNoteRoundedIcon fontSize="small" /> },
-    ],
-  },
-  {
-    title: 'Admin',
-    managerOnly: true,
-    items: [
-      { label: 'Departments', href: '/departments',      icon: <CorporateFareRoundedIcon fontSize="small" /> },
-      { label: 'Groups',      href: '/groups',           icon: <GroupsRoundedIcon fontSize="small" /> },
-      { label: 'Settings',    href: '/admin/settings',   icon: <SettingsRoundedIcon fontSize="small" /> },
-      { label: 'Audit Log',   href: '/admin/audit-log',  icon: <ManageSearchRoundedIcon fontSize="small" /> },
-    ],
-  },
-]
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const SIDEBAR_EXPANDED_WIDTH = 240
@@ -113,8 +68,53 @@ interface AppSidebarProps {
 const AppSidebar = ({ role, hasEmployee }: AppSidebarProps) => {
   const pathname = usePathname()
   const { collapsed, setCollapsed } = useSidebar()
+  const t = useTranslations('nav')
   const isManager = role === 'manager'
   const width = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
+
+  const NAV_SECTIONS: NavSection[] = [
+    {
+      title: t('sections.overview'),
+      items: [
+        { label: t('items.dashboard'), href: '/dashboard', icon: <DashboardRoundedIcon fontSize="small" /> },
+      ],
+    },
+    {
+      title: t('sections.operations'),
+      items: [
+        { label: t('items.timesheets'), href: '/timesheets', icon: <AccessTimeRoundedIcon fontSize="small" />, requiresEmployee: true },
+        { label: t('items.employees'),  href: '/employees',  icon: <PeopleRoundedIcon fontSize="small" />, managerOnly: true },
+        { label: t('items.taskInbox'), href: '/tasks',      icon: <InboxRoundedIcon fontSize="small" /> },
+      ],
+    },
+    {
+      title: t('sections.b2bPortal'),
+      items: [
+        { label: t('items.organizations'),  href: '/organizations',   icon: <BusinessRoundedIcon fontSize="small" /> },
+        { label: t('items.contracts'),      href: '/contracts',        icon: <DescriptionRoundedIcon fontSize="small" /> },
+        { label: t('items.invoices'),       href: '/invoices',         icon: <ReceiptRoundedIcon fontSize="small" /> },
+        { label: t('items.purchaseOrders'), href: '/purchase-orders',  icon: <ShoppingCartRoundedIcon fontSize="small" /> },
+      ],
+    },
+    {
+      title: t('sections.workflow'),
+      items: [
+        { label: t('items.activeInstances'),    href: '/workflow/instances',   icon: <PlayCircleRoundedIcon fontSize="small" /> },
+        { label: t('items.processDefinitions'), href: '/workflow/definitions', icon: <SchemaRoundedIcon fontSize="small" /> },
+        { label: t('items.eventLog'),           href: '/workflow/events',      icon: <EventNoteRoundedIcon fontSize="small" /> },
+      ],
+    },
+    {
+      title: t('sections.admin'),
+      managerOnly: true,
+      items: [
+        { label: t('items.departments'), href: '/departments',      icon: <CorporateFareRoundedIcon fontSize="small" /> },
+        { label: t('items.groups'),      href: '/groups',           icon: <GroupsRoundedIcon fontSize="small" /> },
+        { label: t('items.settings'),    href: '/admin/settings',   icon: <SettingsRoundedIcon fontSize="small" /> },
+        { label: t('items.auditLog'),    href: '/admin/audit-log',  icon: <ManageSearchRoundedIcon fontSize="small" /> },
+      ],
+    },
+  ]
 
   return (
     <Drawer
@@ -129,12 +129,12 @@ const AppSidebar = ({ role, hasEmployee }: AppSidebarProps) => {
           borderColor: 'divider',
           backgroundColor: 'background.paper',
           overflowX: 'hidden',
-          transition: (t) =>
-            t.transitions.create('width', {
-              easing: t.transitions.easing.sharp,
+          transition: (th) =>
+            th.transitions.create('width', {
+              easing: th.transitions.easing.sharp,
               duration: collapsed
-                ? t.transitions.duration.leavingScreen
-                : t.transitions.duration.enteringScreen,
+                ? th.transitions.duration.leavingScreen
+                : th.transitions.duration.enteringScreen,
             }),
         },
       }}
@@ -180,7 +180,7 @@ const AppSidebar = ({ role, hasEmployee }: AppSidebarProps) => {
           size="small"
           onClick={() => setCollapsed((c) => !c)}
           sx={{ color: 'text.secondary' }}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={collapsed ? t('expandSidebar') : t('collapseSidebar')}
         >
           {collapsed ? <MenuRoundedIcon fontSize="small" /> : <ChevronLeftRoundedIcon fontSize="small" />}
         </IconButton>

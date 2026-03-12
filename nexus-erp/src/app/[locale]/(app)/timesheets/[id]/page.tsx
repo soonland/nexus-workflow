@@ -24,6 +24,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import SendRoundedIcon from '@mui/icons-material/SendRounded'
+import { useTranslations } from 'next-intl'
 import { useSnackbar } from '@/components/SnackbarContext'
 
 // ---------------------------------------------------------------------------
@@ -61,7 +62,7 @@ interface ProjectRow {
 }
 
 // ---------------------------------------------------------------------------
-// Date utility functions (preserved from original)
+// Date utility functions
 // ---------------------------------------------------------------------------
 
 function parseUtcDate(isoString: string): Date {
@@ -78,14 +79,14 @@ function getWeekDays(weekStartIso: string): Date[] {
   })
 }
 
-function formatWeekRange(weekStartIso: string): string {
+function buildWeekRangeParts(weekStartIso: string): { startStr: string; endDay: number; year: number } {
   const days = getWeekDays(weekStartIso)
   const start = days[0]
   const end = days[6]
   const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   const endDay = end.getDate()
   const year = end.getFullYear()
-  return `Week of ${startStr}–${endDay}, ${year}`
+  return { startStr, endDay, year }
 }
 
 function dateToIso(date: Date): string {
@@ -118,7 +119,7 @@ function isWeekend(date: Date): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Status helpers (preserved from original)
+// Status helpers
 // ---------------------------------------------------------------------------
 
 type StatusColor = 'default' | 'warning' | 'info' | 'secondary' | 'success' | 'error'
@@ -133,22 +134,11 @@ const STATUS_COLOR: Record<string, StatusColor> = {
   rejected: 'error',
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft',
-  submitted: 'Submitted',
-  pending_manager_review: 'Manager Review',
-  pending_hr_review: 'HR Review',
-  revision_requested: 'Revision Requested',
-  approved: 'Approved',
-  rejected: 'Rejected',
-}
-
 // ---------------------------------------------------------------------------
 // Data transform: flat entries[] → ProjectRow[]
 // ---------------------------------------------------------------------------
 
 function buildProjectRows(entries: TimesheetEntry[], weekDays: Date[]): ProjectRow[] {
-  // Group entries by (projectCode|description) key
   const rowMap = new Map<string, ProjectRow>()
 
   for (const entry of entries) {
@@ -165,9 +155,7 @@ function buildProjectRows(entries: TimesheetEntry[], weekDays: Date[]): ProjectR
       })
     }
 
-    // Find which day this entry belongs to
-    const entryDateIso = entry.date.slice(0, 10) // "YYYY-MM-DD"
-    // rowMap.get(key) is guaranteed non-null — we set it in the block above
+    const entryDateIso = entry.date.slice(0, 10)
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     rowMap.get(key)!.cells[entryDateIso] = { entryId: entry.id, hours: Number.parseFloat(entry.hours) }
   }
@@ -179,7 +167,6 @@ function formatHours(h: number): string {
   return h % 1 === 0 ? `${h}` : h.toFixed(1)
 }
 
-// Blur the cell when Enter is pressed — no component state needed, safe at module scope
 function handleHoursCellKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
   if (e.key === 'Enter') e.currentTarget.blur()
 }
@@ -244,23 +231,22 @@ async function apiUpdateEntry(
 }
 
 // ---------------------------------------------------------------------------
-// Cell input: a single hours cell in the grid
+// Cell input
 // ---------------------------------------------------------------------------
 
 interface HoursCellProps {
-  value: number | null // null = empty / no entry
+  value: number | null
   editable: boolean
   saving: boolean
   isHighlighted: boolean
+  hoursLabel: string
   onCommit: (newHours: number | null) => void
 }
 
-const HoursCell = ({ value, editable, saving, isHighlighted, onCommit }: Readonly<HoursCellProps>) => {
-  // Local string state so the user can type freely; we only commit on blur
+const HoursCell = ({ value, editable, saving, isHighlighted, hoursLabel, onCommit }: Readonly<HoursCellProps>) => {
   const [localValue, setLocalValue] = useState<string>(value !== null ? String(value) : '')
   const committedRef = useRef<number | null>(value)
 
-  // Sync when external value changes (e.g. after save completes)
   useEffect(() => {
     committedRef.current = value
     setLocalValue(value !== null ? String(value) : '')
@@ -269,12 +255,8 @@ const HoursCell = ({ value, editable, saving, isHighlighted, onCommit }: Readonl
   function handleBlur() {
     const trimmed = localValue.trim()
     const parsed = trimmed === '' ? null : Number.parseFloat(trimmed)
-
-    // Treat NaN, negatives, and zero the same as empty (will delete the entry)
     const normalized = parsed === null || Number.isNaN(parsed) || parsed <= 0 ? null : parsed
-
-    if (normalized === committedRef.current) return // no change
-
+    if (normalized === committedRef.current) return
     committedRef.current = normalized
     onCommit(normalized)
   }
@@ -310,7 +292,7 @@ const HoursCell = ({ value, editable, saving, isHighlighted, onCommit }: Readonl
         onBlur={handleBlur}
         onKeyDown={handleHoursCellKeyDown}
         inputProps={{
-          'aria-label': 'Hours',
+          'aria-label': hoursLabel,
           min: 0,
           max: 24,
           step: 0.5,
@@ -351,7 +333,6 @@ const stickyFirstCell = {
   minWidth: STICKY_COL_WIDTH,
   maxWidth: STICKY_COL_WIDTH,
   width: STICKY_COL_WIDTH,
-  // Subtle right border to visually separate the sticky column
   borderRight: '1px solid',
   borderRightColor: 'divider',
 }
@@ -363,19 +344,24 @@ const stickyFirstCell = {
 const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string }> }>) => {
   const { id } = use(params)
   const { showSnackbar } = useSnackbar()
+  const t = useTranslations('timesheets')
 
   const [timesheet, setTimesheet] = useState<Timesheet | null>(null)
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState('')
-
-  // Grid state: array of project rows
   const [rows, setRows] = useState<ProjectRow[]>([])
-
-  // Per-cell saving indicator: key is `${rowKey}::${dateIso}`
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set())
-
-  // Submit state
   const [submitLoading, setSubmitLoading] = useState(false)
+
+  const statusLabels: Record<string, string> = {
+    draft: t('status.draft'),
+    submitted: t('status.submitted'),
+    pending_manager_review: t('status.pendingManagerReview'),
+    pending_hr_review: t('status.pendingHrReview'),
+    revision_requested: t('status.revisionRequested'),
+    approved: t('status.approved'),
+    rejected: t('status.rejected'),
+  }
 
   // ---------------------------------------------------------------------------
   // Fetch
@@ -388,7 +374,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
       const res = await fetch(`/api/timesheets/${id}`)
       if (!res.ok) {
         const data = await res.json()
-        setFetchError(data.error ?? 'Failed to load timesheet')
+        setFetchError(data.error ?? t('detail.notFound'))
         return
       }
       const data: Timesheet = await res.json()
@@ -396,11 +382,11 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
       const weekDays = getWeekDays(data.weekStart)
       setRows(buildProjectRows(data.entries, weekDays))
     } catch {
-      setFetchError('Network error — could not load timesheet')
+      setFetchError(t('detail.networkError'))
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetchTimesheet()
@@ -417,11 +403,10 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
 
   const weekDays = useMemo(
     () => (timesheet ? getWeekDays(timesheet.weekStart) : []),
-    [timesheet?.weekStart], // eslint-disable-line react-hooks/exhaustive-deps -- intentional: re-run only on weekStart change
+    [timesheet?.weekStart], // eslint-disable-line react-hooks/exhaustive-deps
   )
   const weekDayIsos = useMemo(() => weekDays.map(dateToIso), [weekDays])
 
-  // Column totals (per day) — recomputed only when rows or weekDayIsos change
   const { dayTotals, weekTotal } = useMemo(() => {
     const totals: Record<string, number> = {}
     for (const iso of weekDayIsos) {
@@ -442,12 +427,11 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
     const existing = row.cells[dateIso] ?? null
     const cellId = `${rowKey}::${dateIso}`
     const op = determineOperation(newHours, existing)
-    if (op === null) return // no-op (both null)
+    if (op === null) return
 
     const projectCode = row.projectCode || null
     const description = row.description || null
 
-    // Optimistic update
     setRows((prev) =>
       prev.map((r) =>
         r.rowKey === rowKey
@@ -480,8 +464,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
         await apiUpdateEntry(id, existing!.entryId, newHours as number, projectCode, description)
       }
     } catch (err) {
-      showSnackbar({ message: err instanceof Error ? err.message : 'Save failed', severity: 'error' })
-      // Rollback optimistic update
+      showSnackbar({ message: err instanceof Error ? err.message : t('detail.saveFailed'), severity: 'error' })
       setRows((prev) =>
         prev.map((r) =>
           r.rowKey === rowKey ? { ...r, cells: { ...r.cells, [dateIso]: existing } } : r,
@@ -501,7 +484,6 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
   // ---------------------------------------------------------------------------
 
   function addRow() {
-    // New blank row with a unique key that won't collide with data-derived keys
     const rowKey = `__new__${Date.now()}`
     setRows((prev) => [
       ...prev,
@@ -518,15 +500,12 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
     const row = rows.find((r) => r.rowKey === rowKey)
     if (!row) return
 
-    // Collect all entry IDs for this row
     const entryIds = Object.values(row.cells)
       .filter((c): c is NonNullable<typeof c> => c !== null)
       .map((c) => c.entryId)
 
-    // Optimistic: remove row immediately
     setRows((prev) => prev.filter((r) => r.rowKey !== rowKey))
 
-    // Fire deletes in parallel
     await Promise.all(
       entryIds.map((entryId) =>
         fetch(`/api/timesheets/${id}/entries/${entryId}`, { method: 'DELETE' }),
@@ -534,17 +513,12 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
     )
   }
 
-  // Update project code / description for a row (by rowKey).
-  // The row key itself stays stable — only the display fields change.
   function updateRowMeta(rowKey: string, field: 'projectCode' | 'description', value: string) {
     setRows((prev) =>
       prev.map((r) => (r.rowKey === rowKey ? { ...r, [field]: value } : r)),
     )
   }
 
-  // When the user leaves the projectCode / description field, we need to re-key
-  // any existing entries for this row to reflect the new metadata. We do this
-  // by firing PUT for every cell that has an entry.
   async function persistRowMeta(rowKey: string) {
     if (!editable) return
     const row = rows.find((r) => r.rowKey === rowKey)
@@ -568,7 +542,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
       const res = await fetch(`/api/timesheets/${id}/submit`, { method: 'POST' })
       if (!res.ok) {
         const data = await res.json()
-        showSnackbar({ message: data.error ?? 'Failed to submit', severity: 'error' })
+        showSnackbar({ message: data.error ?? t('detail.submitFailed'), severity: 'error' })
         return
       }
       await fetchTimesheet()
@@ -593,12 +567,12 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
     return (
       <Box sx={{ maxWidth: 800 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-          <IconButton component={NextLink} href="/timesheets" size="small" aria-label="Back to timesheets">
+          <IconButton component={NextLink} href="/timesheets" size="small" aria-label={t('detail.backAriaLabel')}>
             <ArrowBackRoundedIcon />
           </IconButton>
-          <Typography variant="h3">Timesheet</Typography>
+          <Typography variant="h3">{t('detail.title')}</Typography>
         </Box>
-        <Alert severity="error">{fetchError || 'Timesheet not found'}</Alert>
+        <Alert severity="error">{fetchError || t('detail.notFound')}</Alert>
       </Box>
     )
   }
@@ -606,6 +580,9 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
+
+  const { startStr, endDay, year } = buildWeekRangeParts(timesheet.weekStart)
+  const weekRangeLabel = `${t('detail.weekOf')} ${startStr}–${endDay}, ${year}`
 
   return (
     <Box sx={{ maxWidth: 1100 }}>
@@ -615,15 +592,15 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
           component={NextLink}
           href="/timesheets"
           size="small"
-          aria-label="Back to timesheets"
+          aria-label={t('detail.backAriaLabel')}
         >
           <ArrowBackRoundedIcon />
         </IconButton>
         <Typography variant="h3" sx={{ flex: 1 }}>
-          {formatWeekRange(timesheet.weekStart)}
+          {weekRangeLabel}
         </Typography>
         <Chip
-          label={STATUS_LABEL[status] ?? status}
+          label={statusLabels[status] ?? status}
           color={STATUS_COLOR[status] ?? 'default'}
           size="small"
         />
@@ -632,7 +609,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
       {/* ── Rejection / revision reason ── */}
       {showRejection && (
         <Alert severity={status === 'rejected' ? 'error' : 'warning'} sx={{ mb: 2 }}>
-          <strong>{status === 'rejected' ? 'Rejected' : 'Revision requested'}:</strong>{' '}
+          <strong>{status === 'rejected' ? t('detail.rejectedLabel') : t('detail.revisionRequestedLabel')}:</strong>{' '}
           {timesheet.rejectionReason}
         </Alert>
       )}
@@ -662,13 +639,13 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                 <TableCell
                   sx={{
                     ...stickyFirstCell,
-                    zIndex: 3, // above other sticky header cells
+                    zIndex: 3,
                     py: 1.25,
                     pl: 2,
                   }}
                 >
                   <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    Project / Description
+                    {t('detail.projectDescription')}
                   </Typography>
                 </TableCell>
 
@@ -716,7 +693,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                   sx={{ py: 1.25, bgcolor: 'background.paper' }}
                 >
                   <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    Total
+                    {t('detail.total')}
                   </Typography>
                 </TableCell>
               </TableRow>
@@ -731,7 +708,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                     align="center"
                     sx={{ py: 4, color: 'text.secondary' }}
                   >
-                    No entries recorded for this week.
+                    {t('detail.noEntries')}
                   </TableCell>
                 </TableRow>
               )}
@@ -756,8 +733,8 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                           onChange={(e) => updateRowMeta(row.rowKey, 'projectCode', e.target.value)}
                           onBlur={editable ? () => persistRowMeta(row.rowKey) : undefined}
                           readOnly={!editable}
-                          placeholder={editable ? 'Code' : '—'}
-                          inputProps={{ 'aria-label': 'Project code', style: { padding: '3px 6px' } }}
+                          placeholder={editable ? t('detail.codePlaceholder') : '—'}
+                          inputProps={{ 'aria-label': t('detail.projectCodeAriaLabel'), style: { padding: '3px 6px' } }}
                           sx={{
                             width: 90,
                             flexShrink: 0,
@@ -780,8 +757,8 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                           onChange={(e) => updateRowMeta(row.rowKey, 'description', e.target.value)}
                           onBlur={editable ? () => persistRowMeta(row.rowKey) : undefined}
                           readOnly={!editable}
-                          placeholder={editable ? 'Description' : ''}
-                          inputProps={{ 'aria-label': 'Description', style: { padding: '3px 6px' } }}
+                          placeholder={editable ? t('detail.descriptionPlaceholder') : ''}
+                          inputProps={{ 'aria-label': t('detail.descriptionAriaLabel'), style: { padding: '3px 6px' } }}
                           sx={{
                             flex: 1,
                             minWidth: 0,
@@ -799,11 +776,11 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
 
                         {/* Delete row button */}
                         {editable && (
-                          <Tooltip title="Remove this project row" placement="right">
+                          <Tooltip title={t('detail.removeRow')} placement="right">
                             <IconButton
                               size="small"
                               onClick={() => deleteRow(row.rowKey)}
-                              aria-label="Delete project row"
+                              aria-label={t('detail.deleteRowAriaLabel')}
                               sx={{ color: 'text.disabled', flexShrink: 0, '&:hover': { color: 'error.main' } }}
                             >
                               <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
@@ -840,6 +817,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                             editable={editable}
                             saving={savingCells.has(cellId)}
                             isHighlighted={today}
+                            hoursLabel={t('detail.hoursAriaLabel')}
                             onCommit={(newHours) => handleCellCommit(row.rowKey, iso, newHours)}
                           />
                         </TableCell>
@@ -873,7 +851,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                       onClick={addRow}
                       sx={{ color: 'text.secondary', fontWeight: 500 }}
                     >
-                      Add project row
+                      {t('detail.addRow')}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -905,7 +883,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                   }}
                 >
                   <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    Daily total
+                    {t('detail.dailyTotal')}
                   </Typography>
                 </TableCell>
 
@@ -962,8 +940,8 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
       >
         <Typography variant="body2" color="text.secondary">
           {weekTotal > 0
-            ? `${formatHours(weekTotal)} hours logged this week`
-            : 'No hours logged yet'}
+            ? t('detail.hoursLogged', { hours: formatHours(weekTotal) })
+            : t('detail.noHours')}
         </Typography>
 
         {editable && (
@@ -979,7 +957,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                   : <SendRoundedIcon />
               }
             >
-              {submitLoading ? 'Submitting…' : 'Submit for Approval'}
+              {submitLoading ? t('detail.submitting') : t('detail.submitForApproval')}
             </Button>
           </Stack>
         )}
