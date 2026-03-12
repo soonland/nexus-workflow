@@ -7,5 +7,11 @@ export default defineConfig({
     env: {
       DATABASE_URL: 'postgres://nexus:nexus@localhost:5433/nexus_workflow_test',
     },
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.test.ts'],
+      reporter: ['text', 'lcov', 'html', 'json-summary', 'json'],
+    },
   },
 })
