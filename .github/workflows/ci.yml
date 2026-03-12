@@ -52,7 +52,7 @@ jobs:
           POSTGRES_PASSWORD: nexus
           POSTGRES_DB: nexus_workflow_test
         ports:
-          - 5432:5432
+          - 5433:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 5s
@@ -90,7 +90,7 @@ jobs:
       - name: Test
         run: npm test
         env:
-          DATABASE_URL: postgres://nexus:nexus@localhost:5432/nexus_workflow_test
+          DATABASE_URL: postgres://nexus:nexus@localhost:5433/nexus_workflow_test
 
   # ─── nexus-erp ──────────────────────────────────────────────────────────────
   erp:
