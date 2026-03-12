@@ -10,12 +10,11 @@ import Divider from '@mui/material/Divider'
 import Grid from '@mui/material/Grid'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
-import Tab from '@mui/material/Tab'
-import Tabs from '@mui/material/Tabs'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined'
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined'
+import { useTranslations } from 'next-intl'
 import { useSnackbar } from '@/components/SnackbarContext'
 import PermissionMatrix, { type InheritedSource } from '@/components/PermissionMatrix'
 
@@ -82,40 +81,15 @@ interface EmployeeEditFormProps {
 
 // ── Section header ────────────────────────────────────────────────────────────
 
-const SectionLabel = ({ children }: { children: React.ReactNode }) => {
-  return (
-    <Typography
-      variant="overline"
-      color="text.secondary"
-      sx={{ display: 'block', mb: 2, letterSpacing: '0.08em' }}
-    >
-      {children}
-    </Typography>
-  )
-}
-
-// ── Tab panel wrapper ─────────────────────────────────────────────────────────
-
-const TabPanel = ({
-  value,
-  index,
-  children,
-}: {
-  value: number
-  index: number
-  children: React.ReactNode
-}) => {
-  return (
-    <Box
-      role="tabpanel"
-      hidden={value !== index}
-      id={`employee-tabpanel-${index}`}
-      aria-labelledby={`employee-tab-${index}`}
-    >
-      {value === index && children}
-    </Box>
-  )
-}
+const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+  <Typography
+    variant="overline"
+    color="text.secondary"
+    sx={{ display: 'block', mb: 2, letterSpacing: '0.08em' }}
+  >
+    {children}
+  </Typography>
+)
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -134,8 +108,8 @@ const EmployeeEditForm = ({
 }: EmployeeEditFormProps) => {
   const router = useRouter()
   const { showSnackbar } = useSnackbar()
+  const t = useTranslations('employees.edit')
 
-  const [tab, setTab] = useState(0)
   const [form, setForm] = useState(defaultValues)
   const [saving, setSaving] = useState(false)
 
@@ -172,7 +146,7 @@ const EmployeeEditForm = ({
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
-  async function handleSaveProfile() {
+  async function handleSave() {
     setSaving(true)
     try {
       const res = await fetch(`/api/employees/${employeeId}`, {
@@ -182,9 +156,9 @@ const EmployeeEditForm = ({
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(data.error ?? `Error ${res.status}`)
+        throw new Error((data as { error?: string }).error ?? `Error ${res.status}`)
       }
-      showSnackbar({ message: 'Profile saved.', severity: 'success' })
+      showSnackbar({ message: t('messages.profileSaved'), severity: 'success' })
       router.refresh()
     } catch (e) {
       showSnackbar({ message: e instanceof Error ? e.message : 'Unknown error', severity: 'error' })
@@ -212,9 +186,9 @@ const EmployeeEditForm = ({
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(data.error ?? `Error ${res.status}`)
+        throw new Error((data as { error?: string }).error ?? `Error ${res.status}`)
       }
-      showSnackbar({ message: 'Permissions saved.', severity: 'success' })
+      showSnackbar({ message: t('messages.permissionsSaved'), severity: 'success' })
       router.refresh()
     } catch (e) {
       showSnackbar({ message: e instanceof Error ? e.message : 'Unknown error', severity: 'error' })
@@ -233,9 +207,9 @@ const EmployeeEditForm = ({
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(data.error ?? `Error ${res.status}`)
+        throw new Error((data as { error?: string }).error ?? `Error ${res.status}`)
       }
-      showSnackbar({ message: 'Groups saved.', severity: 'success' })
+      showSnackbar({ message: t('messages.groupsSaved'), severity: 'success' })
       router.refresh()
     } catch (e) {
       showSnackbar({ message: e instanceof Error ? e.message : 'Unknown error', severity: 'error' })
@@ -248,329 +222,264 @@ const EmployeeEditForm = ({
 
   return (
     <>
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-        {/* Tab bar */}
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 3, pt: 0.5 }}>
-          <Tabs
-            value={tab}
-            onChange={(_, v) => setTab(v)}
-            aria-label="Employee edit sections"
-            sx={{
-              '& .MuiTab-root': { minHeight: 48, fontSize: '0.875rem', fontWeight: 500 },
-            }}
-          >
-            <Tab label="Profile" id="employee-tab-0" aria-controls="employee-tabpanel-0" />
-            <Tab label="Contact" id="employee-tab-1" aria-controls="employee-tabpanel-1" />
-            <Tab label="Access" id="employee-tab-2" aria-controls="employee-tabpanel-2" />
-          </Tabs>
+      {/* ── Employment + Contact card ── */}
+      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', mb: 3 }}>
+        {/* Employment section */}
+        <Box sx={{ p: 3 }}>
+          <SectionLabel>{t('sections.employment')}</SectionLabel>
+          <Grid container spacing={2.5}>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                label={t('fields.fullName')}
+                value={form.fullName}
+                onChange={(e) => setField('fullName', e.target.value)}
+                fullWidth
+                size="small"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                label={t('fields.department')}
+                select
+                value={form.departmentId ?? ''}
+                onChange={(e) => setField('departmentId', e.target.value || null)}
+                fullWidth
+                size="small"
+              >
+                <MenuItem value="">{t('placeholders.noDepartment')}</MenuItem>
+                {departments.map((d) => (
+                  <MenuItem key={d.id} value={d.id}>
+                    {d.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                label={t('fields.hireDate')}
+                type="date"
+                value={form.hireDate}
+                onChange={(e) => setField('hireDate', e.target.value)}
+                fullWidth
+                size="small"
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                label={t('fields.manager')}
+                select
+                value={form.managerId ?? ''}
+                onChange={(e) => setField('managerId', e.target.value || null)}
+                fullWidth
+                size="small"
+              >
+                <MenuItem value="">{t('placeholders.noManager')}</MenuItem>
+                {managers.map((m) => (
+                  <MenuItem key={m.id} value={m.id}>
+                    {m.fullName}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                label={t('fields.role')}
+                select
+                value={form.role}
+                onChange={(e) => setField('role', e.target.value)}
+                fullWidth
+                size="small"
+              >
+                <MenuItem value="employee">{t('roles.employee')}</MenuItem>
+                <MenuItem value="manager">{t('roles.manager')}</MenuItem>
+              </TextField>
+            </Grid>
+          </Grid>
         </Box>
 
-        {/* ── Tab 0: Profile (employment fields) ── */}
-        <TabPanel value={tab} index={0}>
-          <Box sx={{ p: 3 }}>
-            <SectionLabel>Employment</SectionLabel>
-            <Grid container spacing={2.5}>
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  label="Full Name"
-                  value={form.fullName}
-                  onChange={(e) => setField('fullName', e.target.value)}
-                  fullWidth
-                  size="small"
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Department"
-                  select
-                  value={form.departmentId ?? ''}
-                  onChange={(e) => setField('departmentId', e.target.value || null)}
-                  fullWidth
-                  size="small"
-                >
-                  <MenuItem value="">— None —</MenuItem>
-                  {departments.map((d) => (
-                    <MenuItem key={d.id} value={d.id}>
-                      {d.name}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Hire Date"
-                  type="date"
-                  value={form.hireDate}
-                  onChange={(e) => setField('hireDate', e.target.value)}
-                  fullWidth
-                  size="small"
-                  slotProps={{ inputLabel: { shrink: true } }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Manager"
-                  select
-                  value={form.managerId ?? ''}
-                  onChange={(e) => setField('managerId', e.target.value || null)}
-                  fullWidth
-                  size="small"
-                >
-                  <MenuItem value="">— None —</MenuItem>
-                  {managers.map((m) => (
-                    <MenuItem key={m.id} value={m.id}>
-                      {m.fullName}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Role"
-                  select
-                  value={form.role}
-                  onChange={(e) => setField('role', e.target.value)}
-                  fullWidth
-                  size="small"
-                >
-                  <MenuItem value="employee">Employee</MenuItem>
-                  <MenuItem value="manager">Manager</MenuItem>
-                </TextField>
-              </Grid>
-            </Grid>
-          </Box>
+        <Divider />
 
-          {/* Sticky save footer */}
-          <Box
-            sx={{
-              px: 3,
-              py: 2,
-              borderTop: 1,
-              borderColor: 'divider',
-              backgroundColor: 'background.paper',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 2,
-            }}
-          >
-            <Button variant="contained" onClick={handleSaveProfile} disabled={saving}>
-              {saving ? 'Saving…' : 'Save Profile'}
-            </Button>
-            <Typography variant="caption" color="text.secondary">
-              Employment fields only
-            </Typography>
-          </Box>
-        </TabPanel>
-
-        {/* ── Tab 1: Contact ── */}
-        <TabPanel value={tab} index={1}>
-          <Box sx={{ p: 3 }}>
-            <SectionLabel>Phone</SectionLabel>
-            <Grid container spacing={2.5} sx={{ mb: 3 }}>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Phone"
-                  value={form.phone ?? ''}
-                  onChange={(e) => setField('phone', e.target.value || null)}
-                  fullWidth
-                  size="small"
-                  placeholder="+1 555 000 0000"
-                />
-              </Grid>
-            </Grid>
-
-            <Divider sx={{ mb: 3 }} />
-
-            <SectionLabel>Address</SectionLabel>
-            <Grid container spacing={2.5}>
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  label="Street"
-                  value={form.street ?? ''}
-                  onChange={(e) => setField('street', e.target.value || null)}
-                  fullWidth
-                  size="small"
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="City"
-                  value={form.city ?? ''}
-                  onChange={(e) => setField('city', e.target.value || null)}
-                  fullWidth
-                  size="small"
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="State / Province"
-                  value={form.state ?? ''}
-                  onChange={(e) => setField('state', e.target.value || null)}
-                  fullWidth
-                  size="small"
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Postal Code"
-                  value={form.postalCode ?? ''}
-                  onChange={(e) => setField('postalCode', e.target.value || null)}
-                  fullWidth
-                  size="small"
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Country"
-                  value={form.country ?? ''}
-                  onChange={(e) => setField('country', e.target.value || null)}
-                  fullWidth
-                  size="small"
-                />
-              </Grid>
-            </Grid>
-          </Box>
-
-          {/* Sticky save footer — contact fields are included in the same profile PATCH */}
-          <Box
-            sx={{
-              px: 3,
-              py: 2,
-              borderTop: 1,
-              borderColor: 'divider',
-              backgroundColor: 'background.paper',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 2,
-            }}
-          >
-            <Button variant="contained" onClick={handleSaveProfile} disabled={saving}>
-              {saving ? 'Saving…' : 'Save Contact'}
-            </Button>
-            <Typography variant="caption" color="text.secondary">
-              Contact &amp; address fields
-            </Typography>
-          </Box>
-        </TabPanel>
-
-        {/* ── Tab 2: Access (groups + permissions) ── */}
-        <TabPanel value={tab} index={2}>
-          {/* Groups sub-section */}
-          <Box sx={{ p: 3 }}>
-            <Box
-              sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <GroupsOutlinedIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-                <SectionLabel>Groups</SectionLabel>
-              </Box>
-            </Box>
-            <Autocomplete
-              multiple
-              options={allGroups}
-              value={selectedGroups}
-              onChange={(_, newValue) => setSelectedGroups(newValue)}
-              getOptionLabel={(o) => o.groupName}
-              isOptionEqualToValue={(o, v) => o.groupId === v.groupId}
-              renderTags={(value, getTagProps) =>
-                value.map((option, index) => {
-                  const { key, ...tagProps } = getTagProps({ index })
-                  return (
-                    <Chip
-                      key={key}
-                      label={option.groupName}
-                      size="small"
-                      {...tagProps}
-                    />
-                  )
-                })
-              }
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  size="small"
-                  placeholder={selectedGroups.length === 0 ? 'Search groups…' : ''}
-                />
-              )}
-              size="small"
-            />
-          </Box>
-
-          <Box
-            sx={{
-              px: 3,
-              py: 2,
-              borderTop: 1,
-              borderColor: 'divider',
-              backgroundColor: 'action.hover',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 2,
-            }}
-          >
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={handleSaveGroups}
-              disabled={savingGroups}
-            >
-              {savingGroups ? 'Saving…' : 'Save Groups'}
-            </Button>
-            <Typography variant="caption" color="text.secondary">
-              Saves group memberships for this user
-            </Typography>
-          </Box>
-
-          <Divider />
-
-          {/* Permissions sub-section */}
-          <Box sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-              <ShieldOutlinedIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-              <SectionLabel>Access</SectionLabel>
-            </Box>
-
-            {allPermissions.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                No permissions defined in the system.
-              </Typography>
-            ) : (
-              <PermissionMatrix
-                allPermissions={allPermissions}
-                grantedKeys={grantedPerms}
-                onToggle={handlePermissionToggle}
-                inheritedSources={inheritedSources}
+        {/* Contact & Address section */}
+        <Box sx={{ p: 3 }}>
+          <SectionLabel>{t('sections.contactAddress')}</SectionLabel>
+          <Grid container spacing={2.5}>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                label={t('fields.phone')}
+                value={form.phone ?? ''}
+                onChange={(e) => setField('phone', e.target.value || null)}
+                fullWidth
+                size="small"
+                placeholder="+1 555 000 0000"
               />
-            )}
-          </Box>
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                label={t('fields.street')}
+                value={form.street ?? ''}
+                onChange={(e) => setField('street', e.target.value || null)}
+                fullWidth
+                size="small"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                label={t('fields.city')}
+                value={form.city ?? ''}
+                onChange={(e) => setField('city', e.target.value || null)}
+                fullWidth
+                size="small"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                label={t('fields.state')}
+                value={form.state ?? ''}
+                onChange={(e) => setField('state', e.target.value || null)}
+                fullWidth
+                size="small"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                label={t('fields.postalCode')}
+                value={form.postalCode ?? ''}
+                onChange={(e) => setField('postalCode', e.target.value || null)}
+                fullWidth
+                size="small"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                label={t('fields.country')}
+                value={form.country ?? ''}
+                onChange={(e) => setField('country', e.target.value || null)}
+                fullWidth
+                size="small"
+              />
+            </Grid>
+          </Grid>
+        </Box>
 
-          <Box
-            sx={{
-              px: 3,
-              py: 2,
-              borderTop: 1,
-              borderColor: 'divider',
-              backgroundColor: 'background.paper',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 2,
-            }}
-          >
-            <Button
-              variant="contained"
-              onClick={handleSavePermissions}
-              disabled={savingPerms}
-            >
-              {savingPerms ? 'Saving…' : 'Save Permissions'}
-            </Button>
-            <Typography variant="caption" color="text.secondary">
-              Saves direct grants — dimmed checkmarks are inherited via groups or department
-            </Typography>
-          </Box>
-        </TabPanel>
+        {/* Save footer */}
+        <Box
+          sx={{
+            px: 3,
+            py: 2,
+            borderTop: 1,
+            borderColor: 'divider',
+            backgroundColor: 'background.paper',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+          }}
+        >
+          <Button variant="contained" onClick={handleSave} disabled={saving}>
+            {saving ? t('save.saving') : t('save.profile')}
+          </Button>
+        </Box>
       </Paper>
 
+      {/* ── Access card (groups + permissions) ── */}
+      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+        {/* Groups sub-section */}
+        <Box sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <GroupsOutlinedIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+            <SectionLabel>{t('sections.groups')}</SectionLabel>
+          </Box>
+          <Autocomplete
+            multiple
+            options={allGroups}
+            value={selectedGroups}
+            onChange={(_, newValue) => setSelectedGroups(newValue)}
+            getOptionLabel={(o) => o.groupName}
+            isOptionEqualToValue={(o, v) => o.groupId === v.groupId}
+            renderTags={(value, getTagProps) =>
+              value.map((option, index) => {
+                const { key, ...tagProps } = getTagProps({ index })
+                return (
+                  <Chip key={key} label={option.groupName} size="small" {...tagProps} />
+                )
+              })
+            }
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                size="small"
+                placeholder={selectedGroups.length === 0 ? t('placeholders.searchGroups') : ''}
+              />
+            )}
+            size="small"
+          />
+        </Box>
+
+        <Box
+          sx={{
+            px: 3,
+            py: 2,
+            borderTop: 1,
+            borderColor: 'divider',
+            backgroundColor: 'action.hover',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+          }}
+        >
+          <Button variant="outlined" size="small" onClick={handleSaveGroups} disabled={savingGroups}>
+            {savingGroups ? t('save.saving') : t('save.groups')}
+          </Button>
+          <Typography variant="caption" color="text.secondary">
+            {t('hints.groupsMembership')}
+          </Typography>
+        </Box>
+
+        <Divider />
+
+        {/* Permissions sub-section */}
+        <Box sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <ShieldOutlinedIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+            <SectionLabel>{t('sections.access')}</SectionLabel>
+          </Box>
+
+          {allPermissions.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              {t('noPermissions')}
+            </Typography>
+          ) : (
+            <PermissionMatrix
+              allPermissions={allPermissions}
+              grantedKeys={grantedPerms}
+              onToggle={handlePermissionToggle}
+              inheritedSources={inheritedSources}
+            />
+          )}
+        </Box>
+
+        <Box
+          sx={{
+            px: 3,
+            py: 2,
+            borderTop: 1,
+            borderColor: 'divider',
+            backgroundColor: 'background.paper',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+          }}
+        >
+          <Button variant="contained" onClick={handleSavePermissions} disabled={savingPerms}>
+            {savingPerms ? t('save.saving') : t('save.permissions')}
+          </Button>
+          <Typography variant="caption" color="text.secondary">
+            {t('hints.permissionsGrants')}
+          </Typography>
+        </Box>
+      </Paper>
     </>
   )
 }
+
 export default EmployeeEditForm

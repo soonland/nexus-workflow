@@ -148,6 +148,7 @@
   },
   "employees": {
     "title": "Employees",
+    "addEmployee": "Add Employee",
     "yourProfile": "Your Profile",
     "fields": {
       "department": "Department",
@@ -166,6 +167,103 @@
     "breadcrumb": {
       "employees": "Employees",
       "dashboard": "Dashboard"
+    },
+    "edit": {
+      "tabs": {
+        "profile": "Profile",
+        "contact": "Contact",
+        "access": "Access"
+      },
+      "fields": {
+        "fullName": "Full Name",
+        "department": "Department",
+        "hireDate": "Hire Date",
+        "manager": "Manager",
+        "role": "Role",
+        "phone": "Phone",
+        "street": "Street",
+        "city": "City",
+        "state": "State / Province",
+        "postalCode": "Postal Code",
+        "country": "Country"
+      },
+      "roles": {
+        "employee": "Employee",
+        "manager": "Manager"
+      },
+      "sections": {
+        "employment": "Employment",
+        "contactAddress": "Contact & Address",
+        "groups": "Groups",
+        "access": "Access"
+      },
+      "placeholders": {
+        "noDepartment": "— None —",
+        "noManager": "— None —",
+        "searchGroups": "Search groups\u2026"
+      },
+      "save": {
+        "profile": "Save Profile",
+        "contact": "Save Contact",
+        "groups": "Save Groups",
+        "permissions": "Save Permissions",
+        "saving": "Saving\u2026"
+      },
+      "hints": {
+        "profileFields": "Employment fields only",
+        "contactFields": "Contact & address fields",
+        "groupsMembership": "Saves group memberships for this user",
+        "permissionsGrants": "Saves direct grants \u2014 dimmed checkmarks are inherited via groups or department"
+      },
+      "messages": {
+        "profileSaved": "Profile saved.",
+        "permissionsSaved": "Permissions saved.",
+        "groupsSaved": "Groups saved."
+      },
+      "noPermissions": "No permissions defined in the system."
+    },
+    "new": {
+      "title": "New Employee",
+      "sections": {
+        "employment": "Employment",
+        "contactAddress": "Contact & Address"
+      },
+      "fields": {
+        "fullName": "Full Name",
+        "email": "Email",
+        "password": "Initial Password",
+        "hireDate": "Hire Date",
+        "role": "Role",
+        "department": "Department",
+        "manager": "Manager",
+        "phone": "Phone",
+        "street": "Street",
+        "city": "City",
+        "state": "State / Province",
+        "postalCode": "Postal Code",
+        "country": "Country"
+      },
+      "roles": {
+        "employee": "Employee",
+        "manager": "Manager"
+      },
+      "placeholders": {
+        "noDepartment": "— None —",
+        "noManager": "— None —"
+      },
+      "validation": {
+        "fullNameRequired": "Full name is required",
+        "emailRequired": "Email is required",
+        "emailInvalid": "Enter a valid email address",
+        "passwordRequired": "Password is required",
+        "passwordMinLength": "Password must be at least 8 characters",
+        "hireDateRequired": "Hire date is required",
+        "emailInUse": "This email is already registered"
+      },
+      "submit": "Create Employee",
+      "submitting": "Creating\u2026",
+      "cancel": "Cancel",
+      "createFailed": "Failed to create employee"
     }
   },
   "tasks": {
