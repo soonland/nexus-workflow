@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { InMemoryEventBus } from 'nexus-workflow-core'
 import { config } from './config.js'
 import { PostgresStateStore } from './db/PostgresStateStore.js'
-import { runMigrations, resetDatabase } from './db/migrate.js'
+import { runMigrations } from './db/migrate.js'
 import { createDefinitionsRouter } from './http/definitions.js'
 import { createInstancesRouter } from './http/instances.js'
 import { createTasksRouter } from './http/tasks.js'
@@ -22,6 +22,8 @@ const store = new PostgresStateStore(config.databaseUrl)
 const eventBus = new InMemoryEventBus()
 const eventLog = new PostgresEventLog(config.databaseUrl)
 eventBus.subscribe(event => { void eventLog.append(event) })
+
+await runMigrations(config.databaseUrl)
 
 if (config.redisUrl) {
   const redisPublisher = new RedisStreamPublisher(config.redisUrl)
@@ -47,12 +49,6 @@ app.route('/', createTasksRouter(store, eventBus))
 app.route('/', createAdminRouter(store, eventBus))
 app.route('/', createEventsRouter(store, eventBus))
 app.route('/', createObservabilityRouter(store, eventLog))
-
-if (config.resetDb) {
-  await resetDatabase(config.databaseUrl)
-} else {
-  await runMigrations(config.databaseUrl)
-}
 serve({ fetch: app.fetch, port: config.port }, () => {
   console.log(`nexus-workflow-app listening on port ${config.port}`)
 })
