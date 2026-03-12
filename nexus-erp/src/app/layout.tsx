@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import 'bpmn-js/dist/assets/diagram-js.css'
 import 'bpmn-js/dist/assets/bpmn-js.css'
+import { cookies } from 'next/headers'
 import { auth } from '@/auth'
 import ThemeRegistry from '@/components/ThemeRegistry'
 
@@ -11,19 +12,12 @@ export const metadata: Metadata = {
 }
 
 const RootLayout = async ({ children }: { children: React.ReactNode }) => {
-  const session = await auth()
-  const initialTheme = session?.user?.theme ?? 'system'
+  const [session, cookieStore] = await Promise.all([auth(), cookies()])
+  const initialTheme =
+    cookieStore.get('nexus-theme')?.value ?? session?.user?.theme ?? 'system'
 
   return (
-    <html lang="en">
-      <head>
-        {/* Blocking script: apply theme from localStorage before React hydration to prevent FOUT */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('nexus-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})()`,
-          }}
-        />
-      </head>
+    <html lang="en" data-theme={initialTheme}>
       <body>
         <ThemeRegistry initialTheme={initialTheme}>{children}</ThemeRegistry>
       </body>

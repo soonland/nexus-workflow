@@ -9,6 +9,7 @@ import IconButton from '@mui/material/IconButton'
 import CircularProgress from '@mui/material/CircularProgress'
 import Collapse from '@mui/material/Collapse'
 import Tooltip from '@mui/material/Tooltip'
+import { useTheme, alpha } from '@mui/material/styles'
 import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded'
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded'
 import ExpandLessRoundedIcon from '@mui/icons-material/ExpandLessRounded'
@@ -31,49 +32,34 @@ type Timesheet = {
   entries: TimesheetEntry[]
 }
 
-const STATUS_CONFIG: Record<string, { label: string; bgColor: string; borderColor: string; textColor: string }> = {
-  draft: {
-    label: 'Draft',
-    bgColor: '#F9FAFB',
-    borderColor: '#D1D5DB',
-    textColor: '#6B7280',
-  },
-  submitted: {
-    label: 'Submitted',
-    bgColor: '#FFFBEB',
-    borderColor: '#F59E0B',
-    textColor: '#B45309',
-  },
-  pending_manager_review: {
-    label: 'Manager Review',
-    bgColor: '#EFF6FF',
-    borderColor: '#3B82F6',
-    textColor: '#1D4ED8',
-  },
-  pending_hr_review: {
-    label: 'HR Review',
-    bgColor: '#F5F3FF',
-    borderColor: '#8B5CF6',
-    textColor: '#6D28D9',
-  },
-  revision_requested: {
-    label: 'Revision Requested',
-    bgColor: '#FFF7ED',
-    borderColor: '#F97316',
-    textColor: '#C2410C',
-  },
-  approved: {
-    label: 'Approved',
-    bgColor: '#F0FDF4',
-    borderColor: '#22C55E',
-    textColor: '#15803D',
-  },
-  rejected: {
-    label: 'Rejected',
-    bgColor: '#FFF1F2',
-    borderColor: '#F43F5E',
-    textColor: '#BE123C',
-  },
+type StatusCfg = { label: string; bgColor: string; borderColor: string; textColor: string }
+
+function useStatusConfig(): Record<string, StatusCfg> {
+  const theme = useTheme()
+  const { palette } = theme
+  const isDark = palette.mode === 'dark'
+
+  if (!isDark) {
+    return {
+      draft:                  { label: 'Draft',            bgColor: '#F9FAFB',                                    borderColor: '#D1D5DB',                          textColor: '#6B7280' },
+      submitted:              { label: 'Submitted',        bgColor: '#FFFBEB',                                    borderColor: '#F59E0B',                          textColor: '#B45309' },
+      pending_manager_review: { label: 'Manager Review',   bgColor: '#EFF6FF',                                    borderColor: '#3B82F6',                          textColor: '#1D4ED8' },
+      pending_hr_review:      { label: 'HR Review',        bgColor: '#F5F3FF',                                    borderColor: '#8B5CF6',                          textColor: '#6D28D9' },
+      revision_requested:     { label: 'Revision Request', bgColor: '#FFF7ED',                                    borderColor: '#F97316',                          textColor: '#C2410C' },
+      approved:               { label: 'Approved',         bgColor: '#F0FDF4',                                    borderColor: '#22C55E',                          textColor: '#15803D' },
+      rejected:               { label: 'Rejected',         bgColor: '#FFF1F2',                                    borderColor: '#F43F5E',                          textColor: '#BE123C' },
+    }
+  }
+
+  return {
+    draft:                  { label: 'Draft',            bgColor: alpha(palette.grey[500], 0.12),            borderColor: alpha(palette.grey[500], 0.35),     textColor: palette.grey[400] },
+    submitted:              { label: 'Submitted',        bgColor: alpha(palette.warning.main, 0.12),         borderColor: alpha(palette.warning.main, 0.45),  textColor: palette.warning.light },
+    pending_manager_review: { label: 'Manager Review',   bgColor: alpha(palette.info.main, 0.12),            borderColor: alpha(palette.info.main, 0.45),     textColor: palette.info.light },
+    pending_hr_review:      { label: 'HR Review',        bgColor: alpha(palette.secondary.main, 0.12),       borderColor: alpha(palette.secondary.main, 0.45), textColor: palette.secondary.light },
+    revision_requested:     { label: 'Revision Request', bgColor: alpha(palette.warning.dark, 0.15),         borderColor: alpha(palette.warning.dark, 0.5),   textColor: palette.warning.main },
+    approved:               { label: 'Approved',         bgColor: alpha(palette.success.main, 0.12),         borderColor: alpha(palette.success.main, 0.45),  textColor: palette.success.light },
+    rejected:               { label: 'Rejected',         bgColor: alpha(palette.error.main, 0.12),           borderColor: alpha(palette.error.main, 0.45),    textColor: palette.error.light },
+  }
 }
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -123,6 +109,7 @@ function getCalendarRange(year: number, month: number): { from: string; to: stri
 }
 
 const TimesheetCalendar = () => {
+  const STATUS_CONFIG = useStatusConfig()
   const today = new Date()
   const [viewDate, setViewDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1))
   const [timesheets, setTimesheets] = useState<Timesheet[]>([])
@@ -226,7 +213,7 @@ const TimesheetCalendar = () => {
           borderBottom: 'none',
           borderRadius: '8px 8px 0 0',
           overflow: 'hidden',
-          bgcolor: 'grey.50',
+          bgcolor: 'action.hover',
         }}
       >
         {DAY_LABELS.map((day, i) => (
@@ -298,7 +285,7 @@ const TimesheetCalendar = () => {
                         pt: 1,
                         pb: 0.5,
                         minHeight: 48,
-                        bgcolor: isWeekend ? 'grey.50' : 'background.paper',
+                        bgcolor: isWeekend ? 'action.hover' : 'background.paper',
                         borderRight: offset < 6 ? '1px solid' : 'none',
                         borderColor: 'divider',
                         opacity: isCurrentMonth ? 1 : 0.45,
@@ -389,7 +376,7 @@ const TimesheetCalendar = () => {
                   sx={{
                     borderLeft: '1px solid',
                     borderColor: 'divider',
-                    bgcolor: 'grey.50',
+                    bgcolor: 'action.hover',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -446,7 +433,7 @@ const TimesheetCalendar = () => {
                         '&:hover': {
                           borderColor: 'primary.main',
                           color: 'primary.main',
-                          bgcolor: 'primary.50',
+                          bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
                         },
                       }}
                     >
