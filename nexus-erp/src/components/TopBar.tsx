@@ -35,14 +35,18 @@ interface TopBarProps {
   userId: string
 }
 
-function buildBreadcrumbs(pathname: string, homeLabel: string): { label: string; href: string }[] {
+function buildBreadcrumbs(
+  pathname: string,
+  homeLabel: string,
+  segmentLabels: Record<string, string>,
+): { label: string; href: string }[] {
   const segments = pathname.split('/').filter(Boolean)
   const crumbs: { label: string; href: string }[] = [{ label: homeLabel, href: '/dashboard' }]
   let accumulated = ''
   for (const seg of segments) {
     accumulated += `/${seg}`
-    if (/^[0-9a-f-]{8,}$/i.test(seg) || /^[a-zA-Z0-9]{20,}$/.test(seg)) continue
-    const label = seg.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    if (/^[0-9a-f-]{8,}$/i.test(seg) || /^[a-zA-Z0-9]{20,}$/.test(seg) || seg === 'new') continue
+    const label = segmentLabels[seg] ?? seg.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
     crumbs.push({ label, href: accumulated })
   }
   return crumbs
@@ -71,7 +75,26 @@ const TopBar = ({ email, employeeId, role, signOutAction, userId }: TopBarProps)
   const { collapsed } = useSidebar()
   const { themeId, setThemeId } = useTheme()
   const t = useTranslations('topBar')
-  const crumbs = buildBreadcrumbs(pathname, t('home'))
+  const tNavItems = useTranslations('nav.items')
+  const tNavSections = useTranslations('nav.sections')
+  const segmentLabels: Record<string, string> = {
+    timesheets: tNavItems('timesheets'),
+    employees: tNavItems('employees'),
+    dashboard: tNavItems('dashboard'),
+    organizations: tNavItems('organizations'),
+    contracts: tNavItems('contracts'),
+    invoices: tNavItems('invoices'),
+    departments: tNavItems('departments'),
+    groups: tNavItems('groups'),
+    tasks: tNavItems('taskInbox'),
+    workflow: tNavSections('workflow'),
+    instances: tNavItems('activeInstances'),
+    definitions: tNavItems('processDefinitions'),
+    events: tNavItems('eventLog'),
+    settings: tNavItems('settings'),
+    admin: tNavSections('admin'),
+  }
+  const crumbs = buildBreadcrumbs(pathname, t('home'), segmentLabels)
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
 
   const [anchor, setAnchor] = React.useState<null | HTMLElement>(null)

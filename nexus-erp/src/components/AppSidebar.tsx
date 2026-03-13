@@ -1,8 +1,8 @@
 'use client'
 
 import * as React from 'react'
-import { usePathname } from 'next/navigation'
 import NextLink from 'next/link'
+import { usePathname } from '@/i18n/navigation'
 import Box from '@mui/material/Box'
 import Drawer from '@mui/material/Drawer'
 import List from '@mui/material/List'

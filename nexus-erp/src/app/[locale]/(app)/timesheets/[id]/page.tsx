@@ -596,7 +596,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
         >
           <ArrowBackRoundedIcon />
         </IconButton>
-        <Typography variant="h3" sx={{ flex: 1 }}>
+        <Typography variant="h3" color="text.primary" sx={{ flex: 1 }}>
           {weekRangeLabel}
         </Typography>
         <Chip
@@ -639,6 +639,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                 <TableCell
                   sx={{
                     ...stickyFirstCell,
+                    bgcolor: 'action.hover',
                     zIndex: 3,
                     py: 1.25,
                     pl: 2,
@@ -660,7 +661,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                       align="center"
                       sx={{
                         py: 1,
-                        bgcolor: today ? 'primary.50' : weekend ? 'grey.100' : 'background.paper',
+                        bgcolor: today ? 'action.selected' : weekend ? 'background.default' : 'action.hover',
                         borderBottom: today ? '2px solid' : undefined,
                         borderBottomColor: today ? 'primary.main' : undefined,
                       }}
@@ -690,7 +691,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                 {/* Total column */}
                 <TableCell
                   align="center"
-                  sx={{ py: 1.25, bgcolor: 'background.paper' }}
+                  sx={{ py: 1.25, bgcolor: 'action.hover' }}
                 >
                   <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                     {t('detail.total')}
@@ -804,7 +805,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                           sx={{
                             px: 0.5,
                             py: 0.25,
-                            bgcolor: today ? 'primary.50' : weekend ? 'grey.50' : undefined,
+                            bgcolor: today ? 'action.selected' : weekend ? 'background.default' : undefined,
                             '&:focus-within': {
                               outline: '2px solid',
                               outlineColor: 'primary.main',
@@ -902,7 +903,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                         fontWeight: total > 0 ? 700 : 400,
                         fontSize: '0.875rem',
                         color: total > 0 ? 'text.primary' : 'text.disabled',
-                        bgcolor: weekend ? 'grey.100' : undefined,
+                        bgcolor: weekend ? 'background.default' : undefined,
                       }}
                     >
                       {total > 0 ? `${formatHours(total)}h` : '—'}

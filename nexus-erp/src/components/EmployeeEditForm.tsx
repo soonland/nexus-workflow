@@ -81,11 +81,11 @@ interface EmployeeEditFormProps {
 
 // ── Section header ────────────────────────────────────────────────────────────
 
-const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+const SectionLabel = ({ children, sx }: { children: React.ReactNode; sx?: object }) => (
   <Typography
     variant="overline"
     color="text.secondary"
-    sx={{ display: 'block', mb: 2, letterSpacing: '0.08em' }}
+    sx={{ display: 'block', mb: 2, letterSpacing: '0.08em', ...sx }}
   >
     {children}
   </Typography>
@@ -387,7 +387,7 @@ const EmployeeEditForm = ({
         <Box sx={{ p: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
             <GroupsOutlinedIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-            <SectionLabel>{t('sections.groups')}</SectionLabel>
+            <SectionLabel sx={{ mb: 0 }}>{t('sections.groups')}</SectionLabel>
           </Box>
           <Autocomplete
             multiple
@@ -441,7 +441,7 @@ const EmployeeEditForm = ({
         <Box sx={{ p: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
             <ShieldOutlinedIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-            <SectionLabel>{t('sections.access')}</SectionLabel>
+            <SectionLabel sx={{ mb: 0 }}>{t('sections.access')}</SectionLabel>
           </Box>
 
           {allPermissions.length === 0 ? (
