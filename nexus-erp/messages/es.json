@@ -25,7 +25,8 @@
       "departments": "Departamentos",
       "groups": "Grupos",
       "settings": "Configuración",
-      "auditLog": "Registro de auditoría"
+      "auditLog": "Registro de auditoría",
+      "messages": "Mensajes"
     },
     "expandSidebar": "Expandir barra lateral",
     "collapseSidebar": "Contraer barra lateral"
@@ -35,7 +36,8 @@
     "myProfile": "Mi perfil",
     "theme": "Tema",
     "signOut": "Cerrar sesión",
-    "accountMenu": "Menú de cuenta"
+    "accountMenu": "Menú de cuenta",
+    "unreadMessages": "Mensajes no le\u00eddos"
   },
   "auth": {
     "login": {
@@ -113,7 +115,8 @@
       "rejectedLabel": "Rechazado",
       "revisionRequestedLabel": "Revisión solicitada",
       "saveFailed": "Error al guardar",
-      "weekOf": "Semana del"
+      "weekOf": "Semana del",
+      "sendMessage": "Enviar mensaje"
     },
     "calendar": {
       "days": {
@@ -211,6 +214,22 @@
         "country": "País"
       }
     }
+  },
+  "messages": {
+    "title": "Mensajes",
+    "newConversation": "Nueva conversaci\u00f3n",
+    "searchRecipient": "Buscar una persona\u2026",
+    "noConversations": "Sin conversaciones. Inicia una nueva.",
+    "noMessages": "Sin mensajes. \u00a1Di hola!",
+    "sendMessage": "Enviar mensaje",
+    "sendMessageToEmployee": "Enviar mensaje",
+    "sendMessageAboutTimesheet": "Enviar mensaje",
+    "messagePlaceholder": "Escribe un mensaje\u2026",
+    "you": "T\u00fa",
+    "seen": "Visto",
+    "linkedTimesheet": "Hoja de tiempo del {weekStart}",
+    "unknownUser": "Usuario desconocido",
+    "unreadBadge": "Mensajes no le\u00eddos"
   },
   "workflow": {
     "definitions": {

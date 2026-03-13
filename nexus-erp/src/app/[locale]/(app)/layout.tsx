@@ -2,6 +2,7 @@ import * as React from 'react'
 import { redirect } from 'next/navigation'
 import Box from '@mui/material/Box'
 import { auth } from '@/auth'
+import { db } from '@/db/client'
 import AppSidebar from '@/components/AppSidebar'
 import TopBar from '@/components/TopBar'
 import { SidebarProvider } from '@/components/SidebarContext'
@@ -17,6 +18,19 @@ const AppLayout = async ({
 }) => {
   const [session, { locale }] = await Promise.all([auth(), params])
   if (!session) redirect(`/${locale}/login`)
+
+  const userId = session.user.id
+  const [{ count: unreadCount }] = await db.$queryRaw<[{ count: bigint }]>`
+    SELECT COUNT(*) as count
+    FROM conversation_participants cp
+    WHERE cp.user_id = ${userId}
+    AND EXISTS (
+      SELECT 1 FROM messages m
+      WHERE m.conversation_id = cp.conversation_id
+      AND m.sender_id != ${userId}
+      AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
+    )
+  `
 
   return (
     <SidebarProvider>
@@ -40,6 +54,7 @@ const AppLayout = async ({
               role={session.user.role}
               signOutAction={signOutAction}
               userId={session.user.id}
+              unreadMessages={Number(unreadCount)}
             />
 
             <Box sx={{ flex: 1, p: { xs: 2, sm: 3 }, overflowY: 'auto' }}>

@@ -34,6 +34,7 @@ import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
 import ManageSearchRoundedIcon from '@mui/icons-material/ManageSearchRounded'
 import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded'
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded'
+import MailRoundedIcon from '@mui/icons-material/MailRounded'
 
 import { useSidebar } from './SidebarContext'
 
@@ -85,6 +86,7 @@ const AppSidebar = ({ role, hasEmployee }: AppSidebarProps) => {
         { label: t('items.timesheets'), href: '/timesheets', icon: <AccessTimeRoundedIcon fontSize="small" />, requiresEmployee: true },
         { label: t('items.employees'),  href: '/employees',  icon: <PeopleRoundedIcon fontSize="small" />, managerOnly: true },
         { label: t('items.taskInbox'), href: '/tasks',      icon: <InboxRoundedIcon fontSize="small" /> },
+        { label: t('items.messages'),  href: '/messages',   icon: <MailRoundedIcon fontSize="small" /> },
       ],
     },
     {

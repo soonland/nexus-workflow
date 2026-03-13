@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import AppBar from '@mui/material/AppBar'
+import Badge from '@mui/material/Badge'
 import Toolbar from '@mui/material/Toolbar'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
@@ -20,6 +21,7 @@ import PersonRoundedIcon from '@mui/icons-material/PersonRounded'
 import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded'
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded'
 import NavigateNextRoundedIcon from '@mui/icons-material/NavigateNextRounded'
+import MailRoundedIcon from '@mui/icons-material/MailRounded'
 import { usePathname, useRouter } from '@/i18n/navigation'
 import { useTranslations } from 'next-intl'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -33,6 +35,7 @@ interface TopBarProps {
   role: 'employee' | 'manager'
   signOutAction: () => Promise<void>
   userId: string
+  unreadMessages?: number
 }
 
 function buildBreadcrumbs(
@@ -69,7 +72,7 @@ function stringToColor(str: string) {
   return colors[Math.abs(hash) % colors.length]
 }
 
-const TopBar = ({ email, employeeId, role, signOutAction, userId }: TopBarProps) => {
+const TopBar = ({ email, employeeId, role, signOutAction, userId, unreadMessages = 0 }: TopBarProps) => {
   const pathname = usePathname()
   const router = useRouter()
   const { collapsed } = useSidebar()
@@ -93,6 +96,7 @@ const TopBar = ({ email, employeeId, role, signOutAction, userId }: TopBarProps)
     events: tNavItems('eventLog'),
     settings: tNavItems('settings'),
     admin: tNavSections('admin'),
+    messages: tNavItems('messages'),
   }
   const crumbs = buildBreadcrumbs(pathname, t('home'), segmentLabels)
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
@@ -157,6 +161,19 @@ const TopBar = ({ email, employeeId, role, signOutAction, userId }: TopBarProps)
         </Breadcrumbs>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Tooltip placement="bottom" title={t('unreadMessages')}>
+            <IconButton
+              href="/messages"
+              size="small"
+              aria-label={t('unreadMessages')}
+              sx={{ color: unreadMessages > 0 ? 'primary.main' : 'text.secondary' }}
+            >
+              <Badge badgeContent={unreadMessages > 0 ? unreadMessages : undefined} color="primary" max={99}>
+                <MailRoundedIcon fontSize="small" />
+              </Badge>
+            </IconButton>
+          </Tooltip>
+
           <Chip
             label={role}
             size="small"

@@ -43,6 +43,8 @@ model User {
   employee     Employee?
   permissions  UserPermission[]
   groups       GroupMembership[]
+  conversationParticipations ConversationParticipant[]
+  sentMessages Message[]         @relation("MessageSender")
 
   @@map("users")
 }
@@ -191,6 +193,7 @@ model Timesheet {
   submittedAt        DateTime?        @map("submitted_at")
   decidedAt          DateTime?        @map("decided_at")
   entries            TimesheetEntry[]
+  conversations      Conversation[]
   createdAt          DateTime         @default(now()) @map("created_at")
   updatedAt          DateTime         @updatedAt @map("updated_at")
 
@@ -245,4 +248,40 @@ model TimesheetEntry {
 
   @@index([timesheetId])
   @@map("timesheet_entries")
+}
+
+model Conversation {
+  id           String                   @id @default(cuid())
+  timesheet    Timesheet?               @relation(fields: [timesheetId], references: [id], onDelete: SetNull)
+  timesheetId  String?                  @map("timesheet_id")
+  participants ConversationParticipant[]
+  messages     Message[]
+  createdAt    DateTime                 @default(now()) @map("created_at")
+
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String       @map("conversation_id")
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String       @map("user_id")
+  lastReadAt     DateTime?    @map("last_read_at")
+
+  @@unique([conversationId, userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String       @map("conversation_id")
+  sender         User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  senderId       String       @map("sender_id")
+  body           String
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@index([conversationId])
+  @@map("messages")
 }
