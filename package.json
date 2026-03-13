@@ -2,6 +2,10 @@
   "name": "nexus-workflow",
   "private": true,
   "scripts": {
-    "lint": "npm run lint --prefix nexus-workflow-core && npm run lint --prefix nexus-workflow-app && npm run lint --prefix nexus-erp"
+    "lint": "npm run lint --prefix nexus-workflow-core && npm run lint --prefix nexus-workflow-app && npm run lint --prefix nexus-erp",
+    "test:scripts": "vitest run --config vitest.scripts.config.js"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
   }
 }
