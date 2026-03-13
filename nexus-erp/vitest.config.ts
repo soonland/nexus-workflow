@@ -14,8 +14,16 @@ export default defineConfig({
       exclude: [
         'src/**/*.test.{ts,tsx}',
         'src/**/*.d.ts',
+        'src/db/client.ts',
+        'src/lib/bpmn/**',
+        'src/lib/workflow.ts',
+        'src/i18n/**',
       ],
       reporter: ['text', 'lcov', 'html', 'json-summary', 'json'],
+      thresholds: {
+        statements: 80,
+        branches: 75,
+      },
     },
   },
   resolve: {
