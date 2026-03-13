@@ -179,6 +179,7 @@ const PermissionMatrix = ({
               backgroundColor: 'action.hover',
               borderBottom: 1,
               borderColor: 'divider',
+              alignSelf: 'stretch',
             }}
           />
           {CRUD_ACTIONS.map((action) => (

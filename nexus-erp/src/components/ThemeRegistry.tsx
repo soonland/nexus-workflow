@@ -55,21 +55,8 @@ const ThemeRegistry = ({ children, initialTheme }: ThemeRegistryProps) => {
   })
 
   const [themeId, setThemeIdState] = React.useState<ThemeId>(
-    (initialTheme as ThemeId) || 'system',
+    (initialTheme as ThemeId) || 'default',
   )
-
-  // Resolve "system" to light/dark based on OS preference
-  const [systemDark, setSystemDark] = React.useState(false)
-  React.useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    setSystemDark(mq.matches)
-    const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
-
-  const resolvedId: ThemeId =
-    themeId === 'system' ? (systemDark ? 'dark' : 'light') : themeId
 
   const setThemeId = React.useCallback((id: ThemeId) => {
     setThemeIdState(id)
@@ -80,12 +67,12 @@ const ThemeRegistry = ({ children, initialTheme }: ThemeRegistryProps) => {
   // MUI components (Button, IconButton, CardActionArea…) with an `href` prop use
   // client-side navigation without needing component={NextLink} in every call site.
   const muiTheme = React.useMemo(
-    () => createTheme(getTheme(resolvedId), {
+    () => createTheme(getTheme(themeId), {
       components: {
         MuiButtonBase: { defaultProps: { LinkComponent: NextLink } },
       },
     }),
-    [resolvedId],
+    [themeId],
   )
 
   return (

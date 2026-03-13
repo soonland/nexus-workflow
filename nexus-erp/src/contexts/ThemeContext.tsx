@@ -9,7 +9,7 @@ interface ThemeContextValue {
 }
 
 export const ThemeContext = React.createContext<ThemeContextValue>({
-  themeId: 'system',
+  themeId: 'default',
   setThemeId: () => {},
 })
 

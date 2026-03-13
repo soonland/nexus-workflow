@@ -10,10 +10,10 @@ export default defineConfig({
     pool: 'threads',
     coverage: {
       provider: 'v8',
-      include: [
-        'src/lib/theme.ts',
-        'src/contexts/ThemeContext.tsx',
-        'src/app/api/users/[id]/preferences/route.ts',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/**/*.test.{ts,tsx}',
+        'src/**/*.d.ts',
       ],
       reporter: ['text', 'lcov', 'html', 'json-summary', 'json'],
     },

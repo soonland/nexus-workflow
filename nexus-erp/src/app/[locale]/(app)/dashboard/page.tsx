@@ -15,7 +15,6 @@ import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded'
 import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded'
 import InboxRoundedIcon from '@mui/icons-material/InboxRounded'
 import PlayCircleRoundedIcon from '@mui/icons-material/PlayCircleRounded'
-import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded'
 import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded'
 import TrendingDownRoundedIcon from '@mui/icons-material/TrendingDownRounded'
@@ -23,6 +22,7 @@ import FiberManualRecordRoundedIcon from '@mui/icons-material/FiberManualRecordR
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import HourglassTopRoundedIcon from '@mui/icons-material/HourglassTopRounded'
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded'
+import { getTranslations } from 'next-intl/server'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
 
@@ -264,6 +264,7 @@ const ActivityFeed = ({ items }: { items: ActivityItem[] }) => {
 const DashboardPage = async () => {
   const session = await auth()
   const isManager = session?.user.role === 'manager'
+  const t = await getTranslations('timesheets')
 
   const [timesheetCount, submittedCount, approvedCount, recentTimesheets] = await Promise.all([
     session?.user.employeeId
@@ -360,10 +361,10 @@ const DashboardPage = async () => {
           <Button
             variant="contained"
             size="small"
-            startIcon={<AddRoundedIcon />}
-                       href="/timesheets/new"
+            startIcon={<AccessTimeRoundedIcon />}
+            href="/timesheets"
           >
-            New Timesheet
+            {t('title')}
           </Button>
         </Stack>
       </Box>
