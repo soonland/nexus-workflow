@@ -3,9 +3,9 @@ import { ThemeContext, useTheme } from './ThemeContext'
 
 describe('ThemeContext', () => {
   describe('default context value', () => {
-    it('should have themeId defaulting to "system"', () => {
+    it('should have themeId defaulting to "default"', () => {
       const defaultValue = (ThemeContext as any)._currentValue ?? (ThemeContext as any)._currentValue2
-      expect(defaultValue?.themeId ?? 'system').toBe('system')
+      expect(defaultValue?.themeId ?? 'default').toBe('default')
     })
 
     it('should have setThemeId as a no-op function by default', () => {
