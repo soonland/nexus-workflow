@@ -25,7 +25,8 @@
       "departments": "Departments",
       "groups": "Groups",
       "settings": "Settings",
-      "auditLog": "Audit Log"
+      "auditLog": "Audit Log",
+      "messages": "Messages"
     },
     "expandSidebar": "Expand sidebar",
     "collapseSidebar": "Collapse sidebar"
@@ -35,7 +36,8 @@
     "myProfile": "My Profile",
     "theme": "Theme",
     "signOut": "Sign out",
-    "accountMenu": "Account menu"
+    "accountMenu": "Account menu",
+    "unreadMessages": "Unread messages"
   },
   "auth": {
     "login": {
@@ -113,7 +115,8 @@
       "rejectedLabel": "Rejected",
       "revisionRequestedLabel": "Revision requested",
       "saveFailed": "Save failed",
-      "weekOf": "Week of"
+      "weekOf": "Week of",
+      "sendMessage": "Send Message"
     },
     "calendar": {
       "days": {
@@ -309,6 +312,22 @@
         "country": "Country"
       }
     }
+  },
+  "messages": {
+    "title": "Messages",
+    "newConversation": "New Conversation",
+    "searchRecipient": "Search for a person…",
+    "noConversations": "No conversations yet. Start a new one.",
+    "noMessages": "No messages yet. Say hello!",
+    "sendMessage": "Send Message",
+    "sendMessageToEmployee": "Send Message",
+    "sendMessageAboutTimesheet": "Send Message",
+    "messagePlaceholder": "Write a message…",
+    "you": "You",
+    "seen": "Seen",
+    "linkedTimesheet": "Timesheet w/c {weekStart}",
+    "unknownUser": "Unknown user",
+    "unreadBadge": "Unread messages"
   },
   "workflow": {
     "definitions": {

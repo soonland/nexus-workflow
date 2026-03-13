@@ -24,6 +24,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import SendRoundedIcon from '@mui/icons-material/SendRounded'
+import MailRoundedIcon from '@mui/icons-material/MailRounded'
 import { useTranslations } from 'next-intl'
 import { useSnackbar } from '@/components/SnackbarContext'
 
@@ -945,8 +946,18 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
             : t('detail.noHours')}
         </Typography>
 
-        {editable && (
-          <Stack direction="column" alignItems="flex-end" gap={1}>
+        <Stack direction="row" alignItems="center" gap={1}>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<MailRoundedIcon />}
+            component={NextLink}
+            href={`/messages?timesheetId=${id}`}
+          >
+            {t('detail.sendMessage')}
+          </Button>
+
+          {editable && (
             <Button
               variant="contained"
               color="primary"
@@ -960,8 +971,8 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
             >
               {submitLoading ? t('detail.submitting') : t('detail.submitForApproval')}
             </Button>
-          </Stack>
-        )}
+          )}
+        </Stack>
       </Stack>
     </Box>
   )

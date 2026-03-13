@@ -13,6 +13,8 @@ import BadgeRoundedIcon from '@mui/icons-material/BadgeRounded'
 import CorporateFareRoundedIcon from '@mui/icons-material/CorporateFareRounded'
 import CalendarTodayRoundedIcon from '@mui/icons-material/CalendarTodayRounded'
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded'
+import Button from '@mui/material/Button'
+import MailRoundedIcon from '@mui/icons-material/MailRounded'
 import { getTranslations, getLocale } from 'next-intl/server'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
@@ -80,8 +82,9 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
 
   if (!isManager && session.user.employeeId !== id) redirect('/dashboard')
 
-  const [t, locale] = await Promise.all([
+  const [t, tMessages, locale] = await Promise.all([
     getTranslations('employees'),
+    getTranslations('messages'),
     getLocale(),
   ])
 
@@ -258,6 +261,19 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
               value={emp.manager?.fullName ?? '—'}
             />
           </Stack>
+
+          {/* Send Message — shown when viewing another user's profile */}
+          {emp.userId !== session.user.id && (
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<MailRoundedIcon />}
+              href={`/messages?recipientId=${emp.userId}`}
+              sx={{ flexShrink: 0 }}
+            >
+              {tMessages('sendMessageToEmployee')}
+            </Button>
+          )}
         </Box>
       </Paper>
 
