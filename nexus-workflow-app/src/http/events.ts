@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { execute, RuntimeError, type StateStore, type VariableValue, type EventBus } from 'nexus-workflow-core'
 import { loadEngineState, computeStoreOps, buildUserTaskCreationOps } from './engineHelpers.js'
+import { validationError, deliverMessageBodySchema, broadcastSignalBodySchema } from './validation.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -9,26 +10,16 @@ export function createEventsRouter(store: StateStore, eventBus: EventBus): Hono 
 
   // POST /messages — deliver a message to the subscribed instance
   app.post('/messages', async (c) => {
-    let body: unknown
+    let rawBody: unknown
     try {
-      body = await c.req.json()
+      rawBody = await c.req.json()
     } catch {
-      return c.json({ error: 'INVALID_BODY', message: 'Request body is not valid JSON' }, 400)
+      return c.json({ error: 'VALIDATION_ERROR', issues: { formErrors: ['Request body is not valid JSON'], fieldErrors: {} } }, 400)
     }
 
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return c.json({ error: 'INVALID_BODY', message: 'Request body must be an object' }, 400)
-    }
-
-    const b = body as Record<string, unknown>
-    const { messageName, correlationValue, variables } = b
-
-    if (!messageName || typeof messageName !== 'string') {
-      return c.json({ error: 'INVALID_BODY', message: "'messageName' is required" }, 400)
-    }
-    if (correlationValue !== undefined && typeof correlationValue !== 'string') {
-      return c.json({ error: 'INVALID_BODY', message: "'correlationValue' must be a string" }, 400)
-    }
+    const parsed = deliverMessageBodySchema.safeParse(rawBody)
+    if (!parsed.success) return c.json(validationError(parsed.error), 400)
+    const { messageName, correlationValue, variables } = parsed.data
 
     const subscriptions = await store.findSubscriptions({
       type: 'message',
@@ -77,23 +68,16 @@ export function createEventsRouter(store: StateStore, eventBus: EventBus): Hono 
 
   // POST /signals — broadcast a signal to all subscribed instances
   app.post('/signals', async (c) => {
-    let body: unknown
+    let rawBody: unknown
     try {
-      body = await c.req.json()
+      rawBody = await c.req.json()
     } catch {
-      return c.json({ error: 'INVALID_BODY', message: 'Request body is not valid JSON' }, 400)
+      return c.json({ error: 'VALIDATION_ERROR', issues: { formErrors: ['Request body is not valid JSON'], fieldErrors: {} } }, 400)
     }
 
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return c.json({ error: 'INVALID_BODY', message: 'Request body must be an object' }, 400)
-    }
-
-    const b = body as Record<string, unknown>
-    const { signalName, variables } = b
-
-    if (!signalName || typeof signalName !== 'string') {
-      return c.json({ error: 'INVALID_BODY', message: "'signalName' is required" }, 400)
-    }
+    const parsed = broadcastSignalBodySchema.safeParse(rawBody)
+    if (!parsed.success) return c.json(validationError(parsed.error), 400)
+    const { signalName, variables } = parsed.data
 
     const subscriptions = await store.findSubscriptions({ type: 'signal', signalName })
 

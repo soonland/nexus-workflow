@@ -102,7 +102,21 @@ describe('events HTTP API', () => {
       const res = await post(app, '/messages', {})
       expect(res.status).toBe(400)
       const body = await res.json() as { error: string }
-      expect(body.error).toBe('INVALID_BODY')
+      expect(body.error).toBe('VALIDATION_ERROR')
+    })
+
+    it('400: missing messageName returns VALIDATION_ERROR', async () => {
+      const res = await post(app, '/messages', {})
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('VALIDATION_ERROR')
+    })
+
+    it('400: messageName as empty string returns VALIDATION_ERROR', async () => {
+      const res = await post(app, '/messages', { messageName: '' })
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('VALIDATION_ERROR')
     })
 
     it('returns 400 for non-JSON body', async () => {
@@ -152,7 +166,7 @@ describe('events HTTP API', () => {
       const res = await post(app, '/messages', { messageName: 'OrderShipped', correlationValue: 42 })
       expect(res.status).toBe(400)
       const body = await res.json() as { error: string }
-      expect(body.error).toBe('INVALID_BODY')
+      expect(body.error).toBe('VALIDATION_ERROR')
     })
 
     it('returns 400 when body is an array', async () => {
@@ -165,7 +179,7 @@ describe('events HTTP API', () => {
       )
       expect(res.status).toBe(400)
       const body = await res.json() as { error: string }
-      expect(body.error).toBe('INVALID_BODY')
+      expect(body.error).toBe('VALIDATION_ERROR')
     })
   })
 
@@ -210,7 +224,14 @@ describe('events HTTP API', () => {
       const res = await post(app, '/signals', {})
       expect(res.status).toBe(400)
       const body = await res.json() as { error: string }
-      expect(body.error).toBe('INVALID_BODY')
+      expect(body.error).toBe('VALIDATION_ERROR')
+    })
+
+    it('400: missing signalName returns VALIDATION_ERROR', async () => {
+      const res = await post(app, '/signals', {})
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('VALIDATION_ERROR')
     })
 
     it('returns 400 for non-JSON body', async () => {
@@ -234,7 +255,7 @@ describe('events HTTP API', () => {
       )
       expect(res.status).toBe(400)
       const body = await res.json() as { error: string }
-      expect(body.error).toBe('INVALID_BODY')
+      expect(body.error).toBe('VALIDATION_ERROR')
     })
 
     it('skips instances where execution throws (RuntimeError) and continues with others', async () => {

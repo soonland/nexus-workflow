@@ -91,6 +91,19 @@ describe('tasks HTTP API', () => {
     app.route('/', createTasksRouter(store, eventBus))
   })
 
+  // ─── GET /tasks — validation ──────────────────────────────────────────────────
+
+  describe('GET /tasks — validation', () => {
+    it('400: invalid status value returns VALIDATION_ERROR', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/tasks?status=invalidstatus'),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBe('VALIDATION_ERROR')
+    })
+  })
+
   // ─── GET /tasks ───────────────────────────────────────────────────────────────
 
   describe('GET /tasks', () => {
@@ -379,6 +392,34 @@ describe('tasks HTTP API', () => {
       expect(res.status).toBe(400)
     })
 
+    it('400: missing completedBy returns VALIDATION_ERROR', async () => {
+      const { taskId } = await startUserTaskProcess(app, store)
+      const res = await app.fetch(
+        new Request(`http://localhost/tasks/${taskId}/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        }),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBe('VALIDATION_ERROR')
+    })
+
+    it('400: completedBy as empty string returns VALIDATION_ERROR', async () => {
+      const { taskId } = await startUserTaskProcess(app, store)
+      const res = await app.fetch(
+        new Request(`http://localhost/tasks/${taskId}/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ completedBy: '' }),
+        }),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBe('VALIDATION_ERROR')
+    })
+
     it('404: unknown task id returns 404', async () => {
       const res = await app.fetch(
         new Request('http://localhost/tasks/does-not-exist/complete', {
@@ -423,7 +464,7 @@ describe('tasks HTTP API', () => {
       )
       expect(res.status).toBe(400)
       const body = await res.json()
-      expect(body.error).toBe('INVALID_BODY')
+      expect(body.error).toBe('VALIDATION_ERROR')
     })
 
     it('422: completing an already-completed task returns 422', async () => {
@@ -501,6 +542,20 @@ describe('tasks HTTP API', () => {
         }),
       )
       expect(res.status).toBe(400)
+    })
+
+    it('400: missing claimedBy returns VALIDATION_ERROR', async () => {
+      const { taskId } = await startUserTaskProcess(app, store)
+      const res = await app.fetch(
+        new Request(`http://localhost/tasks/${taskId}/claim`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        }),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBe('VALIDATION_ERROR')
     })
 
     it('400: non-JSON body returns 400', async () => {

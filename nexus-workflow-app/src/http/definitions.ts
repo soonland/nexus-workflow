@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
-import { parseBpmn, DefinitionError ,type  StateStore } from 'nexus-workflow-core'
+import { parseBpmn, DefinitionError, type StateStore } from 'nexus-workflow-core'
+import { validationError, versionQuerySchema } from './validation.js'
 
 interface XmlStore {
   saveDefinitionXml(id: string, version: number, xml: string): Promise<void>
@@ -67,8 +68,9 @@ export function createDefinitionsRouter(store: StateStore, xmlStore: XmlStore): 
   // GET /definitions/:id/xml — return raw BPMN XML for a definition
   app.get('/:id/xml', async (c) => {
     const id = c.req.param('id')
-    const versionParam = c.req.query('version')
-    const version = versionParam !== undefined ? Number.parseInt(versionParam, 10) : undefined
+    const versionParsed = versionQuerySchema.safeParse({ version: c.req.query('version') })
+    if (!versionParsed.success) return c.json(validationError(versionParsed.error), 400)
+    const version = versionParsed.data.version
 
     const xml = await xmlStore.getDefinitionXml(id, version)
     if (xml === null) {
@@ -81,8 +83,9 @@ export function createDefinitionsRouter(store: StateStore, xmlStore: XmlStore): 
   // GET /definitions/:id — get latest (or specific version) of a definition
   app.get('/:id', async (c) => {
     const id = c.req.param('id')
-    const versionParam = c.req.query('version')
-    const version = versionParam !== undefined ? Number.parseInt(versionParam, 10) : undefined
+    const versionParsed = versionQuerySchema.safeParse({ version: c.req.query('version') })
+    if (!versionParsed.success) return c.json(validationError(versionParsed.error), 400)
+    const version = versionParsed.data.version
 
     const definition = await store.getDefinition(id, version)
     if (definition === null) {
