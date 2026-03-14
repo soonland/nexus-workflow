@@ -86,8 +86,7 @@ describe('InMemoryEventBus', () => {
       bus.subscribeToType('ProcessInstanceStarted', handler)
       await bus.publish(started())
       await bus.publish(completed())
-      expect(handler).toHaveBeenCalledOnce()
-      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'ProcessInstanceStarted' }))
+      expect(handler).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: 'ProcessInstanceStarted' }))
     })
 
     it('returns an unsubscribe function', async () => {
