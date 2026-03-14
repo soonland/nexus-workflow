@@ -277,7 +277,7 @@ const EmployeesTable = ({ employees }: { employees: EmployeeRow[] }) => {
         fullWidth
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
-          <Typography variant="h6">Employee Profile</Typography>
+          <Typography variant="h6" component="span">Employee Profile</Typography>
           <Stack direction="row" spacing={0.5} alignItems="center">
             {selected && (
               <Tooltip title="Open full profile">
