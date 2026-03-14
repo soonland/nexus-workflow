@@ -62,7 +62,7 @@ describe('useTheme', () => {
   })
 
   it('should return updated themeId when the Provider value changes', () => {
-    function Wrapper({ children }: { children: React.ReactNode }) {
+    const Wrapper = ({ children }: { children: React.ReactNode }) => {
       const [themeId, setThemeId] = React.useState<ThemeId>('default')
       return React.createElement(
         ThemeContext.Provider,
