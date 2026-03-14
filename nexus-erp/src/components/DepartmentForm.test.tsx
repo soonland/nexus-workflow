@@ -201,4 +201,71 @@ describe('DepartmentForm', () => {
       )
     })
   })
+
+  it('shows snackbar error when saving permissions fails', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'Permission save failed' }),
+    } as Response)
+
+    render(
+      <DepartmentForm
+        mode="edit"
+        departmentId="dept-1"
+        defaultName="Engineering"
+        allEmployees={ALL_EMPLOYEES}
+        allPermissions={ALL_PERMISSIONS}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /save permissions/i }))
+
+    await waitFor(() => {
+      expect(mockShowSnackbar).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'error', message: 'Permission save failed' }),
+      )
+    })
+  })
+
+  it('renders existing members as chips in edit mode', () => {
+    render(
+      <DepartmentForm
+        mode="edit"
+        departmentId="dept-1"
+        defaultName="Engineering"
+        allEmployees={ALL_EMPLOYEES}
+        allPermissions={ALL_PERMISSIONS}
+        defaultMembers={[{ id: 'emp-1', fullName: 'Alice', departmentId: null, departmentName: null }]}
+      />,
+    )
+    // The Autocomplete renderTags callback is invoked — Alice chip is visible
+    expect(screen.getByText('Alice')).toBeInTheDocument()
+  })
+
+  it('shows snackbar error when saving changes fails in edit mode', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'Save failed' }),
+    } as Response)
+
+    render(
+      <DepartmentForm
+        mode="edit"
+        departmentId="dept-1"
+        defaultName="Engineering"
+        allEmployees={ALL_EMPLOYEES}
+        allPermissions={ALL_PERMISSIONS}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(mockShowSnackbar).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'error', message: 'Save failed' }),
+      )
+    })
+  })
 })

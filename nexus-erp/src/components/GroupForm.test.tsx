@@ -189,6 +189,73 @@ describe('GroupForm', () => {
     })
   })
 
+  it('shows snackbar error when edit save fails', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'Server error' }),
+    } as Response)
+
+    render(
+      <GroupForm
+        mode="edit"
+        groupId="grp-1"
+        defaultName="Admins"
+        allPermissions={ALL_PERMISSIONS}
+        allUsers={ALL_USERS}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(mockShowSnackbar).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'error', message: 'Server error' }),
+      )
+    })
+  })
+
+  it('skips members sync when editing a default-type group', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({ ok: true } as Response)  // PATCH /groups/grp-2
+      .mockResolvedValueOnce({ ok: true } as Response)  // PUT /groups/grp-2/permissions
+      // No third call — default groups skip member sync
+
+    render(
+      <GroupForm
+        mode="edit"
+        groupId="grp-2"
+        defaultName="Everyone"
+        defaultType="default"
+        allPermissions={ALL_PERMISSIONS}
+        allUsers={ALL_USERS}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(mockShowSnackbar).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'success' }),
+      )
+      // Only 2 fetch calls (PATCH + PUT permissions), not 3 (no PUT members)
+      expect(fetch).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('renders pre-populated members as chips in edit mode', () => {
+    render(
+      <GroupForm
+        mode="edit"
+        groupId="grp-1"
+        defaultName="Admins"
+        defaultMembers={[ALL_USERS[0]]}
+        allPermissions={ALL_PERMISSIONS}
+        allUsers={ALL_USERS}
+      />,
+    )
+    // The Autocomplete renderTags callback fires — Alice chip is visible
+    expect(screen.getByText('Alice')).toBeInTheDocument()
+  })
+
   it('shows "Default Group" chip in edit mode when type is default', () => {
     render(
       <GroupForm

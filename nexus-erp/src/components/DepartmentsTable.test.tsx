@@ -71,9 +71,6 @@ describe('DepartmentsTable', () => {
 
   it('opens the delete confirmation dialog when the delete icon is clicked', async () => {
     render(<DepartmentsTable departments={DEPARTMENTS} />)
-    const deleteButtons = screen.getAllByRole('button', { name: '' }).filter(
-      (btn) => btn.querySelector('svg'),
-    )
     // Find the delete icon button for Engineering (second icon button per row: edit + delete)
     const allIconButtons = screen.getAllByRole('button')
     // Delete buttons have color="error" — we look for them by finding the second button per row

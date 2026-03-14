@@ -89,6 +89,25 @@ describe('SnackbarContext', () => {
     })
   })
 
+  it('ignores clickaway close events — snackbar stays open after clicking outside', async () => {
+    renderWithProvider(<Trigger message="Clickaway test" />)
+    fireEvent.click(screen.getByText('show'))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+    })
+
+    // Click outside the snackbar — MUI ClickAwayListener fires onClose with reason='clickaway'
+    act(() => {
+      fireEvent.click(document.body)
+    })
+
+    // Snackbar should remain open because handleClose returns early for clickaway
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+    })
+  })
+
   it('useSnackbar returns a no-op outside provider', () => {
     const NoProviderConsumer = () => {
       const { showSnackbar } = useSnackbar()

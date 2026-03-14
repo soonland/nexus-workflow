@@ -162,4 +162,47 @@ describe('EmployeeContactForm', () => {
     fireEvent.change(phoneInput, { target: { value: '+1 800 111 2222' } })
     expect(screen.getByDisplayValue('+1 800 111 2222')).toBeInTheDocument()
   })
+
+  it('updates address fields when typed into', () => {
+    render(<EmployeeContactForm employeeId="emp-1" defaultValues={DEFAULT_VALUES} />)
+    fireEvent.change(screen.getByDisplayValue('123 Main St'), { target: { value: '999 Elm St' } })
+    expect(screen.getByDisplayValue('999 Elm St')).toBeInTheDocument()
+    fireEvent.change(screen.getByDisplayValue('Springfield'), { target: { value: 'Shelbyville' } })
+    expect(screen.getByDisplayValue('Shelbyville')).toBeInTheDocument()
+    fireEvent.change(screen.getByDisplayValue('IL'), { target: { value: 'CA' } })
+    expect(screen.getByDisplayValue('CA')).toBeInTheDocument()
+    fireEvent.change(screen.getByDisplayValue('62701'), { target: { value: '90210' } })
+    expect(screen.getByDisplayValue('90210')).toBeInTheDocument()
+    fireEvent.change(screen.getByDisplayValue('USA'), { target: { value: 'Canada' } })
+    expect(screen.getByDisplayValue('Canada')).toBeInTheDocument()
+  })
+
+  it('clears a field to null when emptied', () => {
+    render(<EmployeeContactForm employeeId="emp-1" defaultValues={DEFAULT_VALUES} />)
+    const phoneInput = screen.getByDisplayValue('+1 555 000 0001')
+    fireEvent.change(phoneInput, { target: { value: '' } })
+    expect(phoneInput).toHaveValue('')
+  })
+
+  it('shows updated success message when submitting with a pending request', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true } as Response)
+
+    render(
+      <EmployeeContactForm
+        employeeId="emp-42"
+        defaultValues={DEFAULT_VALUES}
+        pendingRequest={PENDING_REQUEST}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /submit for review/i }))
+
+    await waitFor(() => {
+      expect(mockShowSnackbar).toHaveBeenCalledWith(
+        expect.objectContaining({
+          severity: 'success',
+          message: expect.stringContaining('updated'),
+        }),
+      )
+    })
+  })
 })

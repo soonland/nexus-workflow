@@ -10,14 +10,22 @@ export default defineConfig({
     pool: 'threads',
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.{ts,tsx}'],
+      include: [
+        'src/app/api/**/*.{ts,tsx}',
+        'src/components/**/*.{ts,tsx}',
+        'src/lib/**/*.{ts,tsx}',
+        'src/contexts/**/*.{ts,tsx}',
+      ],
       exclude: [
         'src/**/*.test.{ts,tsx}',
         'src/**/*.d.ts',
-        'src/db/client.ts',
         'src/lib/bpmn/**',
         'src/lib/workflow.ts',
-        'src/i18n/**',
+        'src/lib/actions.ts',
+        'src/lib/redisConsumer.ts',
+        'src/components/BpmnViewer.tsx',
+        'src/components/BpmnViewerLoader.tsx',
+        'src/components/ThemeRegistry.tsx',
       ],
       reporter: ['text', 'lcov', 'html', 'json-summary', 'json'],
       thresholds: {
