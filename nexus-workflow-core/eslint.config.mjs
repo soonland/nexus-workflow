@@ -1,7 +1,7 @@
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import importPlugin from 'eslint-plugin-import'
-import vitestPlugin from 'eslint-plugin-vitest'
+import vitestPlugin from '@vitest/eslint-plugin'
 import prettierConfig from 'eslint-config-prettier'
 import {
   TEST_PATTERNS,
