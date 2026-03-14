@@ -364,6 +364,16 @@ describe('definitions HTTP API', () => {
       expect(body.startEventId).toBe('start-1')
     })
 
+    it('400: non-numeric version returns VALIDATION_ERROR', async () => {
+      await store.saveDefinition(makeDefinition())
+      const res = await app.fetch(
+        new Request('http://localhost/definitions/proc-1?version=abc'),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBe('VALIDATION_ERROR')
+    })
+
     it('404: unknown id returns 404', async () => {
       const res = await app.fetch(new Request('http://localhost/definitions/does-not-exist'))
       expect(res.status).toBe(404)

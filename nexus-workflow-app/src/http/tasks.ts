@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
-import { execute, RuntimeError, type StateStore, type UserTaskQuery, type UserTaskStatus, type VariableValue, type EventBus } from 'nexus-workflow-core'
+import { execute, RuntimeError, type StateStore, type UserTaskQuery, type VariableValue, type EventBus } from 'nexus-workflow-core'
 import { loadEngineState, computeStoreOps, buildUserTaskCreationOps, normalizeVariables, unwrapVariables } from './engineHelpers.js'
+import { validationError, listTasksQuerySchema, completeTaskBodySchema, claimTaskBodySchema } from './validation.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -9,19 +10,15 @@ export function createTasksRouter(store: StateStore, eventBus: EventBus): Hono {
 
   // GET /tasks — list user tasks
   app.get('/tasks', async (c) => {
-    const query: UserTaskQuery = {
-      page: Number(c.req.query('page') ?? 0),
-      pageSize: Number(c.req.query('pageSize') ?? 20),
-    }
+    const parsed = listTasksQuerySchema.safeParse(c.req.query())
+    if (!parsed.success) return c.json(validationError(parsed.error), 400)
+    const q = parsed.data
 
-    const qInstanceId = c.req.query('instanceId')
-    if (qInstanceId) query.instanceId = qInstanceId
-    const qAssignee = c.req.query('assignee')
-    if (qAssignee) query.assignee = qAssignee
-    const qCandidateGroup = c.req.query('candidateGroup')
-    if (qCandidateGroup) query.candidateGroup = qCandidateGroup
-    const qStatus = c.req.query('status')
-    if (qStatus) query.status = qStatus as UserTaskStatus
+    const query: UserTaskQuery = { page: q.page, pageSize: q.pageSize }
+    if (q.instanceId) query.instanceId = q.instanceId
+    if (q.assignee) query.assignee = q.assignee
+    if (q.candidateGroup) query.candidateGroup = q.candidateGroup
+    if (q.status) query.status = q.status
 
     const result = await store.queryUserTasks(query)
     return c.json(result)
@@ -63,21 +60,19 @@ export function createTasksRouter(store: StateStore, eventBus: EventBus): Hono {
       )
     }
 
-    let body: unknown
+    let rawBody: unknown
     try {
-      body = await c.req.json()
+      rawBody = await c.req.json()
     } catch {
-      return c.json({ error: 'INVALID_BODY', message: 'Request body is not valid JSON' }, 400)
+      return c.json({ error: 'VALIDATION_ERROR', issues: { formErrors: ['Request body is not valid JSON'], fieldErrors: {} } }, 400)
     }
 
-    const b = body as Record<string, unknown>
-    const completedBy = b['completedBy']
-    if (!completedBy || typeof completedBy !== 'string') {
-      return c.json({ error: 'INVALID_BODY', message: "'completedBy' is required" }, 400)
-    }
+    const parsed = completeTaskBodySchema.safeParse(rawBody)
+    if (!parsed.success) return c.json(validationError(parsed.error), 400)
+    const { completedBy, outputVariables: rawOutputVariables } = parsed.data
 
-    const outputVariables = b['outputVariables'] !== undefined
-      ? normalizeVariables(b['outputVariables'] as Record<string, unknown>)
+    const outputVariables = rawOutputVariables !== undefined
+      ? normalizeVariables(rawOutputVariables)
       : undefined
 
     const state = await loadEngineState(store, task.instanceId)
@@ -121,17 +116,16 @@ export function createTasksRouter(store: StateStore, eventBus: EventBus): Hono {
     const task = await store.getUserTask(id)
     if (!task) return c.json({ error: 'NOT_FOUND', message: `Task '${id}' not found` }, 404)
 
-    let body: unknown
+    let rawBody: unknown
     try {
-      body = await c.req.json()
+      rawBody = await c.req.json()
     } catch {
-      return c.json({ error: 'INVALID_BODY', message: 'Request body is not valid JSON' }, 400)
+      return c.json({ error: 'VALIDATION_ERROR', issues: { formErrors: ['Request body is not valid JSON'], fieldErrors: {} } }, 400)
     }
 
-    const claimedBy = (body as Record<string, unknown>)['claimedBy']
-    if (!claimedBy || typeof claimedBy !== 'string') {
-      return c.json({ error: 'INVALID_BODY', message: "'claimedBy' is required" }, 400)
-    }
+    const parsed = claimTaskBodySchema.safeParse(rawBody)
+    if (!parsed.success) return c.json(validationError(parsed.error), 400)
+    const { claimedBy } = parsed.data
 
     const updatedTask = { ...task, status: 'claimed' as const, assignee: claimedBy, claimedAt: new Date() }
     await store.executeTransaction([{ op: 'updateUserTask', task: updatedTask }])

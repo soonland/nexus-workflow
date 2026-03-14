@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { execute, RuntimeError, DefinitionError, type StateStore, type EngineCommand, type InstanceQuery, type InstanceStatus, type VariableValue, type EventBus } from 'nexus-workflow-core'
 import { loadEngineState, computeStoreOps, buildUserTaskCreationOps, normalizeVariables, unwrapVariables } from './engineHelpers.js'
+import { validationError, startInstanceBodySchema, listInstancesQuerySchema, instanceStatusSchema, commandBodySchema } from './validation.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -25,33 +26,18 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
 
     const contentType = c.req.header('content-type') ?? ''
     if (contentType.includes('application/json')) {
-      let body: unknown
+      let rawBody: unknown
       try {
-        body = await c.req.json()
+        rawBody = await c.req.json()
       } catch {
-        return c.json({ error: 'INVALID_BODY', message: 'Request body is not valid JSON' }, 400)
+        return c.json({ error: 'VALIDATION_ERROR', issues: { formErrors: ['Request body is not valid JSON'], fieldErrors: {} } }, 400)
       }
-      if (body !== null && typeof body === 'object' && !Array.isArray(body)) {
-        const b = body as Record<string, unknown>
-        if (b['variables'] !== undefined) {
-          if (typeof b['variables'] !== 'object' || Array.isArray(b['variables']) || b['variables'] === null) {
-            return c.json({ error: 'INVALID_BODY', message: "'variables' must be an object" }, 400)
-          }
-          variables = normalizeVariables(b['variables'] as Record<string, unknown>)
-        }
-        if (b['correlationKey'] !== undefined) {
-          if (typeof b['correlationKey'] !== 'string') {
-            return c.json({ error: 'INVALID_BODY', message: "'correlationKey' must be a string" }, 400)
-          }
-          correlationKey = b['correlationKey']
-        }
-        if (b['businessKey'] !== undefined) {
-          if (typeof b['businessKey'] !== 'string') {
-            return c.json({ error: 'INVALID_BODY', message: "'businessKey' must be a string" }, 400)
-          }
-          businessKey = b['businessKey']
-        }
-      }
+      const parsed = startInstanceBodySchema.safeParse(rawBody)
+      if (!parsed.success) return c.json(validationError(parsed.error), 400)
+      const b = parsed.data
+      if (b.variables !== undefined) variables = normalizeVariables(b.variables)
+      if (b.correlationKey !== undefined) correlationKey = b.correlationKey
+      if (b.businessKey !== undefined) businessKey = b.businessKey
     }
 
     const command: EngineCommand = {
@@ -82,31 +68,28 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
 
   // GET /instances — list instances with optional filters
   app.get('/instances', async (c) => {
-    const query: InstanceQuery = {
-      page: Number(c.req.query('page') ?? 0),
-      pageSize: Number(c.req.query('pageSize') ?? 20),
-    }
+    const parsed = listInstancesQuerySchema.safeParse(c.req.query())
+    if (!parsed.success) return c.json(validationError(parsed.error), 400)
+    const q = parsed.data
 
-    const qDefinitionId = c.req.query('definitionId')
-    if (qDefinitionId) query.definitionId = qDefinitionId
-    const qCorrelationKey = c.req.query('correlationKey')
-    if (qCorrelationKey) query.correlationKey = qCorrelationKey
-    const qBusinessKey = c.req.query('businessKey')
-    if (qBusinessKey) query.businessKey = qBusinessKey
-    const qStatus = c.req.query('status')
-    if (qStatus) {
-      const statuses = qStatus.split(',').map(x => x.trim()) as InstanceStatus[]
-      const firstStatus = statuses[0]
-      query.status = statuses.length === 1 && firstStatus !== undefined ? firstStatus : statuses
+    const query: InstanceQuery = { page: q.page, pageSize: q.pageSize }
+    if (q.definitionId) query.definitionId = q.definitionId
+    if (q.correlationKey) query.correlationKey = q.correlationKey
+    if (q.businessKey) query.businessKey = q.businessKey
+    if (q.status) {
+      const statuses = q.status.split(',').map(x => x.trim())
+      for (const s of statuses) {
+        const statusParsed = instanceStatusSchema.safeParse(s)
+        if (!statusParsed.success) {
+          return c.json({ error: 'VALIDATION_ERROR', issues: { formErrors: [`Invalid status value: '${s}'`], fieldErrors: {} } }, 400)
+        }
+      }
+      const validStatuses = statuses as InstanceStatus[]
+      const firstStatus = validStatuses[0]
+      query.status = validStatuses.length === 1 && firstStatus !== undefined ? firstStatus : validStatuses
     }
-    const qStartedAfter = c.req.query('startedAfter')
-    if (qStartedAfter) {
-      query.startedAfter = new Date(qStartedAfter)
-    }
-    const qStartedBefore = c.req.query('startedBefore')
-    if (qStartedBefore) {
-      query.startedBefore = new Date(qStartedBefore)
-    }
+    if (q.startedAfter) query.startedAfter = new Date(q.startedAfter)
+    if (q.startedBefore) query.startedBefore = new Date(q.startedBefore)
 
     const result = await store.findInstances(query)
     return c.json(result)
@@ -129,30 +112,17 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
   app.post('/instances/:id/commands', async (c) => {
     const id = c.req.param('id')
 
-    let body: unknown
+    let rawBody: unknown
     try {
-      body = await c.req.json()
+      rawBody = await c.req.json()
     } catch {
-      return c.json({ error: 'INVALID_BODY', message: 'Request body is not valid JSON' }, 400)
+      return c.json({ error: 'VALIDATION_ERROR', issues: { formErrors: ['Request body is not valid JSON'], fieldErrors: {} } }, 400)
     }
 
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return c.json({ error: 'INVALID_BODY', message: 'Request body must be an object' }, 400)
-    }
+    const parsed = commandBodySchema.safeParse(rawBody)
+    if (!parsed.success) return c.json(validationError(parsed.error), 400)
 
-    const { type } = body as Record<string, unknown>
-
-    const VALID_COMMAND_TYPES = [
-      'CompleteServiceTask', 'FailServiceTask', 'CompleteUserTask',
-      'FireTimer', 'DeliverMessage', 'BroadcastSignal',
-      'SuspendInstance', 'ResumeInstance', 'CancelInstance',
-    ]
-
-    if (!type || typeof type !== 'string' || !VALID_COMMAND_TYPES.includes(type)) {
-      return c.json({ error: 'INVALID_COMMAND', message: `Unknown command type: '${String(type)}'` }, 400)
-    }
-
-    const command = body as EngineCommand
+    const command = parsed.data as EngineCommand
 
     const state = await loadEngineState(store, id)
     if (!state) return c.json({ error: 'NOT_FOUND', message: `Instance '${id}' not found` }, 404)

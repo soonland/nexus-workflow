@@ -224,7 +224,7 @@ describe('instances HTTP API', () => {
       )
       expect(res.status).toBe(400)
       const body = await res.json()
-      expect(body.error).toBe('INVALID_BODY')
+      expect(body.error).toBe('VALIDATION_ERROR')
     })
 
     it('400: variables value as an array returns 400', async () => {
@@ -238,7 +238,7 @@ describe('instances HTTP API', () => {
       )
       expect(res.status).toBe(400)
       const body = await res.json()
-      expect(body.error).toBe('INVALID_BODY')
+      expect(body.error).toBe('VALIDATION_ERROR')
     })
 
     it('400: correlationKey that is not a string returns 400', async () => {
@@ -252,7 +252,7 @@ describe('instances HTTP API', () => {
       )
       expect(res.status).toBe(400)
       const body = await res.json()
-      expect(body.error).toBe('INVALID_BODY')
+      expect(body.error).toBe('VALIDATION_ERROR')
     })
 
     it('400: businessKey that is not a string returns 400', async () => {
@@ -266,7 +266,7 @@ describe('instances HTTP API', () => {
       )
       expect(res.status).toBe(400)
       const body = await res.json()
-      expect(body.error).toBe('INVALID_BODY')
+      expect(body.error).toBe('VALIDATION_ERROR')
     })
 
     it('events: ProcessInstanceStarted event is published to the event bus', async () => {
@@ -322,6 +322,37 @@ describe('instances HTTP API', () => {
         new Request('http://localhost/instances/does-not-exist'),
       )
       expect(res.status).toBe(404)
+    })
+  })
+
+  // ─── GET /instances — validation ─────────────────────────────────────────────
+
+  describe('GET /instances — validation', () => {
+    it('400: invalid status value returns VALIDATION_ERROR', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/instances?status=notavalidstatus'),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBe('VALIDATION_ERROR')
+    })
+
+    it('400: non-numeric page returns VALIDATION_ERROR', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/instances?page=abc'),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBe('VALIDATION_ERROR')
+    })
+
+    it('400: non-numeric pageSize returns VALIDATION_ERROR', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/instances?pageSize=abc'),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBe('VALIDATION_ERROR')
     })
   })
 
@@ -511,6 +542,20 @@ describe('instances HTTP API', () => {
         }),
       )
       expect(res.status).toBe(400)
+    })
+
+    it('400: missing type field returns VALIDATION_ERROR', async () => {
+      const { instanceId } = await startUserTaskInstance()
+      const res = await app.fetch(
+        new Request(`http://localhost/instances/${instanceId}/commands`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        }),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBe('VALIDATION_ERROR')
     })
 
     it('404: unknown instance id returns 404', async () => {
