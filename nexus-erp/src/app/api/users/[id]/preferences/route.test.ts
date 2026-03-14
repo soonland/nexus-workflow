@@ -100,8 +100,7 @@ describe('PATCH /api/users/[id]/preferences', () => {
   it('should call db.user.update with the correct id and theme', async () => {
     mockAuth.mockResolvedValue({ user: { id: 'user-1' } })
     await PATCH(makeRequest({ theme: 'nexus-dark-pro' }), makeParams('user-1'))
-    expect(mockDbUserUpdate).toHaveBeenCalledOnce()
-    expect(mockDbUserUpdate).toHaveBeenCalledWith({
+    expect(mockDbUserUpdate).toHaveBeenCalledExactlyOnceWith({
       where: { id: 'user-1' },
       data: { theme: 'nexus-dark-pro' },
       select: { theme: true, locale: true },
