@@ -142,8 +142,7 @@ describe('POST /api/employees', () => {
   it('should call db.user.create with role defaulting to employee when role is not provided', async () => {
     mockAuth.mockResolvedValue({ user: { role: 'manager' } })
     await POST(makeRequest(VALID_BODY))
-    expect(mockDbUserCreate).toHaveBeenCalledOnce()
-    expect(mockDbUserCreate).toHaveBeenCalledWith(
+    expect(mockDbUserCreate).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         data: expect.objectContaining({ role: 'employee' }),
       }),
