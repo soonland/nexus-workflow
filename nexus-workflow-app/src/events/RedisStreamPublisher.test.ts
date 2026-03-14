@@ -1,33 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { InMemoryEventBus ,type  ExecutionEvent } from 'nexus-workflow-core'
+import { InMemoryEventBus, type ExecutionEvent } from 'nexus-workflow-core'
 
-// Mock ioredis before importing the module under test
+const mockState = vi.hoisted(() => ({
+  connect: vi.fn().mockResolvedValue(undefined),
+  quit: vi.fn().mockResolvedValue('OK'),
+  xadd: vi.fn().mockResolvedValue('stream-id-1'),
+}))
+
 vi.mock('ioredis', () => {
-  const mockRedis = {
-    connect: vi.fn().mockResolvedValue(undefined),
-    quit: vi.fn().mockResolvedValue('OK'),
-    xadd: vi.fn().mockResolvedValue('stream-id-1'),
+  class Redis {
+    connect = mockState.connect
+    quit = mockState.quit
+    xadd = mockState.xadd
   }
-  return {
-    Redis: vi.fn().mockImplementation(() => mockRedis),
-    default: { Redis: vi.fn().mockImplementation(() => mockRedis) },
-  }
+  return { Redis, default: Redis }
 })
 
-import { Redis } from 'ioredis'
 import { RedisStreamPublisher, STREAM_KEY } from './RedisStreamPublisher.js'
-
-function getMockRedisInstance() {
-  return (Redis as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value as {
-    connect: ReturnType<typeof vi.fn>
-    quit: ReturnType<typeof vi.fn>
-    xadd: ReturnType<typeof vi.fn>
-  }
-}
 
 describe('RedisStreamPublisher', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockState.connect.mockResolvedValue(undefined)
+    mockState.quit.mockResolvedValue('OK')
+    mockState.xadd.mockResolvedValue('stream-id-1')
   })
 
   it('STREAM_KEY is the expected constant', () => {
@@ -37,15 +33,13 @@ describe('RedisStreamPublisher', () => {
   it('connect() calls redis.connect()', async () => {
     const publisher = new RedisStreamPublisher('redis://localhost:6379')
     await publisher.connect()
-    const redis = getMockRedisInstance()
-    expect(redis.connect).toHaveBeenCalledOnce()
+    expect(mockState.connect).toHaveBeenCalledOnce()
   })
 
   it('disconnect() calls redis.quit()', async () => {
     const publisher = new RedisStreamPublisher('redis://localhost:6379')
     await publisher.disconnect()
-    const redis = getMockRedisInstance()
-    expect(redis.quit).toHaveBeenCalledOnce()
+    expect(mockState.quit).toHaveBeenCalledOnce()
   })
 
   it('attach() subscribes to the event bus and publishes events via xadd', async () => {
@@ -61,11 +55,9 @@ describe('RedisStreamPublisher', () => {
     }
 
     await eventBus.publish(event)
-    // Give the void promise a chance to resolve
     await new Promise(r => setTimeout(r, 10))
 
-    const redis = getMockRedisInstance()
-    expect(redis.xadd).toHaveBeenCalledWith(
+    expect(mockState.xadd).toHaveBeenCalledWith(
       STREAM_KEY,
       '*',
       'type',
@@ -85,17 +77,14 @@ describe('RedisStreamPublisher', () => {
 
     await new Promise(r => setTimeout(r, 10))
 
-    const redis = getMockRedisInstance()
-    expect(redis.xadd).toHaveBeenCalledTimes(2)
+    expect(mockState.xadd).toHaveBeenCalledTimes(2)
   })
 
   it('does not throw when xadd fails — error is swallowed', async () => {
+    mockState.xadd.mockRejectedValueOnce(new Error('Redis connection lost'))
+
     const publisher = new RedisStreamPublisher('redis://localhost:6379')
     const eventBus = new InMemoryEventBus()
-
-    const redis = getMockRedisInstance()
-    redis.xadd.mockRejectedValueOnce(new Error('Redis connection lost'))
-
     publisher.attach(eventBus)
 
     await expect(
@@ -108,6 +97,5 @@ describe('RedisStreamPublisher', () => {
     ).resolves.not.toThrow()
 
     await new Promise(r => setTimeout(r, 10))
-    // The error is caught and logged internally — no unhandled rejection
   })
 })
