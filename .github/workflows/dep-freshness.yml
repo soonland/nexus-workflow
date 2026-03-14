@@ -7,6 +7,7 @@ on:
       - '**/package-lock.json'
       - '**/yarn.lock'
       - '**/pnpm-lock.yaml'
+  workflow_dispatch:
 
 jobs:
   freshness-check:
