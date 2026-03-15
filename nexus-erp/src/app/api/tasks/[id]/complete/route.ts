@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { auth } from '@/auth'
 import { completeTask, getTask } from '@/lib/workflow'
 import { db } from '@/db/client'
+import { createAuditLog } from '@/lib/audit'
 
 const completeSchema = z.object({
   decision: z.enum(['approved', 'rejected', 'revision_requested']),
@@ -63,13 +64,24 @@ export async function POST(
         else newStatus = 'rejected'
       }
 
-      await db.timesheet.update({
+      const updatedTs = await db.timesheet.update({
         where: { id: timesheet.id },
         data: {
           status: newStatus,
           ...(rejectionReason ? { rejectionReason } : {}),
           ...(newStatus !== 'pending_hr_review' ? { decidedAt: new Date() } : {}),
         },
+      })
+
+      await createAuditLog({
+        db,
+        entityType: 'Timesheet',
+        entityId: timesheet.id,
+        action: 'UPDATE',
+        actorId: session.user.id,
+        actorName: session.user.email ?? session.user.id,
+        before: { status: timesheet.status },
+        after: { status: updatedTs.status, ...(rejectionReason ? { rejectionReason } : {}) },
       })
     }
   }
@@ -81,11 +93,22 @@ export async function POST(
     })
     if (org) {
       const requestedStatus = variables.requestedStatus as 'active' | 'inactive' | undefined
-      await db.organization.update({
+      const updatedOrg = await db.organization.update({
         where: { id: org.id },
         data: decision === 'approved' && requestedStatus
           ? { status: requestedStatus, workflowInstanceId: null }
           : { workflowInstanceId: null, statusChangeReason: null },
+      })
+
+      await createAuditLog({
+        db,
+        entityType: 'Organization',
+        entityId: org.id,
+        action: 'UPDATE',
+        actorId: session.user.id,
+        actorName: session.user.email ?? session.user.id,
+        before: { status: org.status },
+        after: { status: updatedOrg.status },
       })
     }
   }

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
 import { canAccess } from '@/lib/access'
+import { createAuditLog } from '@/lib/audit'
 
 const patchSchema = z.object({
   fullName: z.string().min(1).optional(),
@@ -139,6 +140,11 @@ export async function PATCH(
 
   const { role, hireDate, managerId, departmentId, ...empData } = parsed.data
 
+  const before = await db.employee.findUnique({
+    where: { id },
+    select: { fullName: true, phone: true, street: true, city: true, state: true, postalCode: true, country: true, departmentId: true, managerId: true, hireDate: true },
+  })
+
   const emp = await db.employee.update({
     where: { id },
     data: {
@@ -149,5 +155,17 @@ export async function PATCH(
       ...(role ? { user: { update: { role } } } : {}),
     },
   })
+
+  await createAuditLog({
+    db,
+    entityType: 'Employee',
+    entityId: id,
+    action: 'UPDATE',
+    actorId: session.user.id,
+    actorName: session.user.email ?? session.user.id,
+    before: before as Record<string, unknown>,
+    after: parsed.data as Record<string, unknown>,
+  })
+
   return NextResponse.json(emp)
 }

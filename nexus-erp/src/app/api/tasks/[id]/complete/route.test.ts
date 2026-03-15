@@ -32,6 +32,7 @@ vi.mock('@/db/client', () => ({
     organization: { findFirst: mockDbOrgFindFirst, update: mockDbOrgUpdate },
     employeeProfileUpdateRequest: { findUnique: mockDbPRFindUnique, update: mockDbPRUpdate },
     employee: { update: mockDbEmpUpdate },
+    auditLog: { create: vi.fn().mockResolvedValue({}) },
   },
 }))
 vi.mock('next/server', () => {
@@ -75,7 +76,9 @@ describe('POST /api/tasks/[id]/complete', () => {
     vi.clearAllMocks()
     mockCompleteTask.mockResolvedValue(undefined)
     mockDbTsFindFirst.mockResolvedValue(null)
+    mockDbTsUpdate.mockResolvedValue({ id: 'ts-1', status: 'pending_hr_review' })
     mockDbOrgFindFirst.mockResolvedValue(null)
+    mockDbOrgUpdate.mockResolvedValue({ id: 'org-1', status: 'active' })
     mockDbPRFindUnique.mockResolvedValue(null)
   })
 
