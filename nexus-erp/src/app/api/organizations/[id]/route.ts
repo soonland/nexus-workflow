@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
 import { canAccess } from '@/lib/access'
+import { createAuditLog } from '@/lib/audit'
 
 const patchSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -57,6 +58,18 @@ export async function PATCH(
     data: parsed.data,
     include: { owner: { select: { id: true, fullName: true } } },
   })
+
+  await createAuditLog({
+    db,
+    entityType: 'Organization',
+    entityId: id,
+    action: 'UPDATE',
+    actorId: session.user.id,
+    actorName: session.user.email ?? session.user.id,
+    before: { name: org.name, legalName: org.legalName, industry: org.industry, taxId: org.taxId, registrationNo: org.registrationNo } as Record<string, unknown>,
+    after: parsed.data as Record<string, unknown>,
+  })
+
   return NextResponse.json(updated)
 }
 

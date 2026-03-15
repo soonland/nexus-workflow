@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/db/client'
 import { auth } from '@/auth'
+import { db } from '@/db/client'
+import { createAuditLog } from '@/lib/audit'
 
 export async function POST(
   _req: NextRequest,
@@ -12,7 +13,7 @@ export async function POST(
   }
 
   const { id } = await params
-  const existing = await db.organization.findUnique({ where: { id }, select: { id: true } })
+  const existing = await db.organization.findUnique({ where: { id }, select: { id: true, status: true } })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const org = await db.organization.update({
@@ -20,5 +21,17 @@ export async function POST(
     data: { status: 'inactive' },
     include: { owner: { select: { id: true, fullName: true } } },
   })
+
+  await createAuditLog({
+    db,
+    entityType: 'Organization',
+    entityId: id,
+    action: 'UPDATE',
+    actorId: session.user.id,
+    actorName: session.user.email ?? session.user.id,
+    before: { status: existing.status },
+    after: { status: 'inactive' },
+  })
+
   return NextResponse.json(org)
 }

@@ -13,6 +13,7 @@ vi.mock('@/db/client', () => ({
       findMany: mockDbFindMany,
       create: mockDbCreate,
     },
+    auditLog: { create: vi.fn().mockResolvedValue({}) },
   },
 }))
 vi.mock('next/server', () => {
