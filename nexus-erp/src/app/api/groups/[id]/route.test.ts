@@ -15,6 +15,7 @@ vi.mock('@/db/client', () => ({
       update: mockDbGroupUpdate,
       delete: mockDbGroupDelete,
     },
+    auditLog: { create: vi.fn().mockResolvedValue({}) },
   },
 }))
 vi.mock('next/server', () => {

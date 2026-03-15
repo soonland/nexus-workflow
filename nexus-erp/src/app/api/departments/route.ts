@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
+import { createAuditLog } from '@/lib/audit'
 
 const createSchema = z.object({
   name: z.string().min(1).max(100),
@@ -42,6 +43,16 @@ export async function POST(req: NextRequest) {
         data: { departmentId: department.id },
       })
     }
+    await createAuditLog({
+      db,
+      entityType: 'Department',
+      entityId: department.id,
+      action: 'CREATE',
+      actorId: session.user.id,
+      actorName: session.user.email ?? session.user.id,
+      after: { id: department.id, name: department.name },
+    })
+
     return NextResponse.json(department, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'A department with that name already exists' }, { status: 409 })

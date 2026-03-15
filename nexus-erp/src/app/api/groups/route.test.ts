@@ -17,6 +17,7 @@ vi.mock('@/db/client', () => ({
   db: {
     group: { findMany: mockDbGroupFindMany },
     $transaction: mockDbTransaction,
+    auditLog: { create: vi.fn().mockResolvedValue({}) },
   },
 }))
 vi.mock('next/server', () => {

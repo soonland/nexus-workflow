@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
+import { createAuditLog } from '@/lib/audit'
 
 const patchSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -72,6 +73,17 @@ export async function PATCH(
       where: { id },
       include: { _count: { select: { employees: true } } },
     })
+
+    await createAuditLog({
+      db,
+      entityType: 'Department',
+      entityId: id,
+      action: 'UPDATE',
+      actorId: session.user.id,
+      actorName: session.user.email ?? session.user.id,
+      after: parsed.data as Record<string, unknown>,
+    })
+
     return NextResponse.json(updated)
   } catch {
     return NextResponse.json({ error: 'Not found or name already exists' }, { status: 409 })
@@ -97,6 +109,18 @@ export async function DELETE(
     )
   }
 
+  const dept = await db.department.findUnique({ where: { id }, select: { name: true } })
   await db.department.delete({ where: { id } })
+
+  await createAuditLog({
+    db,
+    entityType: 'Department',
+    entityId: id,
+    action: 'DELETE',
+    actorId: session.user.id,
+    actorName: session.user.email ?? session.user.id,
+    before: { id, name: dept?.name } as Record<string, unknown>,
+  })
+
   return new NextResponse(null, { status: 204 })
 }
