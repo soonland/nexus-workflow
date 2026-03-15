@@ -1,7 +1,9 @@
 import { redirect, notFound } from 'next/navigation'
+import Box from '@mui/material/Box'
 import { auth } from '@/auth'
 import { db } from '@/db/client'
 import DepartmentForm from '@/components/DepartmentForm'
+import AuditLogPanel from '@/components/AuditLogPanel'
 
 const DepartmentDetailPage = async ({ params }: { params: Promise<{ id: string }> }) => {
   const session = await auth()
@@ -42,15 +44,18 @@ const DepartmentDetailPage = async ({ params }: { params: Promise<{ id: string }
   }))
 
   return (
-    <DepartmentForm
-      mode="edit"
-      departmentId={id}
-      defaultName={department.name}
-      defaultMembers={department.employees}
-      defaultPermissions={department.permissions.map((p) => p.permissionKey)}
-      allEmployees={JSON.parse(JSON.stringify(employees))}
-      allPermissions={allPermissions}
-    />
+    <Box>
+      <DepartmentForm
+        mode="edit"
+        departmentId={id}
+        defaultName={department.name}
+        defaultMembers={department.employees}
+        defaultPermissions={department.permissions.map((p) => p.permissionKey)}
+        allEmployees={JSON.parse(JSON.stringify(employees))}
+        allPermissions={allPermissions}
+      />
+      <AuditLogPanel entityType="Department" entityId={id} />
+    </Box>
   )
 }
 export default DepartmentDetailPage

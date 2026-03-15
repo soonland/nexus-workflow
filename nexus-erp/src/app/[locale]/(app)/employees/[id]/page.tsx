@@ -21,6 +21,7 @@ import { auth } from '@/auth'
 import EmployeeEditForm from '@/components/EmployeeEditForm'
 import EmployeeContactForm from '@/components/EmployeeContactForm'
 import LanguageSelector from '@/app/[locale]/(app)/settings/LanguageSelector'
+import AuditLogPanel from '@/components/AuditLogPanel'
 
 function getInitials(name: string): string {
   return name
@@ -414,6 +415,7 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
           </Stack>
         </Paper>
       )}
+      {isManager && <AuditLogPanel entityType="Employee" entityId={id} />}
     </Box>
   )
 }
