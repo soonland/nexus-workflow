@@ -27,6 +27,7 @@ import SendRoundedIcon from '@mui/icons-material/SendRounded'
 import MailRoundedIcon from '@mui/icons-material/MailRounded'
 import { useTranslations } from 'next-intl'
 import { useSnackbar } from '@/components/SnackbarContext'
+import AuditLogPanel from '@/components/AuditLogPanel'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -974,6 +975,7 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
           )}
         </Stack>
       </Stack>
+      <AuditLogPanel entityType="Timesheet" entityId={id} />
     </Box>
   )
 }

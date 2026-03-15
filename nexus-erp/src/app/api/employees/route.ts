@@ -3,6 +3,7 @@ import { hash } from 'bcryptjs'
 import { z } from 'zod'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
+import { createAuditLog } from '@/lib/audit'
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -78,6 +79,18 @@ export async function POST(req: NextRequest) {
     },
     include: { employee: true },
   })
+
+  if (result.employee) {
+    await createAuditLog({
+      db,
+      entityType: 'Employee',
+      entityId: result.employee.id,
+      action: 'CREATE',
+      actorId: session.user.id,
+      actorName: session.user.email ?? session.user.id,
+      after: { id: result.employee.id, fullName, email, role, hireDate },
+    })
+  }
 
   return NextResponse.json({ user: { id: result.id, email: result.email, role: result.role }, employee: result.employee }, { status: 201 })
 }

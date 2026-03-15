@@ -12,6 +12,7 @@ vi.mock('@/db/client', () => ({
   db: {
     department: { findMany: mockDbDeptFindMany, create: mockDbDeptCreate },
     employee: { updateMany: mockDbEmpUpdateMany },
+    auditLog: { create: vi.fn().mockResolvedValue({}) },
   },
 }))
 vi.mock('next/server', () => {

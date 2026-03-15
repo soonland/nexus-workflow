@@ -13,6 +13,7 @@ vi.mock('@/db/client', () => ({
       findUnique: mockDbUserFindUnique,
       create: mockDbUserCreate,
     },
+    auditLog: { create: vi.fn().mockResolvedValue({}) },
   },
 }))
 vi.mock('bcryptjs', () => ({ hash: vi.fn().mockResolvedValue('hashed-pw') }))

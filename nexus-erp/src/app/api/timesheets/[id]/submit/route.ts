@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
 import { startInstance } from '@/lib/workflow'
+import { createAuditLog } from '@/lib/audit'
 
 export async function POST(
   _req: NextRequest,
@@ -66,6 +67,17 @@ export async function POST(
       rejectionReason: null,
       decidedAt: null,
     },
+  })
+
+  await createAuditLog({
+    db,
+    entityType: 'Timesheet',
+    entityId: ts.id,
+    action: 'UPDATE',
+    actorId: session.user.id,
+    actorName: session.user.email ?? session.user.id,
+    before: { status: ts.status },
+    after: { status: 'pending_manager_review', submittedAt: updated.submittedAt },
   })
 
   return NextResponse.json({ timesheet: updated })

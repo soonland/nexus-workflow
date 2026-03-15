@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { db } from '@/db/client'
 import { auth } from '@/auth'
+import { db } from '@/db/client'
 import { listTasks, getTask, completeTask, getInstance } from '@/lib/workflow'
+import { createAuditLog } from '@/lib/audit'
 
 const bodySchema = z.object({
   decision: z.enum(['approved', 'denied']),
@@ -22,7 +23,7 @@ export async function POST(
 
   const org = await db.organization.findUnique({
     where: { id },
-    select: { id: true, workflowInstanceId: true },
+    select: { id: true, status: true, workflowInstanceId: true },
   })
   if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -82,6 +83,19 @@ export async function POST(
   const outputVariables: Record<string, unknown> = { decision }
   if (rejectionReason) outputVariables.rejectionReason = rejectionReason
   await completeTask(task.id, session.user.id, outputVariables)
+
+  await createAuditLog({
+    db,
+    entityType: 'Organization',
+    entityId: id,
+    action: 'UPDATE',
+    actorId: session.user.id,
+    actorName: session.user.email ?? session.user.id,
+    before: { status: org.status },
+    after: decision === 'approved' && requestedStatus
+      ? { status: requestedStatus, decision }
+      : { decision, workflowInstanceId: null },
+  })
 
   return NextResponse.json({ success: true, decision })
 }

@@ -1,6 +1,8 @@
 import { redirect, notFound } from 'next/navigation'
+import Box from '@mui/material/Box'
 import { auth } from '@/auth'
 import { db } from '@/db/client'
+import AuditLogPanel from '@/components/AuditLogPanel'
 import GroupForm from '@/components/GroupForm'
 
 const GroupDetailPage = async ({ params }: { params: Promise<{ id: string }> }) => {
@@ -49,17 +51,20 @@ const GroupDetailPage = async ({ params }: { params: Promise<{ id: string }> }) 
   }))
 
   return (
-    <GroupForm
-      mode="edit"
-      groupId={id}
-      defaultName={group.name}
-      defaultDescription={group.description ?? ''}
-      defaultType={group.type}
-      defaultPermissions={group.permissions.map((p) => p.permissionKey)}
-      defaultMembers={defaultMembers}
-      allPermissions={allPermissions}
-      allUsers={users}
-    />
+    <Box>
+      <GroupForm
+        mode="edit"
+        groupId={id}
+        defaultName={group.name}
+        defaultDescription={group.description ?? ''}
+        defaultType={group.type}
+        defaultPermissions={group.permissions.map((p) => p.permissionKey)}
+        defaultMembers={defaultMembers}
+        allPermissions={allPermissions}
+        allUsers={users}
+      />
+      <AuditLogPanel entityType="Group" entityId={id} />
+    </Box>
   )
 }
 export default GroupDetailPage

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { db } from '@/db/client'
 import { auth } from '@/auth'
+import { db } from '@/db/client'
 import { canEditContact } from '@/lib/orgAccess'
+import { createAuditLog } from '@/lib/audit'
 
 const patchSchema = z.object({
   email: z.string().email().optional().nullable().or(z.literal('')),
@@ -24,7 +25,10 @@ export async function PATCH(
 
   const { id } = await params
 
-  const existing = await db.organization.findUnique({ where: { id }, select: { ownerId: true } })
+  const existing = await db.organization.findUnique({
+    where: { id },
+    select: { ownerId: true, email: true, phone: true, website: true, street: true, city: true, state: true, postalCode: true, country: true },
+  })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   if (!canEditContact(session, existing.ownerId)) {
@@ -48,5 +52,18 @@ export async function PATCH(
     data,
     include: { owner: { select: { id: true, fullName: true } } },
   })
+
+  const { ownerId: _ownerId, ...beforeContact } = existing
+  await createAuditLog({
+    db,
+    entityType: 'Organization',
+    entityId: id,
+    action: 'UPDATE',
+    actorId: session.user.id,
+    actorName: session.user.email ?? session.user.id,
+    before: beforeContact as Record<string, unknown>,
+    after: data as Record<string, unknown>,
+  })
+
   return NextResponse.json(org)
 }

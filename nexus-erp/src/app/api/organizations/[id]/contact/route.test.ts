@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockAuth, mockCanEditContact, mockDbFindUnique, mockDbUpdate } = vi.hoisted(() => ({
+const { mockAuth, mockCanEditContact, mockDbFindUnique, mockDbUpdate, mockDbAuditLogCreate } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   mockCanEditContact: vi.fn(),
   mockDbFindUnique: vi.fn(),
   mockDbUpdate: vi.fn(),
+  mockDbAuditLogCreate: vi.fn().mockResolvedValue({}),
 }))
 
 vi.mock('@/auth', () => ({ auth: mockAuth }))
@@ -15,6 +16,7 @@ vi.mock('@/db/client', () => ({
       findUnique: mockDbFindUnique,
       update: mockDbUpdate,
     },
+    auditLog: { create: mockDbAuditLogCreate },
   },
 }))
 vi.mock('next/server', () => {

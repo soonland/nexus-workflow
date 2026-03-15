@@ -20,6 +20,7 @@ vi.mock('@/db/client', () => ({
       findUnique: mockDbEmpFindUnique,
       update: mockDbEmpUpdate,
     },
+    auditLog: { create: vi.fn().mockResolvedValue({}) },
   },
 }))
 vi.mock('next/server', () => {

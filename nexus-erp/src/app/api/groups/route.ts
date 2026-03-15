@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/db/client'
+import { createAuditLog } from '@/lib/audit'
 
 export async function GET() {
   const session = await auth()
@@ -57,6 +58,16 @@ export async function POST(req: NextRequest) {
     }
 
     return created
+  })
+
+  await createAuditLog({
+    db,
+    entityType: 'Group',
+    entityId: group.id,
+    action: 'CREATE',
+    actorId: session.user.id,
+    actorName: session.user.email ?? session.user.id,
+    after: { id: group.id, name: group.name, type: group.type },
   })
 
   return NextResponse.json(group, { status: 201 })

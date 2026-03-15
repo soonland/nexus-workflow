@@ -17,6 +17,7 @@ vi.mock('@/lib/workflow', () => ({ startInstance: mockStartInstance }))
 vi.mock('@/db/client', () => ({
   db: {
     timesheet: { findUnique: mockDbFindUnique, update: mockDbUpdate },
+    auditLog: { create: vi.fn().mockResolvedValue({}) },
   },
 }))
 vi.mock('next/server', () => {

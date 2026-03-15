@@ -25,6 +25,7 @@ vi.mock('@/db/client', () => ({
     department: { findUnique: mockDbDeptFindUnique, delete: mockDbDeptDelete },
     employee: { count: mockDbEmpCount },
     $transaction: mockDbTransaction,
+    auditLog: { create: vi.fn().mockResolvedValue({}) },
   },
 }))
 vi.mock('next/server', () => {

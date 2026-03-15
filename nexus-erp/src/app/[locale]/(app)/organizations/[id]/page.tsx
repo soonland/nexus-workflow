@@ -1,7 +1,9 @@
 import { redirect, notFound } from 'next/navigation'
+import Box from '@mui/material/Box'
 import { auth } from '@/auth'
 import { db } from '@/db/client'
 import OrganizationForm from '@/components/OrganizationForm'
+import AuditLogPanel from '@/components/AuditLogPanel'
 
 const OrganizationDetailPage = async ({ params }: { params: Promise<{ id: string }> }) => {
   const session = await auth()
@@ -37,31 +39,34 @@ const OrganizationDetailPage = async ({ params }: { params: Promise<{ id: string
       : []
 
   return (
-    <OrganizationForm
-      mode="edit"
-      orgId={id}
-      defaultValues={{
-        name: org.name,
-        legalName: org.legalName,
-        industry: org.industry,
-        taxId: org.taxId,
-        registrationNo: org.registrationNo,
-        status: org.status,
-        email: org.email,
-        phone: org.phone,
-        website: org.website,
-        street: org.street,
-        city: org.city,
-        state: org.state,
-        postalCode: org.postalCode,
-        country: org.country,
-        ownerId: org.ownerId,
-      }}
-      allEmployees={JSON.parse(JSON.stringify(employeesForForm))}
-      isManager={isManager}
-      isOwner={isOwner}
-      workflowInstanceId={org.workflowInstanceId}
-    />
+    <Box>
+      <OrganizationForm
+        mode="edit"
+        orgId={id}
+        defaultValues={{
+          name: org.name,
+          legalName: org.legalName,
+          industry: org.industry,
+          taxId: org.taxId,
+          registrationNo: org.registrationNo,
+          status: org.status,
+          email: org.email,
+          phone: org.phone,
+          website: org.website,
+          street: org.street,
+          city: org.city,
+          state: org.state,
+          postalCode: org.postalCode,
+          country: org.country,
+          ownerId: org.ownerId,
+        }}
+        allEmployees={JSON.parse(JSON.stringify(employeesForForm))}
+        isManager={isManager}
+        isOwner={isOwner}
+        workflowInstanceId={org.workflowInstanceId}
+      />
+      {isManager && <AuditLogPanel entityType="Organization" entityId={id} />}
+    </Box>
   )
 }
 export default OrganizationDetailPage

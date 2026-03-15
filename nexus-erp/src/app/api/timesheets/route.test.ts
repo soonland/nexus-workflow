@@ -10,6 +10,7 @@ vi.mock('@/auth', () => ({ auth: mockAuth }))
 vi.mock('@/db/client', () => ({
   db: {
     timesheet: { findMany: mockDbFindMany, create: mockDbCreate },
+    auditLog: { create: vi.fn().mockResolvedValue({}) },
   },
 }))
 vi.mock('next/server', () => {

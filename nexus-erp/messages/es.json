@@ -231,6 +231,49 @@
     "unknownUser": "Usuario desconocido",
     "unreadBadge": "Mensajes no le\u00eddos"
   },
+  "auditLog": {
+    "title": "Registro de auditoría",
+    "description": "Registro inalterable de todos los cambios en entidades",
+    "emptyState": "Ningún evento de auditoría coincide con los filtros.",
+    "columns": {
+      "timestamp": "Marca de tiempo",
+      "actor": "Actor",
+      "entityType": "Tipo de entidad",
+      "entityId": "ID de entidad",
+      "action": "Acción",
+      "changes": "Cambios"
+    },
+    "filters": {
+      "entityType": "Tipo de entidad",
+      "action": "Acción",
+      "actor": "Actor",
+      "from": "Desde",
+      "to": "Hasta",
+      "clearFilters": "Limpiar filtros",
+      "allTypes": "Todos los tipos",
+      "allActions": "Todas las acciones",
+      "allActors": "Todos los actores"
+    },
+    "actions": {
+      "CREATE": "Crear",
+      "UPDATE": "Actualizar",
+      "DELETE": "Eliminar"
+    },
+    "history": {
+      "title": "Historial",
+      "empty": "Sin historial para este registro.",
+      "showHistory": "Mostrar historial",
+      "hideHistory": "Ocultar historial"
+    },
+    "pagination": {
+      "page": "Página {page} de {total}",
+      "previous": "Anterior",
+      "next": "Siguiente"
+    },
+    "before": "Antes",
+    "after": "Después",
+    "noChanges": "—"
+  },
   "workflow": {
     "definitions": {
       "title": "Definiciones de proceso",

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
+import { createAuditLog } from '@/lib/audit'
 
 const createSchema = z.object({
   weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -61,6 +62,17 @@ export async function POST(req: NextRequest) {
         weekStart: new Date(parsed.data.weekStart),
       },
     })
+
+    await createAuditLog({
+      db,
+      entityType: 'Timesheet',
+      entityId: timesheet.id,
+      action: 'CREATE',
+      actorId: session.user.id,
+      actorName: session.user.email ?? session.user.id,
+      after: { id: timesheet.id, employeeId: timesheet.employeeId, weekStart: parsed.data.weekStart, status: timesheet.status },
+    })
+
     return NextResponse.json({ timesheet }, { status: 201 })
   } catch (err: unknown) {
     const e = err as { code?: string }

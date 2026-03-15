@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
+import { createAuditLog } from '@/lib/audit'
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
@@ -69,5 +70,15 @@ export async function POST(req: NextRequest) {
       owner: { select: { id: true, fullName: true } },
     },
   })
+  await createAuditLog({
+    db,
+    entityType: 'Organization',
+    entityId: org.id,
+    action: 'CREATE',
+    actorId: session.user.id,
+    actorName: session.user.email ?? session.user.id,
+    after: { id: org.id, name: org.name, status: org.status },
+  })
+
   return NextResponse.json(org, { status: 201 })
 }
