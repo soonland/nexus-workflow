@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client'
 
-export const RESOURCES = ['employees', 'timesheets', 'organizations', 'groups', 'departments'] as const
+export const RESOURCES = ['employees', 'timesheets', 'organizations', 'groups', 'departments', 'expenses'] as const
 export type Resource = typeof RESOURCES[number]
 
 export const CRUD_ACTIONS = ['read', 'write', 'create', 'delete'] as const
@@ -12,6 +12,7 @@ export const RESOURCE_LABELS: Record<Resource, string> = {
   organizations: 'Organizations',
   groups: 'Groups',
   departments: 'Departments',
+  expenses: 'Expenses',
 }
 
 export const ACTION_LABELS: Record<CrudAction, string> = {
@@ -25,6 +26,7 @@ export const WORKFLOW_PERMISSIONS: Record<string, string> = {
   'timesheets:hr-approve': 'Approve timesheets (HR)',
   'employees:approve-profile-update': 'Review profile update requests',
   'organizations:approve-status-change': 'Approve organization status changes',
+  'expenses:accounting-approve': 'Approve expenses (Accounting)',
 }
 
 export async function getEffectivePermissions(userId: string, db: PrismaClient): Promise<string[]> {

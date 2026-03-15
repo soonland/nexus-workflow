@@ -487,6 +487,13 @@
     },
     "before": "Before",
     "after": "After",
-    "noChanges": "—"
+    "noChanges": "—",
+    "detail": {
+      "title": "Change Details",
+      "field": "Field",
+      "changedFields": "Changed fields",
+      "unchangedFields": "Unchanged:",
+      "close": "Close"
+    }
   }
 }
