@@ -47,8 +47,38 @@ jobs:
           additional_permissions: |
             actions: read
 
-          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
-          # prompt: 'Update the pull request description to include a summary of changes.'
+          # When triggered from an issue, produce a structured implementation plan
+          # following the template in .github/ISSUE_TEMPLATE/implementation-plan.md.
+          # When triggered from a PR comment or review, act on the comment directly.
+          prompt: |
+            If triggered from an issue:
+            - Read the issue body carefully.
+            - Explore the codebase to understand the relevant files and existing patterns.
+            - Post a comment on the issue containing a structured implementation plan using this format:
+
+            ## Parent Issue
+            Part of #<issue number> — <issue title>
+
+            ## Scope
+            <one or two sentences describing what needs to change and which package(s) are affected>
+
+            ## Tasks
+            - [ ] <specific file path or component to create/modify>
+            - [ ] <next task>
+            - [ ] Tests + typecheck pass
+
+            ## Dependencies
+            <other issues that must be merged first, or "None">
+
+            ## Blocks
+            <issues that cannot start until this is merged, or "None">
+
+            ## Known Limitations
+            <edge cases, deferred work, or constraints worth flagging>
+
+            Do NOT write or commit any code. Post the plan as a comment only.
+
+            If triggered from a PR comment or review, perform the action described in the comment.
 
           # Optional: Add claude_args to customize behavior and configuration
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
