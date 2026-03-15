@@ -41,7 +41,7 @@ function makeDb(overrides: {
 
 describe('RESOURCES', () => {
   it('should contain exactly the expected resource identifiers', () => {
-    expect(RESOURCES).toEqual(['employees', 'timesheets', 'organizations', 'groups', 'departments'])
+    expect(RESOURCES).toEqual(['employees', 'timesheets', 'organizations', 'groups', 'departments', 'expenses'])
   })
 })
 
@@ -66,6 +66,7 @@ describe('RESOURCE_LABELS', () => {
       organizations: 'Organizations',
       groups: 'Groups',
       departments: 'Departments',
+      expenses: 'Expenses',
     })
   })
 })
