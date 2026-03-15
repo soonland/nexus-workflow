@@ -26,7 +26,7 @@ jobs:
       )
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
       issues: write
       id-token: write
@@ -47,17 +47,18 @@ jobs:
           additional_permissions: |
             actions: read
 
-          # When triggered from an issue, produce a structured implementation plan
-          # following the template in .github/ISSUE_TEMPLATE/implementation-plan.md.
-          # When triggered from a PR comment or review, act on the comment directly.
           prompt: |
-            If triggered from an issue:
+            If triggered from a PR comment or review:
+            - Perform the action described in the comment directly.
+
+            If triggered from an issue comment or issue body containing "@claude implement":
+            - Read the skill file at `.github/skills/implement-feature.md` and follow it exactly.
+            - The issue that triggered this workflow is the current issue context.
+
+            If triggered from an issue body or comment containing "@claude" (but NOT "implement"):
             - Read the issue body carefully.
             - Explore the codebase to understand the relevant files and existing patterns.
-            - Post a comment on the issue containing a structured implementation plan using this format:
-
-            ## Parent Issue
-            Part of #<issue number> — <issue title>
+            - Post a comment on the issue with a structured implementation plan in this format:
 
             ## Scope
             <one or two sentences describing what needs to change and which package(s) are affected>
@@ -78,10 +79,15 @@ jobs:
 
             Do NOT write or commit any code. Post the plan as a comment only.
 
-            If triggered from a PR comment or review, perform the action described in the comment.
+          claude_args: "--model claude-opus-4-6 --max-turns 50"
 
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr:*)'
+          mcp_config: |
+            {
+              "mcpServers": {
+                "mui-mcp": {
+                  "command": "npx",
+                  "args": ["-y", "@mui/mcp@latest"]
+                }
+              }
+            }
 
