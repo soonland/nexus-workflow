@@ -493,7 +493,9 @@
       "field": "Field",
       "changedFields": "Changed fields",
       "unchangedFields": "Unchanged:",
-      "close": "Close"
+      "close": "Close",
+      "yes": "Yes",
+      "no": "No"
     }
   }
 }

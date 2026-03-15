@@ -102,22 +102,22 @@ function buildParams(filters: Filters, page: number): string {
   return params.toString()
 }
 
-function displayValue(v: unknown): string {
+function displayValue(v: unknown, t: (key: string) => string): string {
   if (v === null || v === undefined) return '—'
   if (typeof v === 'string') {
     if (/^\d{4}-\d{2}-\d{2}T/.test(v)) return new Date(v).toLocaleString()
     return v
   }
-  if (typeof v === 'boolean') return v ? 'Yes' : 'No'
+  if (typeof v === 'boolean') return v ? t('detail.yes') : t('detail.no')
   return String(v)
 }
 
 function buildDiff(entry: AuditEntry) {
   const before = entry.before ?? {}
   const after = entry.after ?? {}
-  const allKeys = [...new Set([...Object.keys(before), ...Object.keys(after)])]
   if (entry.action === 'CREATE') return { mode: 'create' as const, fields: Object.entries(after) }
   if (entry.action === 'DELETE') return { mode: 'delete' as const, fields: Object.entries(before) }
+  const allKeys = [...new Set([...Object.keys(before), ...Object.keys(after)])]
   const changed = allKeys.filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]))
   const unchanged = allKeys.filter((k) => JSON.stringify(before[k]) === JSON.stringify(after[k]))
   return { mode: 'update' as const, changed, unchanged, before, after }
@@ -140,6 +140,7 @@ const AuditLogTable = () => {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState('')
   const [selectedEntry, setSelectedEntry] = React.useState<AuditEntry | null>(null)
+  const diff = selectedEntry ? buildDiff(selectedEntry) : null
 
   const fetchData = React.useCallback(async (f: Filters, p: number) => {
     setLoading(true)
@@ -343,9 +344,7 @@ const AuditLogTable = () => {
       </Card>
 
       {/* Detail dialog */}
-      {selectedEntry && (() => {
-        const diff = buildDiff(selectedEntry)
-        return (
+      {selectedEntry && diff && (
           <Dialog open onClose={() => setSelectedEntry(null)} maxWidth="sm" fullWidth>
             <DialogTitle>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
@@ -377,7 +376,7 @@ const AuditLogTable = () => {
                     {diff.fields.map(([k, v]) => (
                       <TableRow key={k}>
                         <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'text.secondary' }}>{k}</TableCell>
-                        <TableCell>{displayValue(v)}</TableCell>
+                        <TableCell>{displayValue(v, t)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -396,7 +395,7 @@ const AuditLogTable = () => {
                     {diff.fields.map(([k, v]) => (
                       <TableRow key={k}>
                         <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'text.secondary' }}>{k}</TableCell>
-                        <TableCell>{displayValue(v)}</TableCell>
+                        <TableCell>{displayValue(v, t)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -421,10 +420,10 @@ const AuditLogTable = () => {
                         <TableRow key={k}>
                           <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'text.secondary' }}>{k}</TableCell>
                           <TableCell sx={{ color: 'error.main', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {displayValue(diff.before[k])}
+                            {displayValue(diff.before[k], t)}
                           </TableCell>
                           <TableCell sx={{ color: 'success.main', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {displayValue(diff.after[k])}
+                            {displayValue(diff.after[k], t)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -446,8 +445,7 @@ const AuditLogTable = () => {
               <Button size="small" onClick={() => setSelectedEntry(null)}>{t('detail.close')}</Button>
             </DialogActions>
           </Dialog>
-        )
-      })()}
+      )}
     </Stack>
   )
 }

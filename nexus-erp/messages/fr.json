@@ -493,7 +493,9 @@
       "field": "Champ",
       "changedFields": "Champs modifiés",
       "unchangedFields": "Inchangés :",
-      "close": "Fermer"
+      "close": "Fermer",
+      "yes": "Oui",
+      "no": "Non"
     }
   }
 }

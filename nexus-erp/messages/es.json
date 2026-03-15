@@ -278,7 +278,9 @@
       "field": "Campo",
       "changedFields": "Campos modificados",
       "unchangedFields": "Sin cambios:",
-      "close": "Cerrar"
+      "close": "Cerrar",
+      "yes": "Sí",
+      "no": "No"
     }
   },
   "workflow": {
