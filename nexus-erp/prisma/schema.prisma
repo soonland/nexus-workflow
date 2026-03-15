@@ -285,3 +285,26 @@ model Message {
   @@index([conversationId])
   @@map("messages")
 }
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  entityType String      @map("entity_type")
+  entityId   String      @map("entity_id")
+  action     AuditAction
+  actorId    String      @map("actor_id")
+  actorName  String      @map("actor_name")
+  before     Json?
+  after      Json?
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
