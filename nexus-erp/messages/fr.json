@@ -21,11 +21,11 @@
       "purchaseOrders": "Bons de commande",
       "activeInstances": "Instances actives",
       "processDefinitions": "Définitions de processus",
-      "eventLog": "Journal d\u2019événements",
+      "eventLog": "Journal d’événements",
       "departments": "Départements",
       "groups": "Groupes",
       "settings": "Paramètres",
-      "auditLog": "Journal d\u2019audit",
+      "auditLog": "Journal d’audit",
       "messages": "Messagerie"
     },
     "expandSidebar": "Développer la barre latérale",
@@ -44,10 +44,10 @@
       "subtitle": "Connexion à votre compte",
       "emailLabel": "Email",
       "passwordLabel": "Mot de passe",
-      "signingIn": "Connexion en cours\u2026",
+      "signingIn": "Connexion en cours…",
       "signIn": "Se connecter",
-      "noAccount": "Vous n\u2019avez pas de compte\u00a0?",
-      "register": "S\u2019inscrire",
+      "noAccount": "Vous n’avez pas de compte ?",
+      "register": "S’inscrire",
       "invalidCredentials": "Email ou mot de passe invalide"
     },
     "register": {
@@ -57,13 +57,13 @@
         "password": "Mot de passe",
         "fullName": "Nom complet",
         "department": "Département",
-        "hireDate": "Date d\u2019embauche"
+        "hireDate": "Date d’embauche"
       },
-      "creating": "Création du compte\u2026",
-      "register": "S\u2019inscrire",
-      "hasAccount": "Vous avez déjà un compte\u00a0?",
+      "creating": "Création du compte…",
+      "register": "S’inscrire",
+      "hasAccount": "Vous avez déjà un compte ?",
       "signIn": "Se connecter",
-      "failed": "\u00c9chec de l\u2019inscription"
+      "failed": "Échec de l’inscription"
     }
   },
   "timesheets": {
@@ -80,11 +80,11 @@
       "rejected": "Rejeté"
     },
     "new": {
-      "creating": "Création de la feuille\u2026",
+      "creating": "Création de la feuille…",
       "title": "Nouvelle feuille de temps",
       "weekStartLabel": "Début de semaine (lundi)",
       "weekStartHelper": "Sélectionnez le lundi qui commence la semaine",
-      "creatingBtn": "Création\u2026",
+      "creatingBtn": "Création…",
       "create": "Créer la feuille",
       "cancel": "Annuler",
       "alreadyExists": "Une feuille de temps existe déjà pour cette semaine.",
@@ -93,7 +93,7 @@
     "detail": {
       "title": "Feuille de temps",
       "notFound": "Feuille de temps introuvable",
-      "networkError": "Erreur réseau \u2014 impossible de charger la feuille de temps",
+      "networkError": "Erreur réseau — impossible de charger la feuille de temps",
       "projectDescription": "Projet / Description",
       "total": "Total",
       "noEntries": "Aucune entrée pour cette semaine.",
@@ -108,13 +108,13 @@
       "dailyTotal": "Total journalier",
       "hoursLogged": "{hours} heures saisies cette semaine",
       "noHours": "Aucune heure saisie",
-      "submitting": "Envoi\u2026",
+      "submitting": "Envoi…",
       "submitForApproval": "Soumettre pour approbation",
       "backAriaLabel": "Retour aux feuilles de temps",
-      "submitFailed": "\u00c9chec de la soumission",
+      "submitFailed": "Échec de la soumission",
       "rejectedLabel": "Rejeté",
       "revisionRequestedLabel": "Révision demandée",
-      "saveFailed": "\u00c9chec de l\u2019enregistrement",
+      "saveFailed": "Échec de l’enregistrement",
       "weekOf": "Semaine du",
       "sendMessage": "Envoyer un message"
     },
@@ -155,7 +155,7 @@
     "yourProfile": "Votre profil",
     "fields": {
       "department": "Département",
-      "hireDate": "Date d\u2019embauche",
+      "hireDate": "Date d’embauche",
       "manager": "Manager",
       "role": "Rôle"
     },
@@ -180,7 +180,7 @@
       "fields": {
         "fullName": "Nom complet",
         "department": "Département",
-        "hireDate": "Date d\u2019embauche",
+        "hireDate": "Date d’embauche",
         "manager": "Manager",
         "role": "Rôle",
         "phone": "Téléphone",
@@ -203,20 +203,20 @@
       "placeholders": {
         "noDepartment": "— Aucun —",
         "noManager": "— Aucun —",
-        "searchGroups": "Rechercher des groupes\u2026"
+        "searchGroups": "Rechercher des groupes…"
       },
       "save": {
         "profile": "Enregistrer le profil",
         "contact": "Enregistrer le contact",
         "groups": "Enregistrer les groupes",
         "permissions": "Enregistrer les permissions",
-        "saving": "Enregistrement\u2026"
+        "saving": "Enregistrement…"
       },
       "hints": {
-        "profileFields": "Champs d\u2019emploi uniquement",
+        "profileFields": "Champs d’emploi uniquement",
         "contactFields": "Champs contact et adresse",
         "groupsMembership": "Enregistre les appartenances aux groupes de cet utilisateur",
-        "permissionsGrants": "Enregistre les droits directs \u2014 les cases grisées sont héritées via les groupes ou le département"
+        "permissionsGrants": "Enregistre les droits directs — les cases grisées sont héritées via les groupes ou le département"
       },
       "messages": {
         "profileSaved": "Profil enregistré.",
@@ -235,7 +235,7 @@
         "fullName": "Nom complet",
         "email": "Email",
         "password": "Mot de passe initial",
-        "hireDate": "Date d\u2019embauche",
+        "hireDate": "Date d’embauche",
         "role": "Rôle",
         "department": "Département",
         "manager": "Manager",
@@ -256,22 +256,22 @@
       },
       "validation": {
         "fullNameRequired": "Le nom complet est requis",
-        "emailRequired": "L\u2019email est requis",
+        "emailRequired": "L’email est requis",
         "emailInvalid": "Saisissez une adresse email valide",
         "passwordRequired": "Le mot de passe est requis",
         "passwordMinLength": "Le mot de passe doit comporter au moins 8 caractères",
-        "hireDateRequired": "La date d\u2019embauche est requise",
+        "hireDateRequired": "La date d’embauche est requise",
         "emailInUse": "Cet email est déjà enregistré"
       },
-      "submit": "Créer l\u2019employé",
-      "submitting": "Création\u2026",
+      "submit": "Créer l’employé",
+      "submitting": "Création…",
       "cancel": "Annuler",
-      "createFailed": "Impossible de créer l\u2019employé"
+      "createFailed": "Impossible de créer l’employé"
     }
   },
   "tasks": {
     "title": "Boîte de tâches",
-    "noPendingTasks": "Aucune tâche en attente. Vous êtes à jour\u00a0!",
+    "noPendingTasks": "Aucune tâche en attente. Vous êtes à jour !",
     "taskName": "Nom de la tâche",
     "status": "Statut",
     "created": "Créé le",
@@ -292,9 +292,9 @@
       "approve": "Approuver",
       "reject": "Rejeter",
       "rejectionReason": "Motif de rejet (facultatif)",
-      "submitting": "Envoi\u2026",
+      "submitting": "Envoi…",
       "submitDecision": "Soumettre la décision",
-      "submitFailed": "\u00c9chec de la soumission"
+      "submitFailed": "Échec de la soumission"
     },
     "profileUpdate": {
       "title": "Modifications de contact proposées",
@@ -316,13 +316,13 @@
   "messages": {
     "title": "Messagerie",
     "newConversation": "Nouvelle conversation",
-    "searchRecipient": "Rechercher une personne\u2026",
-    "noConversations": "Aucune conversation. D\u00e9marrez-en une.",
-    "noMessages": "Aucun message. Dites bonjour\u00a0!",
+    "searchRecipient": "Rechercher une personne…",
+    "noConversations": "Aucune conversation. Démarrez-en une.",
+    "noMessages": "Aucun message. Dites bonjour !",
     "sendMessage": "Envoyer un message",
     "sendMessageToEmployee": "Envoyer un message",
     "sendMessageAboutTimesheet": "Envoyer un message",
-    "messagePlaceholder": "\u00c9crivez un message\u2026",
+    "messagePlaceholder": "Écrivez un message…",
     "you": "Vous",
     "seen": "Lu",
     "linkedTimesheet": "Feuille de temps du {weekStart}",
@@ -381,7 +381,7 @@
         "terminated": "Annulées"
       },
       "columns": {
-        "instanceId": "ID d\u2019instance",
+        "instanceId": "ID d’instance",
         "definition": "Définition",
         "ver": "Ver.",
         "status": "Statut",
@@ -394,14 +394,14 @@
       "next": "Suivant",
       "page": "Page {page} sur {total}",
       "detail": {
-        "instanceDetails": "Détails de l\u2019instance",
+        "instanceDetails": "Détails de l’instance",
         "activeTokens": "Jetons actifs ({count})",
         "variables": "Variables",
         "noVariables": "Aucune variable dans la portée.",
-        "eventLog": "Journal d\u2019événements ({count})",
+        "eventLog": "Journal d’événements ({count})",
         "noEvents": "Aucun événement enregistré.",
         "fields": {
-          "instanceId": "ID d\u2019instance",
+          "instanceId": "ID d’instance",
           "definition": "Définition",
           "version": "Version",
           "started": "Démarré le",
@@ -422,22 +422,22 @@
         },
         "eventColumns": {
           "time": "Heure",
-          "eventType": "Type d\u2019événement",
+          "eventType": "Type d’événement",
           "element": "Élément"
         }
       }
     },
     "events": {
-      "title": "Journal d\u2019événements",
-      "searchByInstance": "Rechercher par ID d\u2019instance",
-      "instanceIdLabel": "ID d\u2019instance",
+      "title": "Journal d’événements",
+      "searchByInstance": "Rechercher par ID d’instance",
+      "instanceIdLabel": "ID d’instance",
       "search": "Rechercher",
-      "placeholder": "Saisissez un ID d\u2019instance pour voir son journal.",
+      "placeholder": "Saisissez un ID d’instance pour voir son journal.",
       "noEvents": "Aucun événement trouvé.",
       "columns": {
         "number": "N°",
         "time": "Heure",
-        "eventType": "Type d\u2019événement",
+        "eventType": "Type d’événement",
         "element": "Élément"
       },
       "eventsCount": "{count, plural, one {# événement} other {# événements}} pour",
@@ -445,5 +445,48 @@
       "fetchFailed": "Impossible de récupérer les événements.",
       "networkError": "Erreur réseau."
     }
+  },
+  "auditLog": {
+    "title": "Journal d'audit",
+    "description": "Enregistrement inaltérable de toutes les modifications d'entités",
+    "emptyState": "Aucun événement d'audit ne correspond à vos filtres.",
+    "columns": {
+      "timestamp": "Horodatage",
+      "actor": "Acteur",
+      "entityType": "Type d'entité",
+      "entityId": "ID d'entité",
+      "action": "Action",
+      "changes": "Modifications"
+    },
+    "filters": {
+      "entityType": "Type d'entité",
+      "action": "Action",
+      "actor": "Acteur",
+      "from": "Du",
+      "to": "Au",
+      "clearFilters": "Effacer les filtres",
+      "allTypes": "Tous les types",
+      "allActions": "Toutes les actions",
+      "allActors": "Tous les acteurs"
+    },
+    "actions": {
+      "CREATE": "Créer",
+      "UPDATE": "Modifier",
+      "DELETE": "Supprimer"
+    },
+    "history": {
+      "title": "Historique",
+      "empty": "Aucun historique pour cet enregistrement.",
+      "showHistory": "Afficher l'historique",
+      "hideHistory": "Masquer l'historique"
+    },
+    "pagination": {
+      "page": "Page {page} sur {total}",
+      "previous": "Précédent",
+      "next": "Suivant"
+    },
+    "before": "Avant",
+    "after": "Après",
+    "noChanges": "—"
   }
 }

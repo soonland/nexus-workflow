@@ -44,9 +44,9 @@
       "subtitle": "Sign in to your account",
       "emailLabel": "Email",
       "passwordLabel": "Password",
-      "signingIn": "Signing in\u2026",
+      "signingIn": "Signing in…",
       "signIn": "Sign in",
-      "noAccount": "Don\u2019t have an account?",
+      "noAccount": "Don’t have an account?",
       "register": "Register",
       "invalidCredentials": "Invalid email or password"
     },
@@ -59,7 +59,7 @@
         "department": "Department",
         "hireDate": "Hire Date"
       },
-      "creating": "Creating account\u2026",
+      "creating": "Creating account…",
       "register": "Register",
       "hasAccount": "Already have an account?",
       "signIn": "Sign in",
@@ -80,11 +80,11 @@
       "rejected": "Rejected"
     },
     "new": {
-      "creating": "Creating timesheet\u2026",
+      "creating": "Creating timesheet…",
       "title": "New Timesheet",
       "weekStartLabel": "Week Start (Monday)",
       "weekStartHelper": "Select the Monday that starts the week",
-      "creatingBtn": "Creating\u2026",
+      "creatingBtn": "Creating…",
       "create": "Create Timesheet",
       "cancel": "Cancel",
       "alreadyExists": "A timesheet for this week already exists.",
@@ -93,7 +93,7 @@
     "detail": {
       "title": "Timesheet",
       "notFound": "Timesheet not found",
-      "networkError": "Network error \u2014 could not load timesheet",
+      "networkError": "Network error — could not load timesheet",
       "projectDescription": "Project / Description",
       "total": "Total",
       "noEntries": "No entries recorded for this week.",
@@ -108,7 +108,7 @@
       "dailyTotal": "Daily total",
       "hoursLogged": "{hours} hours logged this week",
       "noHours": "No hours logged yet",
-      "submitting": "Submitting\u2026",
+      "submitting": "Submitting…",
       "submitForApproval": "Submit for Approval",
       "backAriaLabel": "Back to timesheets",
       "submitFailed": "Failed to submit",
@@ -203,20 +203,20 @@
       "placeholders": {
         "noDepartment": "— None —",
         "noManager": "— None —",
-        "searchGroups": "Search groups\u2026"
+        "searchGroups": "Search groups…"
       },
       "save": {
         "profile": "Save Profile",
         "contact": "Save Contact",
         "groups": "Save Groups",
         "permissions": "Save Permissions",
-        "saving": "Saving\u2026"
+        "saving": "Saving…"
       },
       "hints": {
         "profileFields": "Employment fields only",
         "contactFields": "Contact & address fields",
         "groupsMembership": "Saves group memberships for this user",
-        "permissionsGrants": "Saves direct grants \u2014 dimmed checkmarks are inherited via groups or department"
+        "permissionsGrants": "Saves direct grants — dimmed checkmarks are inherited via groups or department"
       },
       "messages": {
         "profileSaved": "Profile saved.",
@@ -264,7 +264,7 @@
         "emailInUse": "This email is already registered"
       },
       "submit": "Create Employee",
-      "submitting": "Creating\u2026",
+      "submitting": "Creating…",
       "cancel": "Cancel",
       "createFailed": "Failed to create employee"
     }
@@ -292,7 +292,7 @@
       "approve": "Approve",
       "reject": "Reject",
       "rejectionReason": "Rejection Reason (optional)",
-      "submitting": "Submitting\u2026",
+      "submitting": "Submitting…",
       "submitDecision": "Submit Decision",
       "submitFailed": "Failed to submit decision"
     },
@@ -445,5 +445,48 @@
       "fetchFailed": "Failed to fetch events.",
       "networkError": "Network error."
     }
+  },
+  "auditLog": {
+    "title": "Audit Log",
+    "description": "Tamper-proof record of all entity changes",
+    "emptyState": "No audit events match your filters.",
+    "columns": {
+      "timestamp": "Timestamp",
+      "actor": "Actor",
+      "entityType": "Entity Type",
+      "entityId": "Entity ID",
+      "action": "Action",
+      "changes": "Changes"
+    },
+    "filters": {
+      "entityType": "Entity Type",
+      "action": "Action",
+      "actor": "Actor",
+      "from": "From",
+      "to": "To",
+      "clearFilters": "Clear filters",
+      "allTypes": "All types",
+      "allActions": "All actions",
+      "allActors": "All actors"
+    },
+    "actions": {
+      "CREATE": "Create",
+      "UPDATE": "Update",
+      "DELETE": "Delete"
+    },
+    "history": {
+      "title": "History",
+      "empty": "No history for this record.",
+      "showHistory": "Show history",
+      "hideHistory": "Hide history"
+    },
+    "pagination": {
+      "page": "Page {page} of {total}",
+      "previous": "Previous",
+      "next": "Next"
+    },
+    "before": "Before",
+    "after": "After",
+    "noChanges": "—"
   }
 }
