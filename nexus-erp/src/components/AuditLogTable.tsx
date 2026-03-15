@@ -6,6 +6,11 @@ import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
+import Divider from '@mui/material/Divider'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import MenuItem from '@mui/material/MenuItem'
@@ -97,6 +102,27 @@ function buildParams(filters: Filters, page: number): string {
   return params.toString()
 }
 
+function displayValue(v: unknown, t: (key: string) => string): string {
+  if (v === null || v === undefined) return '—'
+  if (typeof v === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}T/.test(v)) return new Date(v).toLocaleString()
+    return v
+  }
+  if (typeof v === 'boolean') return v ? t('detail.yes') : t('detail.no')
+  return String(v)
+}
+
+function buildDiff(entry: AuditEntry) {
+  const before = entry.before ?? {}
+  const after = entry.after ?? {}
+  if (entry.action === 'CREATE') return { mode: 'create' as const, fields: Object.entries(after) }
+  if (entry.action === 'DELETE') return { mode: 'delete' as const, fields: Object.entries(before) }
+  const allKeys = [...new Set([...Object.keys(before), ...Object.keys(after)])]
+  const changed = allKeys.filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]))
+  const unchanged = allKeys.filter((k) => JSON.stringify(before[k]) === JSON.stringify(after[k]))
+  return { mode: 'update' as const, changed, unchanged, before, after }
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 const AuditLogTable = () => {
@@ -113,6 +139,8 @@ const AuditLogTable = () => {
   const [data, setData] = React.useState<AuditLogResponse | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState('')
+  const [selectedEntry, setSelectedEntry] = React.useState<AuditEntry | null>(null)
+  const diff = selectedEntry ? buildDiff(selectedEntry) : null
 
   const fetchData = React.useCallback(async (f: Filters, p: number) => {
     setLoading(true)
@@ -262,7 +290,7 @@ const AuditLogTable = () => {
                   </TableRow>
                 ) : (
                   data?.entries.map((entry) => (
-                    <TableRow key={entry.id} sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
+                    <TableRow key={entry.id} hover onClick={() => setSelectedEntry(entry)} sx={{ cursor: 'pointer' }}>
                       <TableCell>
                         <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
                           {formatDateTime(entry.createdAt)}
@@ -314,6 +342,110 @@ const AuditLogTable = () => {
           </>
         )}
       </Card>
+
+      {/* Detail dialog */}
+      {selectedEntry && diff && (
+          <Dialog open onClose={() => setSelectedEntry(null)} maxWidth="sm" fullWidth>
+            <DialogTitle>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                <Chip
+                  label={t(`actions.${selectedEntry.action}`)}
+                  size="small"
+                  color={ACTION_COLORS[selectedEntry.action] ?? 'default'}
+                />
+                <Typography variant="subtitle1" fontWeight={600}>{selectedEntry.entityType}</Typography>
+              </Stack>
+              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', display: 'block' }}>
+                {selectedEntry.entityId}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {formatDateTime(selectedEntry.createdAt)} · {selectedEntry.actorName}
+              </Typography>
+            </DialogTitle>
+
+            <DialogContent dividers>
+              {diff.mode === 'create' && (
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>{t('detail.field')}</TableCell>
+                      <TableCell>{t('after')}</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {diff.fields.map(([k, v]) => (
+                      <TableRow key={k}>
+                        <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'text.secondary' }}>{k}</TableCell>
+                        <TableCell>{displayValue(v, t)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+
+              {diff.mode === 'delete' && (
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>{t('detail.field')}</TableCell>
+                      <TableCell>{t('before')}</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {diff.fields.map(([k, v]) => (
+                      <TableRow key={k}>
+                        <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'text.secondary' }}>{k}</TableCell>
+                        <TableCell>{displayValue(v, t)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+
+              {diff.mode === 'update' && (
+                <>
+                  <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                    {t('detail.changedFields')}
+                  </Typography>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>{t('detail.field')}</TableCell>
+                        <TableCell>{t('before')}</TableCell>
+                        <TableCell>{t('after')}</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {diff.changed.map((k) => (
+                        <TableRow key={k}>
+                          <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'text.secondary' }}>{k}</TableCell>
+                          <TableCell sx={{ color: 'error.main', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {displayValue(diff.before[k], t)}
+                          </TableCell>
+                          <TableCell sx={{ color: 'success.main', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {displayValue(diff.after[k], t)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {diff.unchanged.length > 0 && (
+                    <>
+                      <Divider sx={{ my: 2 }} />
+                      <Typography variant="caption" color="text.secondary">
+                        {t('detail.unchangedFields')} {diff.unchanged.join(', ')}
+                      </Typography>
+                    </>
+                  )}
+                </>
+              )}
+            </DialogContent>
+
+            <DialogActions>
+              <Button size="small" onClick={() => setSelectedEntry(null)}>{t('detail.close')}</Button>
+            </DialogActions>
+          </Dialog>
+      )}
     </Stack>
   )
 }

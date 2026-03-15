@@ -487,6 +487,15 @@
     },
     "before": "Avant",
     "after": "Après",
-    "noChanges": "—"
+    "noChanges": "—",
+    "detail": {
+      "title": "Détail de la modification",
+      "field": "Champ",
+      "changedFields": "Champs modifiés",
+      "unchangedFields": "Inchangés :",
+      "close": "Fermer",
+      "yes": "Oui",
+      "no": "Non"
+    }
   }
 }

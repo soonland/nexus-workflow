@@ -353,4 +353,175 @@ describe('AuditLogTable', () => {
       expect(screen.queryByRole('button', { name: 'pagination.next' })).not.toBeInTheDocument()
     })
   })
+
+  // ── Detail dialog ─────────────────────────────────────────────────────────
+
+  describe('detail dialog', () => {
+    const UPDATE_ENTRY = {
+      id: 'entry-u1',
+      entityType: 'Employee',
+      entityId: 'emp-00000000-0002',
+      action: 'UPDATE' as const,
+      actorId: 'user-1',
+      actorName: 'Bob Jones',
+      before: { name: 'Alice', role: 'employee' },
+      after: { name: 'Alice Smith', role: 'employee' }, // role unchanged
+      createdAt: '2024-06-02T11:00:00Z',
+    }
+
+    const DELETE_ENTRY = {
+      id: 'entry-d1',
+      entityType: 'Department',
+      entityId: 'dept-0001',
+      action: 'DELETE' as const,
+      actorId: 'user-1',
+      actorName: 'Carol Brown',
+      before: { name: 'Finance' },
+      after: null,
+      createdAt: '2024-06-03T09:00:00Z',
+    }
+
+    it('clicking a row opens the dialog', async () => {
+      vi.mocked(fetch).mockResolvedValue(makeResponse(SINGLE_PAGE_RESPONSE))
+      render(<AuditLogTable />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Alice Smith')).toBeInTheDocument()
+      })
+
+      const row = screen.getByText('Alice Smith').closest('tr')!
+      fireEvent.click(row)
+
+      expect(screen.getByRole('button', { name: 'detail.close' })).toBeInTheDocument()
+    })
+
+    it('dialog shows the full entity ID (not truncated)', async () => {
+      vi.mocked(fetch).mockResolvedValue(makeResponse(SINGLE_PAGE_RESPONSE))
+      render(<AuditLogTable />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Alice Smith')).toBeInTheDocument()
+      })
+
+      const row = screen.getByText('Alice Smith').closest('tr')!
+      fireEvent.click(row)
+
+      // Full ID should appear; the table column only shows 'emp-0000…'
+      expect(screen.getByText('emp-00000000-0001')).toBeInTheDocument()
+    })
+
+    it('dialog shows the actor name in the title area', async () => {
+      vi.mocked(fetch).mockResolvedValue(makeResponse(SINGLE_PAGE_RESPONSE))
+      render(<AuditLogTable />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Alice Smith')).toBeInTheDocument()
+      })
+
+      const row = screen.getByText('Alice Smith').closest('tr')!
+      fireEvent.click(row)
+
+      // Actor name appears in dialog title — getAllByText since it also exists in the table row
+      const matches = screen.getAllByText('Alice Smith')
+      expect(matches.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('CREATE: shows detail.field and after column headers plus the after value', async () => {
+      vi.mocked(fetch).mockResolvedValue(makeResponse(SINGLE_PAGE_RESPONSE))
+      render(<AuditLogTable />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Alice Smith')).toBeInTheDocument()
+      })
+
+      const row = screen.getByText('Alice Smith').closest('tr')!
+      fireEvent.click(row)
+
+      expect(screen.getByRole('button', { name: 'detail.close' })).toBeInTheDocument()
+      // Column headers rendered by t('detail.field') and t('after') — mock returns key as-is
+      expect(screen.getByText('detail.field')).toBeInTheDocument()
+      expect(screen.getByText('after')).toBeInTheDocument()
+      // The value from after.name should appear
+      expect(screen.getByText('Alice')).toBeInTheDocument()
+    })
+
+    it('UPDATE: shows before and after column headers with changed values', async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        makeResponse({ ...SINGLE_PAGE_RESPONSE, entries: [UPDATE_ENTRY] }),
+      )
+      render(<AuditLogTable />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Bob Jones')).toBeInTheDocument()
+      })
+
+      const row = screen.getByText('Bob Jones').closest('tr')!
+      fireEvent.click(row)
+
+      expect(screen.getByRole('button', { name: 'detail.close' })).toBeInTheDocument()
+      expect(screen.getByText('before')).toBeInTheDocument()
+      expect(screen.getByText('after')).toBeInTheDocument()
+      // Before value of name and after value of name both appear
+      expect(screen.getByText('Alice')).toBeInTheDocument()
+      expect(screen.getByText('Alice Smith')).toBeInTheDocument()
+    })
+
+    it('UPDATE: shows unchanged fields footer with the unchanged key name', async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        makeResponse({ ...SINGLE_PAGE_RESPONSE, entries: [UPDATE_ENTRY] }),
+      )
+      render(<AuditLogTable />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Bob Jones')).toBeInTheDocument()
+      })
+
+      const row = screen.getByText('Bob Jones').closest('tr')!
+      fireEvent.click(row)
+
+      // Footer: t('detail.unchangedFields') + ' role'
+      expect(screen.getByText(/detail\.unchangedFields/)).toBeInTheDocument()
+      // 'role' is the unchanged key
+      expect(screen.getByText(/detail\.unchangedFields.*role/)).toBeInTheDocument()
+    })
+
+    it('DELETE: shows detail.field and before column headers plus the before value', async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        makeResponse({ ...SINGLE_PAGE_RESPONSE, entries: [DELETE_ENTRY] }),
+      )
+      render(<AuditLogTable />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Carol Brown')).toBeInTheDocument()
+      })
+
+      const row = screen.getByText('Carol Brown').closest('tr')!
+      fireEvent.click(row)
+
+      expect(screen.getByRole('button', { name: 'detail.close' })).toBeInTheDocument()
+      expect(screen.getByText('detail.field')).toBeInTheDocument()
+      expect(screen.getByText('before')).toBeInTheDocument()
+      // The value from before.name should appear
+      expect(screen.getByText('Finance')).toBeInTheDocument()
+    })
+
+    it('clicking Close dismisses the dialog', async () => {
+      vi.mocked(fetch).mockResolvedValue(makeResponse(SINGLE_PAGE_RESPONSE))
+      render(<AuditLogTable />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Alice Smith')).toBeInTheDocument()
+      })
+
+      const row = screen.getByText('Alice Smith').closest('tr')!
+      fireEvent.click(row)
+
+      const closeBtn = screen.getByRole('button', { name: 'detail.close' })
+      expect(closeBtn).toBeInTheDocument()
+
+      fireEvent.click(closeBtn)
+
+      expect(screen.queryByRole('button', { name: 'detail.close' })).not.toBeInTheDocument()
+    })
+  })
 })

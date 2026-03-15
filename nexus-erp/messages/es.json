@@ -272,7 +272,16 @@
     },
     "before": "Antes",
     "after": "Después",
-    "noChanges": "—"
+    "noChanges": "—",
+    "detail": {
+      "title": "Detalle del cambio",
+      "field": "Campo",
+      "changedFields": "Campos modificados",
+      "unchangedFields": "Sin cambios:",
+      "close": "Cerrar",
+      "yes": "Sí",
+      "no": "No"
+    }
   },
   "workflow": {
     "definitions": {

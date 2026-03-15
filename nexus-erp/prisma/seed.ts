@@ -1,8 +1,12 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
+import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '@prisma/client'
 import { hash } from 'bcryptjs'
 
-const db = new PrismaClient()
+const connectionString = process.env['DATABASE_URL']
+if (!connectionString) throw new Error('DATABASE_URL environment variable is not set')
+const adapter = new PrismaPg({ connectionString })
+const db = new PrismaClient({ adapter })
 
 async function mkUser(
   email: string,
@@ -55,9 +59,9 @@ async function main() {
 
   // ── Permissions & Groups ───────────────────────────────────────────────────
   // CRUD permissions: all resource × action combos
-  const resources = ['employees', 'timesheets', 'organizations', 'groups', 'departments']
+  const resources = ['employees', 'timesheets', 'organizations', 'groups', 'departments', 'expenses']
   const crudActions = ['read', 'write', 'create', 'delete']
-  const resourceLabels: Record<string, string> = { employees: 'Employees', timesheets: 'Timesheets', organizations: 'Organizations', groups: 'Groups', departments: 'Departments' }
+  const resourceLabels: Record<string, string> = { employees: 'Employees', timesheets: 'Timesheets', organizations: 'Organizations', groups: 'Groups', departments: 'Departments', expenses: 'Expenses' }
   const actionLabels: Record<string, string> = { read: 'Read', write: 'Write', create: 'Create', delete: 'Delete' }
 
   for (const r of resources) {
@@ -71,11 +75,12 @@ async function main() {
     { key: 'timesheets:hr-approve', label: 'Approve timesheets (HR)' },
     { key: 'employees:approve-profile-update', label: 'Review profile update requests' },
     { key: 'organizations:approve-status-change', label: 'Approve organization status changes' },
+    { key: 'expenses:accounting-approve', label: 'Approve expenses (Accounting)' },
   ]
   for (const p of workflowPerms) {
     await db.permission.create({ data: { key: p.key, label: p.label, type: 'workflow' } })
   }
-  console.log('  permissions: 20 CRUD + 3 workflow')
+  console.log('  permissions: 24 CRUD + 4 workflow')
 
   const groupOrgApprovers = await db.group.create({
     data: {
@@ -97,6 +102,7 @@ async function main() {
     deptHR,
     deptOperations,
     deptCustomerSuccess,
+    deptAccounting,
   ] = await Promise.all([
     db.department.create({ data: { name: 'Engineering' } }),
     db.department.create({ data: { name: 'Design' } }),
@@ -107,17 +113,24 @@ async function main() {
     db.department.create({ data: { name: 'Human Resources' } }),
     db.department.create({ data: { name: 'Operations' } }),
     db.department.create({ data: { name: 'Customer Success' } }),
+    db.department.create({ data: { name: 'Accounting' } }),
   ])
-  console.log('  departments: Engineering, Design, Product, Sales, Marketing, Finance, HR, Operations, Customer Success')
+  console.log('  departments: Engineering, Design, Product, Sales, Marketing, Finance, HR, Operations, Customer Success, Accounting')
 
   // ── Department-level permissions ────────────────────────────────────────────
   await db.departmentPermission.createMany({
     data: [
       { departmentId: deptHR.id, permissionKey: 'timesheets:hr-approve' },
       { departmentId: deptHR.id, permissionKey: 'employees:approve-profile-update' },
+      { departmentId: deptAccounting.id, permissionKey: 'expenses:read' },
+      { departmentId: deptAccounting.id, permissionKey: 'expenses:write' },
+      { departmentId: deptAccounting.id, permissionKey: 'expenses:create' },
+      { departmentId: deptAccounting.id, permissionKey: 'expenses:delete' },
+      { departmentId: deptAccounting.id, permissionKey: 'expenses:accounting-approve' },
     ],
   })
   console.log('  HR dept permissions: timesheets:hr-approve, employees:approve-profile-update')
+  console.log('  Accounting dept permissions: expenses:read/write/create/delete, expenses:accounting-approve')
 
   // ── HR special user (no employee record) ──────────────────────────────────
   const _hrUser = await db.user.create({
@@ -142,6 +155,7 @@ async function main() {
   const mgrNina    = await mkUser('nina.foster@nexus.local',     'Nina Foster',      'manager', deptHR.id,             '2019-07-22', null)
   const mgrAlex    = await mkUser('alex.garrett@nexus.local',    'Alex Garrett',     'manager', deptOperations.id,     '2018-02-14', null)
   const mgrJessica = await mkUser('jessica.hart@nexus.local',    'Jessica Hart',     'manager', deptCustomerSuccess.id,'2021-01-05', null)
+  const mgrRachel  = await mkUser('rachel.stone@nexus.local',    'Rachel Stone',     'manager', deptAccounting.id,     '2019-03-11', null)
 
   // ── Engineering Employees (10) ─────────────────────────────────────────────
   console.log('\n--- Engineering ---')
@@ -213,6 +227,12 @@ async function main() {
   await mkUser('yusuf.lane@nexus.local',             'Yusuf Lane',       'employee', deptCustomerSuccess.id, '2023-01-30', mgrJessica.employee!.id)
   await mkUser('zara.morgan@nexus.local',            'Zara Morgan',      'employee', deptCustomerSuccess.id, '2021-03-22', mgrJessica.employee!.id)
   await mkUser('adam.nguyen@nexus.local',            'Adam Nguyen',      'employee', deptCustomerSuccess.id, '2024-07-07', mgrJessica.employee!.id)
+
+  // ── Accounting Employees (3) ───────────────────────────────────────────────
+  console.log('\n--- Accounting ---')
+  await mkUser('ben.hayes@nexus.local',              'Ben Hayes',        'employee', deptAccounting.id, '2021-08-16', mgrRachel.employee!.id)
+  await mkUser('claire.ford@nexus.local',            'Claire Ford',      'employee', deptAccounting.id, '2022-11-07', mgrRachel.employee!.id)
+  await mkUser('derek.mills@nexus.local',            'Derek Mills',      'employee', deptAccounting.id, '2023-04-25', mgrRachel.employee!.id)
 
   // ── Timesheets ─────────────────────────────────────────────────────────────
   console.log('\n--- Timesheets ---')
@@ -332,8 +352,9 @@ async function main() {
   console.log('  nina.foster@nexus.local   — Human Resources')
   console.log('  alex.garrett@nexus.local  — Operations')
   console.log('  jessica.hart@nexus.local  — Customer Success')
+  console.log('  rachel.stone@nexus.local  — Accounting (expenses:accounting-approve via dept)')
   console.log('')
-  console.log('Employees: bob, carol, dave + 41 more across all departments')
+  console.log('Employees: bob, carol, dave + 44 more across all departments')
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
 }
 
