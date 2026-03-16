@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { PrismaClient } from '@prisma/client'
-import { canViewAllExpenses } from '@/lib/expenseAccess'
+import { canViewAllExpenses, canViewTeamExpenses } from '@/lib/expenseAccess'
 import { getEffectivePermissions } from '@/lib/permissions'
 
 vi.mock('@/lib/permissions', () => ({
@@ -18,6 +18,28 @@ function makeSession(id: string) {
 
 beforeEach(() => {
   vi.resetAllMocks()
+})
+
+describe('canViewTeamExpenses', () => {
+  it('should return true when user role is manager', () => {
+    expect(canViewTeamExpenses({ user: { id: 'u-1', role: 'manager' } })).toBe(true)
+  })
+
+  it('should return false when user role is employee', () => {
+    expect(canViewTeamExpenses({ user: { id: 'u-1', role: 'employee' } })).toBe(false)
+  })
+
+  it('should return false when user role is admin', () => {
+    expect(canViewTeamExpenses({ user: { id: 'u-1', role: 'admin' } })).toBe(false)
+  })
+
+  it('should return false when user has no role', () => {
+    expect(canViewTeamExpenses({ user: { id: 'u-1' } })).toBe(false)
+  })
+
+  it('should return false when role is undefined', () => {
+    expect(canViewTeamExpenses({ user: { id: 'u-1', role: undefined } })).toBe(false)
+  })
 })
 
 describe('canViewAllExpenses', () => {

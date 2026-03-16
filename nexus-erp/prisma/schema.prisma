@@ -145,6 +145,7 @@ model Employee {
   country    String?
   reports               Employee[]                     @relation("EmployeeManager")
   timesheets            Timesheet[]
+  expenseReports        ExpenseReport[]
   profileUpdateRequests EmployeeProfileUpdateRequest[]
   organizations         Organization[]
   createdAt  DateTime    @default(now()) @map("created_at")
@@ -284,6 +285,54 @@ model Message {
 
   @@index([conversationId])
   @@map("messages")
+}
+
+enum ExpenseReportStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED_MANAGER
+  APPROVED_ACCOUNTING
+  REJECTED
+  REIMBURSED
+}
+
+enum ExpenseLineItemCategory {
+  TRAVEL
+  MEALS
+  EQUIPMENT
+  OTHER
+}
+
+model ExpenseReport {
+  id                 String              @id @default(cuid())
+  employee           Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId         String              @map("employee_id")
+  status             ExpenseReportStatus @default(DRAFT)
+  workflowInstanceId String?             @map("workflow_instance_id")
+  receiptPath        String?             @map("receipt_path")
+  lineItems          ExpenseLineItem[]
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([workflowInstanceId])
+  @@map("expense_reports")
+}
+
+model ExpenseLineItem {
+  id          String                  @id @default(cuid())
+  report      ExpenseReport           @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  reportId    String                  @map("report_id")
+  date        DateTime                @db.Date
+  category    ExpenseLineItemCategory
+  amount      Decimal                 @db.Decimal(10, 2)
+  description String?
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
+
+  @@index([reportId])
+  @@map("expense_line_items")
 }
 
 enum AuditAction {
