@@ -55,7 +55,7 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
   } else {
-    console.warn('[task-complete] task has no assignee — denying completion', { taskId: id })
+    console.error('[task-complete] task has no assignee — denying completion', { taskId: id })
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
