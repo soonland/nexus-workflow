@@ -53,11 +53,7 @@ export async function GET(req: NextRequest) {
 
   const expenses = await db.expenseReport.findMany({
     where: {
-      ...(employeeIdFilter !== undefined
-        ? typeof employeeIdFilter === 'string'
-          ? { employeeId: employeeIdFilter }
-          : { employeeId: employeeIdFilter }
-        : {}),
+      ...(employeeIdFilter !== undefined ? { employeeId: employeeIdFilter } : {}),
       ...(status ? { status } : {}),
     },
     include: {

@@ -120,7 +120,7 @@ export async function PATCH(
         actorId,
         actorName,
         before: { status: report.status },
-        after: { status: result.status },
+        after: { status: result.status, lineItemsReplaced: parsed.data.lineItems !== undefined, lineItemCount: result.lineItems.length },
       },
     })
 

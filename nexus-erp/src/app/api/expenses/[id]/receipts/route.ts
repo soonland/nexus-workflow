@@ -1,4 +1,4 @@
-import { writeFile, mkdir } from 'fs/promises'
+import { writeFile, mkdir, unlink } from 'fs/promises'
 import { join } from 'path'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/db/client'
@@ -43,32 +43,43 @@ export async function POST(
     return NextResponse.json({ error: 'Unsupported file type' }, { status: 415 })
   }
 
-  const originalName = file instanceof File ? file.name : 'receipt'
-  const ext = originalName.split('.').pop() ?? 'bin'
+  const MIME_TO_EXT: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'application/pdf': 'pdf',
+  }
+  const ext = MIME_TO_EXT[file.type] ?? 'bin'
   const filename = `${id}-${Date.now()}.${ext}`
   const uploadsDir = join(process.cwd(), 'public', 'uploads', 'receipts')
+  const filePath = join(uploadsDir, filename)
 
   await mkdir(uploadsDir, { recursive: true })
   const buffer = Buffer.from(await file.arrayBuffer())
-  await writeFile(join(uploadsDir, filename), buffer)
+  await writeFile(filePath, buffer)
 
   const receiptPath = `/uploads/receipts/${filename}`
 
-  const updated = await db.expenseReport.update({
-    where: { id },
-    data: { receiptPath },
-  })
+  try {
+    const updated = await db.expenseReport.update({
+      where: { id },
+      data: { receiptPath },
+    })
 
-  await createAuditLog({
-    db,
-    entityType: 'ExpenseReport',
-    entityId: id,
-    action: 'UPDATE',
-    actorId: session.user.id,
-    actorName: session.user.email ?? session.user.id,
-    before: { receiptPath: report.receiptPath },
-    after: { receiptPath: updated.receiptPath },
-  })
+    await createAuditLog({
+      db,
+      entityType: 'ExpenseReport',
+      entityId: id,
+      action: 'UPDATE',
+      actorId: session.user.id,
+      actorName: session.user.email ?? session.user.id,
+      before: { receiptPath: report.receiptPath },
+      after: { receiptPath: updated.receiptPath },
+    })
 
-  return NextResponse.json({ receiptPath }, { status: 201 })
+    return NextResponse.json({ receiptPath }, { status: 201 })
+  } catch (err) {
+    await unlink(filePath).catch(() => {})
+    throw err
+  }
 }

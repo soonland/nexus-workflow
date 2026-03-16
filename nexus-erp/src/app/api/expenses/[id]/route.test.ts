@@ -332,6 +332,25 @@ describe('PATCH /api/expenses/[id]', () => {
     )
   })
 
+  it('should write audit log with lineItemsReplaced and lineItemCount', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
+    const updatedReport = { ...BASE_REPORT, lineItems: [{ id: 'li-1', category: 'MEALS', amount: 50 }] }
+    mockExpenseReportUpdate.mockResolvedValue(updatedReport)
+
+    await PATCH(makePatchRequest({
+      lineItems: [{ date: '2025-02-01', category: 'MEALS', amount: 50 }],
+    }), PARAMS)
+
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          after: expect.objectContaining({ lineItemsReplaced: true, lineItemCount: 1 }),
+        }),
+      }),
+    )
+  })
+
   it('should not delete/recreate line items when only status is patched', async () => {
     mockAuth.mockResolvedValue(SESSION)
     mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'REJECTED' })

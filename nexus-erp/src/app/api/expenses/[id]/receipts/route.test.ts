@@ -7,6 +7,7 @@ const {
   mockAuditLogCreate,
   mockWriteFile,
   mockMkdir,
+  mockUnlink,
 } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   mockExpenseReportFindUnique: vi.fn(),
@@ -14,6 +15,7 @@ const {
   mockAuditLogCreate: vi.fn(),
   mockWriteFile: vi.fn(),
   mockMkdir: vi.fn(),
+  mockUnlink: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: mockAuth }))
@@ -30,6 +32,7 @@ vi.mock('@/db/client', () => ({
 vi.mock('fs/promises', () => ({
   writeFile: mockWriteFile,
   mkdir: mockMkdir,
+  unlink: mockUnlink,
 }))
 // path.join is used to build the upload directory — keep real join logic
 vi.mock('next/server', () => {
@@ -66,8 +69,8 @@ const BASE_REPORT = {
   receiptPath: null,
 }
 
-function makeMockFile(name = 'receipt.pdf', content = 'pdf-content'): File {
-  return new File([content], name, { type: 'application/pdf' })
+function makeMockFile(name = 'receipt.pdf', content = 'pdf-content', type = 'application/pdf'): File {
+  return new File([content], name, { type })
 }
 
 function makeRequest(file?: File | null) {
@@ -85,6 +88,7 @@ describe('POST /api/expenses/[id]/receipts', () => {
     vi.clearAllMocks()
     mockWriteFile.mockResolvedValue(undefined)
     mockMkdir.mockResolvedValue(undefined)
+    mockUnlink.mockResolvedValue(undefined)
   })
 
   it('should return 403 when session has no employeeId', async () => {
@@ -188,17 +192,29 @@ describe('POST /api/expenses/[id]/receipts', () => {
     expect(Buffer.isBuffer(buffer)).toBe(true)
   })
 
-  it('should preserve the file extension in the stored filename', async () => {
+  it('should derive the file extension from the MIME type, not the filename', async () => {
     mockAuth.mockResolvedValue(SESSION)
     mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
     mockExpenseReportUpdate.mockResolvedValue({ ...BASE_REPORT, receiptPath: '/uploads/receipts/exp-1-123.png' })
 
-    await POST(makeRequest(makeMockFile('photo.png', 'img')), PARAMS)
+    // File has a .pdf name but image/png MIME type — extension must come from MIME
+    await POST(makeRequest(makeMockFile('photo.pdf', 'img', 'image/png')), PARAMS)
 
     expect(mockWriteFile).toHaveBeenCalledWith(
       expect.stringMatching(/\.png$/),
       expect.any(Buffer),
     )
+  })
+
+  it('should delete the uploaded file if the DB update fails', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
+    mockExpenseReportUpdate.mockRejectedValue(new Error('DB error'))
+    mockUnlink.mockResolvedValue(undefined)
+
+    await expect(POST(makeRequest(makeMockFile()), PARAMS)).rejects.toThrow('DB error')
+
+    expect(mockUnlink).toHaveBeenCalledWith(expect.stringMatching(/exp-1-\d+\.pdf$/))
   })
 
   it('should update the expenseReport with the new receiptPath', async () => {
