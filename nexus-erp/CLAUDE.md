@@ -60,6 +60,26 @@ so all ButtonBase-derived components perform client-side navigation automaticall
 In **Client Components** (`'use client'`) the `component={NextLink}` pattern also still works,
 but using just `href` is preferred for consistency.
 
+## BPMN Authoring Guidelines
+
+Every `userTask` element in a BPMN definition **must** declare an `assignee` attribute.
+
+```xml
+<!-- ✅ Correct -->
+<userTask id="task_review" name="Review" camunda:assignee="perm:approve_timesheets" />
+
+<!-- ❌ Wrong — omitting assignee causes a 403 at completion time -->
+<userTask id="task_review" name="Review" />
+```
+
+Supported `assignee` formats:
+- `perm:<permission-key>` — any user holding the named permission may complete the task
+- `<user-id>` — only the exact user with that ID may complete the task
+
+Omitting `assignee` is a hard error: `POST /api/tasks/[id]/complete` will return `403 Forbidden`
+and log a server-side warning. This is intentional (fail-closed) — unassigned tasks are never
+silently open to all authenticated users.
+
 ## Key Flows
 
 **Timesheet Submit:**

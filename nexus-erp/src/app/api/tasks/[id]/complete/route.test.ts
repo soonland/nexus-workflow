@@ -81,7 +81,7 @@ function makeRequest(body: unknown) {
 }
 
 const BASE_TASK = {
-  task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review' },
+  task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review', assignee: 'user-1' },
   variables: {},
 }
 
@@ -202,7 +202,7 @@ describe('expense status sync', () => {
 
   it('should set expense to APPROVED_MANAGER when manager approves', async () => {
     mockGetTask.mockResolvedValue({
-      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review' },
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review', assignee: 'user-1' },
       variables: { expenseId: 'exp-1' },
     })
     mockExpenseReportFindFirst.mockResolvedValue({
@@ -222,7 +222,7 @@ describe('expense status sync', () => {
 
   it('should set expense to REJECTED when manager rejects', async () => {
     mockGetTask.mockResolvedValue({
-      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review' },
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review', assignee: 'user-1' },
       variables: { expenseId: 'exp-1' },
     })
     mockExpenseReportFindFirst.mockResolvedValue({
@@ -242,7 +242,7 @@ describe('expense status sync', () => {
 
   it('should set expense to REIMBURSED when accounting approves', async () => {
     mockGetTask.mockResolvedValue({
-      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_accounting_review' },
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_accounting_review', assignee: 'user-1' },
       variables: { expenseId: 'exp-1' },
     })
     mockExpenseReportFindFirst.mockResolvedValue({
@@ -262,7 +262,7 @@ describe('expense status sync', () => {
 
   it('should set expense to REJECTED when accounting rejects', async () => {
     mockGetTask.mockResolvedValue({
-      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_accounting_review' },
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_accounting_review', assignee: 'user-1' },
       variables: { expenseId: 'exp-1' },
     })
     mockExpenseReportFindFirst.mockResolvedValue({
@@ -282,7 +282,7 @@ describe('expense status sync', () => {
 
   it('should skip update when updateMany matches nothing (duplicate completion)', async () => {
     mockGetTask.mockResolvedValue({
-      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review' },
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review', assignee: 'user-1' },
       variables: { expenseId: 'exp-1' },
     })
     mockExpenseReportFindFirst.mockResolvedValue({
@@ -301,7 +301,7 @@ describe('expense status sync', () => {
   it('should skip update and log error for unknown elementId', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     mockGetTask.mockResolvedValue({
-      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_unknown' },
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_unknown', assignee: 'user-1' },
       variables: { expenseId: 'exp-1' },
     })
     mockExpenseReportFindFirst.mockResolvedValue({
@@ -320,7 +320,7 @@ describe('expense status sync', () => {
 
   it('should return 400 for revision_requested on an expense task', async () => {
     mockGetTask.mockResolvedValue({
-      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review' },
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review', assignee: 'user-1' },
       variables: { expenseId: 'exp-1' },
     })
 
@@ -333,7 +333,7 @@ describe('expense status sync', () => {
 
   it('should not update expense when variables has no expenseId', async () => {
     mockGetTask.mockResolvedValue({
-      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review' },
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review', assignee: 'user-1' },
       variables: { timesheetId: 'ts-1' },
     })
 
@@ -405,7 +405,7 @@ describe('task authorization', () => {
     expect(mockCompleteTask).not.toHaveBeenCalled()
   })
 
-  it('should skip authorization check when task has no assignee', async () => {
+  it('should return 403 when task has no assignee', async () => {
     mockGetTask.mockResolvedValue({
       task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review' }, // no assignee
       variables: {},
@@ -413,7 +413,7 @@ describe('task authorization', () => {
 
     const res = await POST(makeRequest({ decision: 'approved' }), PARAMS)
 
-    expect(res._status).toBe(200)
-    expect(mockCompleteTask).toHaveBeenCalled()
+    expect(res._status).toBe(403)
+    expect(mockCompleteTask).not.toHaveBeenCalled()
   })
 })
