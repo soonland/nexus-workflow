@@ -33,6 +33,7 @@
     "bpmn-auto-layout": "^1.2.0",
     "bpmn-js": "^18.13.1",
     "dayjs": "^1.11.20",
+    "file-type": "^21.3.2",
     "ioredis": "^5.10.0",
     "next": "^16.1.6",
     "next-auth": "^5.0.0-beta.25",

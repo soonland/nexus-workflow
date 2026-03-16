@@ -1,5 +1,6 @@
 import { writeFile, mkdir, unlink } from 'fs/promises'
 import { join } from 'path'
+import { fileTypeFromBuffer } from 'file-type'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
@@ -49,22 +50,24 @@ export async function POST(
     'image/webp': 'webp',
     'application/pdf': 'pdf',
   }
+
+  const buffer = Buffer.from(await file.arrayBuffer())
+
+  // Verify the actual file content matches the declared MIME type.
+  // file.type is client-supplied and can be spoofed — magic byte detection
+  // confirms the real format before the file is written to disk.
+  const detected = await fileTypeFromBuffer(buffer)
+  if (!detected || detected.mime !== file.type) {
+    return NextResponse.json({ error: 'File content does not match declared type' }, { status: 415 })
+  }
+
   const ext = MIME_TO_EXT[file.type] ?? 'bin'
   const filename = `${id}-${Date.now()}.${ext}`
   const uploadsDir = join(process.cwd(), 'public', 'uploads', 'receipts')
   const filePath = join(uploadsDir, filename)
-
-  await mkdir(uploadsDir, { recursive: true })
-  const buffer = Buffer.from(await file.arrayBuffer())
   const receiptPath = `/uploads/receipts/${filename}`
 
-  // Delete the previous receipt file before writing the new one so old files
-  // don't accumulate on disk. Ignore ENOENT (nothing to delete on first upload).
-  if (report.receiptPath) {
-    const oldPath = join(process.cwd(), 'public', report.receiptPath)
-    await unlink(oldPath).catch(() => {})
-  }
-
+  await mkdir(uploadsDir, { recursive: true })
   await writeFile(filePath, buffer)
 
   try {
@@ -87,6 +90,14 @@ export async function POST(
 
       return result
     })
+
+    // Delete the old receipt only after the new file is written and the DB
+    // is committed. Doing it earlier risks losing the old file if writeFile
+    // or the transaction fails, leaving the DB pointing at a missing path.
+    if (report.receiptPath) {
+      const oldPath = join(process.cwd(), 'public', report.receiptPath)
+      await unlink(oldPath).catch(() => {})
+    }
 
     return NextResponse.json({ receiptPath: updated.receiptPath }, { status: 201 })
   } catch (err) {

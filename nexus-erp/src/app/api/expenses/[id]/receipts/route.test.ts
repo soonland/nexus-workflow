@@ -6,6 +6,7 @@ const {
   mockExpenseReportUpdate,
   mockCreateAuditLog,
   mockTransaction,
+  mockFileTypeFromBuffer,
   mockWriteFile,
   mockMkdir,
   mockUnlink,
@@ -15,12 +16,14 @@ const {
   mockExpenseReportUpdate: vi.fn(),
   mockCreateAuditLog: vi.fn().mockResolvedValue(undefined),
   mockTransaction: vi.fn(),
+  mockFileTypeFromBuffer: vi.fn(),
   mockWriteFile: vi.fn(),
   mockMkdir: vi.fn(),
   mockUnlink: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: mockAuth }))
+vi.mock('file-type', () => ({ fileTypeFromBuffer: mockFileTypeFromBuffer }))
 vi.mock('@/lib/audit', () => ({ createAuditLog: mockCreateAuditLog }))
 vi.mock('@/db/client', () => ({
   db: {
@@ -92,6 +95,8 @@ describe('POST /api/expenses/[id]/receipts', () => {
     mockMkdir.mockResolvedValue(undefined)
     mockUnlink.mockResolvedValue(undefined)
     mockCreateAuditLog.mockResolvedValue(undefined)
+    // Default: magic bytes match the declared MIME type
+    mockFileTypeFromBuffer.mockResolvedValue({ mime: 'application/pdf', ext: 'pdf' })
     mockTransaction.mockImplementation(async (cb: (tx: unknown) => unknown) => {
       const tx = {
         expenseReport: { update: mockExpenseReportUpdate },
@@ -206,6 +211,7 @@ describe('POST /api/expenses/[id]/receipts', () => {
     mockAuth.mockResolvedValue(SESSION)
     mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
     mockExpenseReportUpdate.mockResolvedValue({ ...BASE_REPORT, receiptPath: '/uploads/receipts/exp-1-123.png' })
+    mockFileTypeFromBuffer.mockResolvedValue({ mime: 'image/png', ext: 'png' })
 
     // File has a .pdf name but image/png MIME type — extension must come from MIME
     await POST(makeRequest(makeMockFile('photo.pdf', 'img', 'image/png')), PARAMS)
@@ -216,7 +222,30 @@ describe('POST /api/expenses/[id]/receipts', () => {
     )
   })
 
-  it('should delete the uploaded file if the DB update fails', async () => {
+  it('should return 415 when magic bytes do not match the declared MIME type', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
+    // Declared as PDF but magic bytes say it is actually an image/png
+    mockFileTypeFromBuffer.mockResolvedValue({ mime: 'image/png', ext: 'png' })
+
+    const res = await POST(makeRequest(makeMockFile('evil.pdf', 'content', 'application/pdf')), PARAMS)
+
+    expect(res._status).toBe(415)
+    expect(mockWriteFile).not.toHaveBeenCalled()
+  })
+
+  it('should return 415 when file-type cannot detect the content type', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
+    mockFileTypeFromBuffer.mockResolvedValue(undefined)
+
+    const res = await POST(makeRequest(makeMockFile()), PARAMS)
+
+    expect(res._status).toBe(415)
+    expect(mockWriteFile).not.toHaveBeenCalled()
+  })
+
+  it('should delete the new file if the DB update fails', async () => {
     mockAuth.mockResolvedValue(SESSION)
     mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
     mockExpenseReportUpdate.mockRejectedValue(new Error('DB error'))
@@ -225,6 +254,31 @@ describe('POST /api/expenses/[id]/receipts', () => {
     await expect(POST(makeRequest(makeMockFile()), PARAMS)).rejects.toThrow('DB error')
 
     expect(mockUnlink).toHaveBeenCalledWith(expect.stringMatching(/exp-1-\d+\.pdf$/))
+  })
+
+  it('should not delete the old file if writeFile fails', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    const reportWithReceipt = { ...BASE_REPORT, receiptPath: '/uploads/receipts/old.pdf' }
+    mockExpenseReportFindUnique.mockResolvedValue(reportWithReceipt)
+    mockWriteFile.mockRejectedValue(new Error('disk full'))
+
+    await expect(POST(makeRequest(makeMockFile()), PARAMS)).rejects.toThrow('disk full')
+
+    // Old file must not be deleted — it is still the authoritative receipt
+    expect(mockUnlink).not.toHaveBeenCalledWith(expect.stringContaining('old.pdf'))
+  })
+
+  it('should delete the old file only after the DB transaction commits', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    const reportWithReceipt = { ...BASE_REPORT, receiptPath: '/uploads/receipts/old.pdf' }
+    mockExpenseReportFindUnique.mockResolvedValue(reportWithReceipt)
+    mockExpenseReportUpdate.mockResolvedValue({ ...reportWithReceipt, receiptPath: '/uploads/receipts/exp-1-new.pdf' })
+
+    await POST(makeRequest(makeMockFile()), PARAMS)
+
+    expect(mockUnlink).toHaveBeenCalledWith(expect.stringContaining('old.pdf'))
+    // New file must not have been deleted
+    expect(mockUnlink).not.toHaveBeenCalledWith(expect.stringMatching(/exp-1-\d+\.pdf$/))
   })
 
   it('should update the expenseReport with the new receiptPath', async () => {
