@@ -146,6 +146,7 @@ export async function PATCH(
         where: { id },
         include: { lineItems: { orderBy: { date: 'asc' } } },
       })
+      if (!result) return null
     } else {
       result = await tx.expenseReport.update({
         where: { id },
@@ -162,7 +163,7 @@ export async function PATCH(
       actorId,
       actorName,
       before: { status: report.status },
-      after: { status: result!.status, lineItemsReplaced: parsed.data.lineItems !== undefined, lineItemCount: result!.lineItems.length },
+      after: { status: result.status, lineItemsReplaced: parsed.data.lineItems !== undefined, lineItemCount: result.lineItems.length },
     })
 
     return result
