@@ -9,6 +9,7 @@ const {
   mockEmployeeFindMany,
   mockAuditLogFindMany,
   mockAuditLogCreate,
+  mockCreateAuditLog,
   mockLineItemDeleteMany,
   mockLineItemCreateMany,
   mockTransaction,
@@ -21,6 +22,7 @@ const {
   mockEmployeeFindMany: vi.fn(),
   mockAuditLogFindMany: vi.fn(),
   mockAuditLogCreate: vi.fn(),
+  mockCreateAuditLog: vi.fn().mockResolvedValue(undefined),
   mockLineItemDeleteMany: vi.fn(),
   mockLineItemCreateMany: vi.fn(),
   mockTransaction: vi.fn(),
@@ -31,7 +33,7 @@ vi.mock('@/lib/expenseAccess', () => ({
   canViewAllExpenses: mockCanViewAllExpenses,
   canViewTeamExpenses: mockCanViewTeamExpenses,
 }))
-vi.mock('@/lib/audit', () => ({ createAuditLog: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('@/lib/audit', () => ({ createAuditLog: mockCreateAuditLog }))
 vi.mock('@/db/client', () => ({
   db: {
     expenseReport: {
@@ -195,6 +197,7 @@ describe('GET /api/expenses/[id]', () => {
 describe('PATCH /api/expenses/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCreateAuditLog.mockResolvedValue(undefined)
     // Default $transaction: call the callback with a tx object
     mockTransaction.mockImplementation(async (cb: (tx: unknown) => unknown) => {
       const tx = {
@@ -276,11 +279,23 @@ describe('PATCH /api/expenses/[id]', () => {
     expect(res._status).toBe(422)
   })
 
-  it('should return 422 when trying to resubmit a non-rejected report', async () => {
+  it('should return 422 when trying to submit a report in APPROVED_MANAGER status', async () => {
     mockAuth.mockResolvedValue(SESSION)
-    mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'DRAFT' })
+    mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'APPROVED_MANAGER' })
     const res = await PATCH(makePatchRequest({ status: 'SUBMITTED' }), PARAMS)
     expect(res._status).toBe(422)
+  })
+
+  it('should allow submitting a DRAFT report', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'DRAFT' })
+    const updatedReport = { ...BASE_REPORT, status: 'SUBMITTED', lineItems: [] }
+    mockExpenseReportUpdate.mockResolvedValue(updatedReport)
+
+    const res = await PATCH(makePatchRequest({ status: 'SUBMITTED' }), PARAMS)
+
+    expect(res._status).toBe(200)
+    expect((res._data as any).report.status).toBe('SUBMITTED')
   })
 
   it('should return 422 when trying to resubmit an already-submitted report', async () => {
@@ -342,11 +357,12 @@ describe('PATCH /api/expenses/[id]', () => {
       lineItems: [{ date: '2025-02-01', category: 'MEALS', amount: 50 }],
     }), PARAMS)
 
-    expect(mockAuditLogCreate).toHaveBeenCalledWith(
+    expect(mockCreateAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          after: expect.objectContaining({ lineItemsReplaced: true, lineItemCount: 1 }),
-        }),
+        entityType: 'ExpenseReport',
+        entityId: 'exp-1',
+        action: 'UPDATE',
+        after: expect.objectContaining({ lineItemsReplaced: true, lineItemCount: 1 }),
       }),
     )
   })

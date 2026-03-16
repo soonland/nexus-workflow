@@ -4,7 +4,8 @@ const {
   mockAuth,
   mockExpenseReportFindUnique,
   mockExpenseReportUpdate,
-  mockAuditLogCreate,
+  mockCreateAuditLog,
+  mockTransaction,
   mockWriteFile,
   mockMkdir,
   mockUnlink,
@@ -12,21 +13,22 @@ const {
   mockAuth: vi.fn(),
   mockExpenseReportFindUnique: vi.fn(),
   mockExpenseReportUpdate: vi.fn(),
-  mockAuditLogCreate: vi.fn(),
+  mockCreateAuditLog: vi.fn().mockResolvedValue(undefined),
+  mockTransaction: vi.fn(),
   mockWriteFile: vi.fn(),
   mockMkdir: vi.fn(),
   mockUnlink: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: mockAuth }))
-vi.mock('@/lib/audit', () => ({ createAuditLog: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('@/lib/audit', () => ({ createAuditLog: mockCreateAuditLog }))
 vi.mock('@/db/client', () => ({
   db: {
     expenseReport: {
       findUnique: mockExpenseReportFindUnique,
       update: mockExpenseReportUpdate,
     },
-    auditLog: { create: mockAuditLogCreate },
+    $transaction: mockTransaction,
   },
 }))
 vi.mock('fs/promises', () => ({
@@ -89,6 +91,14 @@ describe('POST /api/expenses/[id]/receipts', () => {
     mockWriteFile.mockResolvedValue(undefined)
     mockMkdir.mockResolvedValue(undefined)
     mockUnlink.mockResolvedValue(undefined)
+    mockCreateAuditLog.mockResolvedValue(undefined)
+    mockTransaction.mockImplementation(async (cb: (tx: unknown) => unknown) => {
+      const tx = {
+        expenseReport: { update: mockExpenseReportUpdate },
+        auditLog: { create: vi.fn() },
+      }
+      return cb(tx)
+    })
   })
 
   it('should return 403 when session has no employeeId', async () => {
