@@ -4,7 +4,7 @@ import { db } from '@/db/client'
 import { auth } from '@/auth'
 import { createAuditLog } from '@/lib/audit'
 import { canViewAllExpenses, canViewTeamExpenses } from '@/lib/expenseAccess'
-import { startInstance } from '@/lib/workflow'
+import { startInstance, cancelInstance } from '@/lib/workflow'
 
 const lineItemSchema = z.object({
   date: z
@@ -170,6 +170,15 @@ export async function PATCH(
   })
 
   if (updated === null) {
+    // Best-effort cleanup — the instance was started but lost the DB race.
+    // Suppress errors so the cancel failure doesn't mask the 409 response.
+    if (workflowInstanceId) {
+      try {
+        await cancelInstance(workflowInstanceId)
+      } catch (err) {
+        console.error(`[expense] failed to cancel orphaned workflow instance ${workflowInstanceId}:`, err)
+      }
+    }
     return NextResponse.json({ error: 'Conflict — expense was already submitted' }, { status: 409 })
   }
 
