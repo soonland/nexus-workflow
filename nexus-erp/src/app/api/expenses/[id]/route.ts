@@ -131,14 +131,28 @@ export async function PATCH(
       })
     }
 
-    const result = await tx.expenseReport.update({
-      where: { id },
-      data: {
-        ...(parsed.data.status ? { status: parsed.data.status } : {}),
-        ...(workflowInstanceId ? { workflowInstanceId } : {}),
-      },
-      include: { lineItems: { orderBy: { date: 'asc' } } },
-    })
+    // When advancing to SUBMITTED, use updateMany with a status guard to prevent
+    // double-submission races. A concurrent request that also passed the pre-transaction
+    // status check will see count=0 and be turned away as a 409, keeping its
+    // newly-started workflow instance from running to completion untracked.
+    let result
+    if (workflowInstanceId) {
+      const { count } = await tx.expenseReport.updateMany({
+        where: { id, status: { in: ['DRAFT', 'REJECTED'] } },
+        data: { status: 'SUBMITTED', workflowInstanceId },
+      })
+      if (count === 0) return null // race lost — another request already advanced the status
+      result = await tx.expenseReport.findUnique({
+        where: { id },
+        include: { lineItems: { orderBy: { date: 'asc' } } },
+      })
+    } else {
+      result = await tx.expenseReport.update({
+        where: { id },
+        data: parsed.data.status ? { status: parsed.data.status } : {},
+        include: { lineItems: { orderBy: { date: 'asc' } } },
+      })
+    }
 
     await createAuditLog({
       db: tx,
@@ -148,11 +162,15 @@ export async function PATCH(
       actorId,
       actorName,
       before: { status: report.status },
-      after: { status: result.status, lineItemsReplaced: parsed.data.lineItems !== undefined, lineItemCount: result.lineItems.length },
+      after: { status: result!.status, lineItemsReplaced: parsed.data.lineItems !== undefined, lineItemCount: result!.lineItems.length },
     })
 
     return result
   })
+
+  if (updated === null) {
+    return NextResponse.json({ error: 'Conflict — expense was already submitted' }, { status: 409 })
+  }
 
   return NextResponse.json({ report: updated })
 }

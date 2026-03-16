@@ -6,6 +6,8 @@ const {
   mockCanViewTeamExpenses,
   mockExpenseReportFindUnique,
   mockExpenseReportUpdate,
+  mockExpenseReportUpdateMany,
+  mockExpenseReportFindUniqueInTx,
   mockEmployeeFindUnique,
   mockEmployeeFindMany,
   mockAuditLogFindMany,
@@ -30,6 +32,8 @@ const {
   mockLineItemCreateMany: vi.fn(),
   mockTransaction: vi.fn(),
   mockStartInstance: vi.fn(),
+  mockExpenseReportUpdateMany: vi.fn(),
+  mockExpenseReportFindUniqueInTx: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: mockAuth }))
@@ -44,6 +48,7 @@ vi.mock('@/db/client', () => ({
     expenseReport: {
       findUnique: mockExpenseReportFindUnique,
       update: mockExpenseReportUpdate,
+      updateMany: mockExpenseReportUpdateMany,
     },
     employee: { findUnique: mockEmployeeFindUnique, findMany: mockEmployeeFindMany },
     expenseLineItem: {
@@ -210,6 +215,9 @@ describe('PATCH /api/expenses/[id]', () => {
       id: 'emp-1',
       manager: { user: { id: 'user-mgr' } },
     })
+    // Default SUBMITTED-path tx mocks
+    mockExpenseReportUpdateMany.mockResolvedValue({ count: 1 })
+    mockExpenseReportFindUniqueInTx.mockResolvedValue({ ...BASE_REPORT, status: 'SUBMITTED', workflowInstanceId: 'wf-instance-1', lineItems: [] })
     // Default $transaction: call the callback with a tx object
     mockTransaction.mockImplementation(async (cb: (tx: unknown) => unknown) => {
       const tx = {
@@ -217,7 +225,11 @@ describe('PATCH /api/expenses/[id]', () => {
           deleteMany: mockLineItemDeleteMany,
           createMany: mockLineItemCreateMany,
         },
-        expenseReport: { update: mockExpenseReportUpdate },
+        expenseReport: {
+          update: mockExpenseReportUpdate,
+          updateMany: mockExpenseReportUpdateMany,
+          findUnique: mockExpenseReportFindUniqueInTx,
+        },
         auditLog: { create: mockAuditLogCreate },
       }
       return cb(tx)
@@ -352,15 +364,14 @@ describe('PATCH /api/expenses/[id]', () => {
   it('should allow resubmitting a REJECTED report', async () => {
     mockAuth.mockResolvedValue(SESSION)
     mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'REJECTED' })
-    const updatedReport = { ...BASE_REPORT, status: 'SUBMITTED', lineItems: [] }
-    mockExpenseReportUpdate.mockResolvedValue(updatedReport)
 
     const res = await PATCH(makePatchRequest({ status: 'SUBMITTED' }), PARAMS)
 
     expect(res._status).toBe(200)
     expect((res._data as any).report.status).toBe('SUBMITTED')
-    expect(mockExpenseReportUpdate).toHaveBeenCalledWith(
+    expect(mockExpenseReportUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: expect.objectContaining({ id: 'exp-1', status: { in: ['DRAFT', 'REJECTED'] } }),
         data: expect.objectContaining({ status: 'SUBMITTED' }),
       }),
     )
@@ -410,12 +421,6 @@ describe('PATCH /api/expenses/[id]', () => {
   it('should start workflow instance when submitting', async () => {
     mockAuth.mockResolvedValue(SESSION)
     mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'DRAFT' })
-    mockExpenseReportUpdate.mockResolvedValue({
-      ...BASE_REPORT,
-      status: 'SUBMITTED',
-      workflowInstanceId: 'wf-instance-1',
-      lineItems: [],
-    })
 
     const res = await PATCH(makePatchRequest({ status: 'SUBMITTED' }), PARAMS)
 
@@ -425,11 +430,23 @@ describe('PATCH /api/expenses/[id]', () => {
       expect.objectContaining({ expenseId: 'exp-1', employeeId: 'emp-1', managerId: 'user-mgr' }),
       expect.any(String),
     )
-    expect(mockExpenseReportUpdate).toHaveBeenCalledWith(
+    expect(mockExpenseReportUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: expect.objectContaining({ status: { in: ['DRAFT', 'REJECTED'] } }),
         data: expect.objectContaining({ status: 'SUBMITTED', workflowInstanceId: 'wf-instance-1' }),
       }),
     )
+  })
+
+  it('should return 409 when concurrent submission wins the race (updateMany count=0)', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'REJECTED' })
+    mockExpenseReportUpdateMany.mockResolvedValue({ count: 0 })
+
+    const res = await PATCH(makePatchRequest({ status: 'SUBMITTED' }), PARAMS)
+
+    expect(res._status).toBe(409)
+    expect(mockExpenseReportFindUniqueInTx).not.toHaveBeenCalled()
   })
 
   it('should not start workflow when only line items are patched', async () => {
