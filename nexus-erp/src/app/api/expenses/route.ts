@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { ExpenseReportStatus } from '@prisma/client'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
 import { createAuditLog } from '@/lib/audit'
@@ -44,7 +45,11 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
-  const status = searchParams.get('status') ?? undefined
+  const rawStatus = searchParams.get('status')
+  const status =
+    rawStatus && Object.values(ExpenseReportStatus).includes(rawStatus as ExpenseReportStatus)
+      ? (rawStatus as ExpenseReportStatus)
+      : undefined
 
   const expenses = await db.expenseReport.findMany({
     where: {
@@ -53,7 +58,7 @@ export async function GET(req: NextRequest) {
           ? { employeeId: employeeIdFilter }
           : { employeeId: employeeIdFilter }
         : {}),
-      ...(status ? { status: status as never } : {}),
+      ...(status ? { status } : {}),
     },
     include: {
       lineItems: { orderBy: { date: 'asc' } },

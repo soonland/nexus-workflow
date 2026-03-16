@@ -163,6 +163,18 @@ describe('GET /api/expenses', () => {
     )
   })
 
+  it('should ignore invalid status query param', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockCanViewAllExpenses.mockResolvedValue(false)
+    mockCanViewTeamExpenses.mockReturnValue(false)
+    mockExpenseReportFindMany.mockResolvedValue([])
+
+    await GET(makeGetRequest('http://localhost/api/expenses?status=HACKED'))
+
+    const callArg = mockExpenseReportFindMany.mock.calls[0][0]
+    expect(callArg.where).not.toHaveProperty('status')
+  })
+
   it('should not include status in where clause when no status param', async () => {
     mockAuth.mockResolvedValue(SESSION)
     mockCanViewAllExpenses.mockResolvedValue(false)

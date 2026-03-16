@@ -22,10 +22,25 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const EDITABLE = new Set(['DRAFT', 'REJECTED'])
+  if (!EDITABLE.has(report.status)) {
+    return NextResponse.json({ error: 'Cannot modify a report in this status' }, { status: 422 })
+  }
+
   const formData = await req.formData()
   const file = formData.get('file')
   if (!file || !(file instanceof Blob)) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+  }
+
+  const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
+  if (file.size > MAX_BYTES) {
+    return NextResponse.json({ error: 'File too large' }, { status: 413 })
+  }
+
+  const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf'])
+  if (!ALLOWED_TYPES.has(file.type)) {
+    return NextResponse.json({ error: 'Unsupported file type' }, { status: 415 })
   }
 
   const originalName = file instanceof File ? file.name : 'receipt'

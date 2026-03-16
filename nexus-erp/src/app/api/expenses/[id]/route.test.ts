@@ -203,6 +203,7 @@ describe('PATCH /api/expenses/[id]', () => {
           createMany: mockLineItemCreateMany,
         },
         expenseReport: { update: mockExpenseReportUpdate },
+        auditLog: { create: mockAuditLogCreate },
       }
       return cb(tx)
     })
@@ -255,6 +256,24 @@ describe('PATCH /api/expenses/[id]', () => {
     mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
     const res = await PATCH(makePatchRequest({ status: 'APPROVED' }), PARAMS)
     expect(res._status).toBe(400)
+  })
+
+  it('should return 422 when editing line items on a SUBMITTED report', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'SUBMITTED' })
+    const res = await PATCH(makePatchRequest({
+      lineItems: [{ date: '2025-01-15', category: 'MEALS', amount: 50 }],
+    }), PARAMS)
+    expect(res._status).toBe(422)
+  })
+
+  it('should return 422 when editing line items on an APPROVED_MANAGER report', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'APPROVED_MANAGER' })
+    const res = await PATCH(makePatchRequest({
+      lineItems: [{ date: '2025-01-15', category: 'MEALS', amount: 50 }],
+    }), PARAMS)
+    expect(res._status).toBe(422)
   })
 
   it('should return 422 when trying to resubmit a non-rejected report', async () => {

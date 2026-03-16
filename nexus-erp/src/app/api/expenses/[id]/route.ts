@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
-import { createAuditLog } from '@/lib/audit'
 import { canViewAllExpenses, canViewTeamExpenses } from '@/lib/expenseAccess'
 
 const lineItemSchema = z.object({
@@ -85,6 +84,14 @@ export async function PATCH(
     return NextResponse.json({ error: 'Only rejected reports can be resubmitted' }, { status: 422 })
   }
 
+  const EDITABLE_STATUSES = new Set(['DRAFT', 'REJECTED'])
+  if (parsed.data.lineItems && !EDITABLE_STATUSES.has(report.status)) {
+    return NextResponse.json({ error: 'Line items cannot be edited in this status' }, { status: 422 })
+  }
+
+  const actorId = session.user.id
+  const actorName = session.user.email ?? session.user.id
+
   const updated = await db.$transaction(async (tx) => {
     if (parsed.data.lineItems) {
       await tx.expenseLineItem.deleteMany({ where: { reportId: id } })
@@ -99,22 +106,25 @@ export async function PATCH(
       })
     }
 
-    return tx.expenseReport.update({
+    const result = await tx.expenseReport.update({
       where: { id },
       data: parsed.data.status ? { status: parsed.data.status } : {},
       include: { lineItems: { orderBy: { date: 'asc' } } },
     })
-  })
 
-  await createAuditLog({
-    db,
-    entityType: 'ExpenseReport',
-    entityId: id,
-    action: 'UPDATE',
-    actorId: session.user.id,
-    actorName: session.user.email ?? session.user.id,
-    before: { status: report.status },
-    after: { status: updated.status },
+    await tx.auditLog.create({
+      data: {
+        entityType: 'ExpenseReport',
+        entityId: id,
+        action: 'UPDATE',
+        actorId,
+        actorName,
+        before: { status: report.status },
+        after: { status: result.status },
+      },
+    })
+
+    return result
   })
 
   return NextResponse.json({ report: updated })

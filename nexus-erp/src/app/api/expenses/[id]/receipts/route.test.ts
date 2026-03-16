@@ -113,6 +113,30 @@ describe('POST /api/expenses/[id]/receipts', () => {
     expect(res._status).toBe(403)
   })
 
+  it('should return 422 when report is in a non-editable status', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'APPROVED_ACCOUNTING' })
+    const res = await POST(makeRequest(makeMockFile()), PARAMS)
+    expect(res._status).toBe(422)
+  })
+
+  it('should return 413 when file exceeds 10MB', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
+    const largeFile = new File(['x'], 'big.pdf', { type: 'application/pdf' })
+    Object.defineProperty(largeFile, 'size', { value: 11 * 1024 * 1024 })
+    const res = await POST(makeRequest(largeFile), PARAMS)
+    expect(res._status).toBe(413)
+  })
+
+  it('should return 415 when file type is not allowed', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
+    const htmlFile = new File(['<script>alert(1)</script>'], 'evil.html', { type: 'text/html' })
+    const res = await POST(makeRequest(htmlFile), PARAMS)
+    expect(res._status).toBe(415)
+  })
+
   it('should return 400 when no file is provided in the form data', async () => {
     mockAuth.mockResolvedValue(SESSION)
     mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
