@@ -238,6 +238,13 @@ describe('PATCH /api/expenses/[id]', () => {
     expect(res._status).toBe(403)
   })
 
+  it('should return 400 when body is empty (no lineItems or status)', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
+    const res = await PATCH(makePatchRequest({}), PARAMS)
+    expect(res._status).toBe(400)
+  })
+
   it('should return 400 when lineItems array is empty', async () => {
     mockAuth.mockResolvedValue(SESSION)
     mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)

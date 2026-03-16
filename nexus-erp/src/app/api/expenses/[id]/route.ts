@@ -18,6 +18,8 @@ const lineItemSchema = z.object({
 const patchSchema = z.object({
   lineItems: z.array(lineItemSchema).min(1).optional(),
   status: z.literal('SUBMITTED').optional(),
+}).refine((d) => d.lineItems !== undefined || d.status !== undefined, {
+  message: 'At least one of lineItems or status must be provided',
 })
 
 export async function GET(
