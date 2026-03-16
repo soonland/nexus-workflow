@@ -212,7 +212,7 @@ export async function POST(
             action: 'UPDATE',
             actorId: session.user.id,
             actorName: session.user.email ?? session.user.id,
-            before: { status: expense.status },
+            before: { status: expectedPreviousStatus },
             after: { status: newStatus, ...(rejectionReason ? { rejectionReason } : {}) },
           })
         }
