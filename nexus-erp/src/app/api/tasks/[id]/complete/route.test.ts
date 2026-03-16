@@ -14,6 +14,7 @@ const {
   mockExpenseReportFindFirst,
   mockExpenseReportUpdate,
   mockExpenseReportUpdateMany,
+  mockAuditLogCreate,
   mockGetEffectivePermissions,
 } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
@@ -29,6 +30,7 @@ const {
   mockExpenseReportFindFirst: vi.fn(),
   mockExpenseReportUpdate: vi.fn(),
   mockExpenseReportUpdateMany: vi.fn(),
+  mockAuditLogCreate: vi.fn(),
   mockGetEffectivePermissions: vi.fn(),
 }))
 
@@ -46,7 +48,7 @@ vi.mock('@/db/client', () => ({
       update: mockExpenseReportUpdate,
       updateMany: mockExpenseReportUpdateMany,
     },
-    auditLog: { create: vi.fn().mockResolvedValue({}) },
+    auditLog: { create: mockAuditLogCreate },
   },
 }))
 vi.mock('next/server', () => {
@@ -198,6 +200,7 @@ describe('expense status sync', () => {
     mockDbOrgFindFirst.mockResolvedValue(null)
     mockDbPRFindUnique.mockResolvedValue(null)
     mockExpenseReportUpdateMany.mockResolvedValue({ count: 1 })
+    mockAuditLogCreate.mockResolvedValue({})
   })
 
   it('should set expense to APPROVED_MANAGER when manager approves', async () => {
@@ -218,6 +221,9 @@ describe('expense status sync', () => {
       where: { id: 'exp-1', status: 'SUBMITTED' },
       data: { status: 'APPROVED_MANAGER' },
     })
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ before: { status: 'SUBMITTED' } }) }),
+    )
   })
 
   it('should set expense to REJECTED when manager rejects', async () => {
@@ -238,6 +244,9 @@ describe('expense status sync', () => {
       where: { id: 'exp-1', status: 'SUBMITTED' },
       data: { status: 'REJECTED' },
     })
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ before: { status: 'SUBMITTED' } }) }),
+    )
   })
 
   it('should set expense to REIMBURSED when accounting approves', async () => {
@@ -258,6 +267,9 @@ describe('expense status sync', () => {
       where: { id: 'exp-1', status: 'APPROVED_MANAGER' },
       data: { status: 'REIMBURSED' },
     })
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ before: { status: 'APPROVED_MANAGER' } }) }),
+    )
   })
 
   it('should set expense to REJECTED when accounting rejects', async () => {
@@ -278,6 +290,9 @@ describe('expense status sync', () => {
       where: { id: 'exp-1', status: 'APPROVED_MANAGER' },
       data: { status: 'REJECTED' },
     })
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ before: { status: 'APPROVED_MANAGER' } }) }),
+    )
   })
 
   it('should skip update when updateMany matches nothing (duplicate completion)', async () => {
