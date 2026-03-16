@@ -2,7 +2,7 @@ import type { PrismaClient } from '@prisma/client'
 import { getEffectivePermissions } from './permissions'
 
 interface Session {
-  user: { id: string }
+  user: { id: string; role?: string }
 }
 
 /**
@@ -18,4 +18,12 @@ export async function canViewAllExpenses(
 ): Promise<boolean> {
   const perms = await getEffectivePermissions(session.user.id, db)
   return perms.includes('expenses:accounting-approve')
+}
+
+/**
+ * Returns true if the session user is a manager and can view their direct
+ * reports' expenses.
+ */
+export function canViewTeamExpenses(session: Session): boolean {
+  return session.user.role === 'manager'
 }
