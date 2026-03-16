@@ -7,7 +7,8 @@ const {
   mockExpenseReportFindMany,
   mockExpenseReportCreate,
   mockEmployeeFindMany,
-  mockAuditLogCreate,
+  mockCreateAuditLog,
+  mockTransaction,
 } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   mockCanViewAllExpenses: vi.fn(),
@@ -15,7 +16,8 @@ const {
   mockExpenseReportFindMany: vi.fn(),
   mockExpenseReportCreate: vi.fn(),
   mockEmployeeFindMany: vi.fn(),
-  mockAuditLogCreate: vi.fn(),
+  mockCreateAuditLog: vi.fn().mockResolvedValue(undefined),
+  mockTransaction: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: mockAuth }))
@@ -23,7 +25,7 @@ vi.mock('@/lib/expenseAccess', () => ({
   canViewAllExpenses: mockCanViewAllExpenses,
   canViewTeamExpenses: mockCanViewTeamExpenses,
 }))
-vi.mock('@/lib/audit', () => ({ createAuditLog: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('@/lib/audit', () => ({ createAuditLog: mockCreateAuditLog }))
 vi.mock('@/db/client', () => ({
   db: {
     expenseReport: {
@@ -31,7 +33,7 @@ vi.mock('@/db/client', () => ({
       create: mockExpenseReportCreate,
     },
     employee: { findMany: mockEmployeeFindMany },
-    auditLog: { create: mockAuditLogCreate },
+    $transaction: mockTransaction,
   },
 }))
 vi.mock('next/server', () => {
@@ -191,6 +193,14 @@ describe('GET /api/expenses', () => {
 describe('POST /api/expenses', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCreateAuditLog.mockResolvedValue(undefined)
+    mockTransaction.mockImplementation(async (cb: (tx: unknown) => unknown) => {
+      const tx = {
+        expenseReport: { create: mockExpenseReportCreate },
+        auditLog: { create: vi.fn() },
+      }
+      return cb(tx)
+    })
   })
 
   it('should return 403 when session has no employeeId', async () => {

@@ -58,6 +58,13 @@ export async function POST(
   const buffer = Buffer.from(await file.arrayBuffer())
   const receiptPath = `/uploads/receipts/${filename}`
 
+  // Delete the previous receipt file before writing the new one so old files
+  // don't accumulate on disk. Ignore ENOENT (nothing to delete on first upload).
+  if (report.receiptPath) {
+    const oldPath = join(process.cwd(), 'public', report.receiptPath)
+    await unlink(oldPath).catch(() => {})
+  }
+
   await writeFile(filePath, buffer)
 
   try {

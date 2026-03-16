@@ -81,29 +81,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' }, { status: 400 })
   }
 
-  const report = await db.expenseReport.create({
-    data: {
-      employeeId: session.user.employeeId,
-      lineItems: {
-        create: parsed.data.lineItems.map((item) => ({
-          date: new Date(item.date),
-          category: item.category,
-          amount: item.amount,
-          description: item.description,
-        })),
-      },
-    },
-    include: { lineItems: true },
-  })
+  const employeeId = session.user.employeeId
 
-  await createAuditLog({
-    db,
-    entityType: 'ExpenseReport',
-    entityId: report.id,
-    action: 'CREATE',
-    actorId: session.user.id,
-    actorName: session.user.email ?? session.user.id,
-    after: { id: report.id, employeeId: report.employeeId, status: report.status },
+  const report = await db.$transaction(async (tx) => {
+    const created = await tx.expenseReport.create({
+      data: {
+        employeeId,
+        lineItems: {
+          create: parsed.data.lineItems.map((item) => ({
+            date: new Date(item.date),
+            category: item.category,
+            amount: item.amount,
+            description: item.description,
+          })),
+        },
+      },
+      include: { lineItems: true },
+    })
+
+    await createAuditLog({
+      db: tx,
+      entityType: 'ExpenseReport',
+      entityId: created.id,
+      action: 'CREATE',
+      actorId: session.user.id,
+      actorName: session.user.email ?? session.user.id,
+      after: { id: created.id, employeeId: created.employeeId, status: created.status },
+    })
+
+    return created
   })
 
   return NextResponse.json({ report }, { status: 201 })
