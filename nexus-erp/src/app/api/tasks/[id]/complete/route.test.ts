@@ -13,6 +13,8 @@ const {
   mockDbEmpUpdate,
   mockExpenseReportFindFirst,
   mockExpenseReportUpdate,
+  mockExpenseReportUpdateMany,
+  mockGetEffectivePermissions,
 } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   mockGetTask: vi.fn(),
@@ -26,17 +28,24 @@ const {
   mockDbEmpUpdate: vi.fn(),
   mockExpenseReportFindFirst: vi.fn(),
   mockExpenseReportUpdate: vi.fn(),
+  mockExpenseReportUpdateMany: vi.fn(),
+  mockGetEffectivePermissions: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: mockAuth }))
 vi.mock('@/lib/workflow', () => ({ getTask: mockGetTask, completeTask: mockCompleteTask }))
+vi.mock('@/lib/permissions', () => ({ getEffectivePermissions: mockGetEffectivePermissions }))
 vi.mock('@/db/client', () => ({
   db: {
     timesheet: { findFirst: mockDbTsFindFirst, update: mockDbTsUpdate },
     organization: { findFirst: mockDbOrgFindFirst, update: mockDbOrgUpdate },
     employeeProfileUpdateRequest: { findUnique: mockDbPRFindUnique, update: mockDbPRUpdate },
     employee: { update: mockDbEmpUpdate },
-    expenseReport: { findFirst: mockExpenseReportFindFirst, update: mockExpenseReportUpdate },
+    expenseReport: {
+      findFirst: mockExpenseReportFindFirst,
+      update: mockExpenseReportUpdate,
+      updateMany: mockExpenseReportUpdateMany,
+    },
     auditLog: { create: vi.fn().mockResolvedValue({}) },
   },
 }))
@@ -188,6 +197,7 @@ describe('expense status sync', () => {
     mockDbTsFindFirst.mockResolvedValue(null)
     mockDbOrgFindFirst.mockResolvedValue(null)
     mockDbPRFindUnique.mockResolvedValue(null)
+    mockExpenseReportUpdateMany.mockResolvedValue({ count: 1 })
   })
 
   it('should set expense to APPROVED_MANAGER when manager approves', async () => {
@@ -200,13 +210,12 @@ describe('expense status sync', () => {
       status: 'SUBMITTED',
       workflowInstanceId: 'inst-1',
     })
-    mockExpenseReportUpdate.mockResolvedValue({ id: 'exp-1', status: 'APPROVED_MANAGER' })
 
     const res = await POST(makeRequest({ decision: 'approved' }), PARAMS)
 
     expect(res._status).toBe(200)
-    expect(mockExpenseReportUpdate).toHaveBeenCalledWith({
-      where: { id: 'exp-1' },
+    expect(mockExpenseReportUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'exp-1', status: 'SUBMITTED' },
       data: { status: 'APPROVED_MANAGER' },
     })
   })
@@ -221,13 +230,12 @@ describe('expense status sync', () => {
       status: 'SUBMITTED',
       workflowInstanceId: 'inst-1',
     })
-    mockExpenseReportUpdate.mockResolvedValue({ id: 'exp-1', status: 'REJECTED' })
 
     const res = await POST(makeRequest({ decision: 'rejected' }), PARAMS)
 
     expect(res._status).toBe(200)
-    expect(mockExpenseReportUpdate).toHaveBeenCalledWith({
-      where: { id: 'exp-1' },
+    expect(mockExpenseReportUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'exp-1', status: 'SUBMITTED' },
       data: { status: 'REJECTED' },
     })
   })
@@ -242,13 +250,12 @@ describe('expense status sync', () => {
       status: 'APPROVED_MANAGER',
       workflowInstanceId: 'inst-1',
     })
-    mockExpenseReportUpdate.mockResolvedValue({ id: 'exp-1', status: 'REIMBURSED' })
 
     const res = await POST(makeRequest({ decision: 'approved' }), PARAMS)
 
     expect(res._status).toBe(200)
-    expect(mockExpenseReportUpdate).toHaveBeenCalledWith({
-      where: { id: 'exp-1' },
+    expect(mockExpenseReportUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'exp-1', status: 'APPROVED_MANAGER' },
       data: { status: 'REIMBURSED' },
     })
   })
@@ -263,15 +270,52 @@ describe('expense status sync', () => {
       status: 'APPROVED_MANAGER',
       workflowInstanceId: 'inst-1',
     })
-    mockExpenseReportUpdate.mockResolvedValue({ id: 'exp-1', status: 'REJECTED' })
 
     const res = await POST(makeRequest({ decision: 'rejected' }), PARAMS)
 
     expect(res._status).toBe(200)
-    expect(mockExpenseReportUpdate).toHaveBeenCalledWith({
-      where: { id: 'exp-1' },
+    expect(mockExpenseReportUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'exp-1', status: 'APPROVED_MANAGER' },
       data: { status: 'REJECTED' },
     })
+  })
+
+  it('should skip update when updateMany matches nothing (duplicate completion)', async () => {
+    mockGetTask.mockResolvedValue({
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review' },
+      variables: { expenseId: 'exp-1' },
+    })
+    mockExpenseReportFindFirst.mockResolvedValue({
+      id: 'exp-1',
+      status: 'APPROVED_MANAGER', // already advanced — count=0
+      workflowInstanceId: 'inst-1',
+    })
+    mockExpenseReportUpdateMany.mockResolvedValue({ count: 0 })
+
+    const res = await POST(makeRequest({ decision: 'approved' }), PARAMS)
+
+    expect(res._status).toBe(200)
+    expect(mockExpenseReportUpdateMany).toHaveBeenCalled()
+  })
+
+  it('should skip update and log error for unknown elementId', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mockGetTask.mockResolvedValue({
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_unknown' },
+      variables: { expenseId: 'exp-1' },
+    })
+    mockExpenseReportFindFirst.mockResolvedValue({
+      id: 'exp-1',
+      status: 'SUBMITTED',
+      workflowInstanceId: 'inst-1',
+    })
+
+    const res = await POST(makeRequest({ decision: 'approved' }), PARAMS)
+
+    expect(res._status).toBe(200)
+    expect(mockExpenseReportUpdateMany).not.toHaveBeenCalled()
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('task_unknown'))
+    consoleSpy.mockRestore()
   })
 
   it('should return 400 for revision_requested on an expense task', async () => {
@@ -284,7 +328,7 @@ describe('expense status sync', () => {
 
     expect(res._status).toBe(400)
     expect(mockCompleteTask).not.toHaveBeenCalled()
-    expect(mockExpenseReportUpdate).not.toHaveBeenCalled()
+    expect(mockExpenseReportUpdateMany).not.toHaveBeenCalled()
   })
 
   it('should not update expense when variables has no expenseId', async () => {
@@ -297,5 +341,79 @@ describe('expense status sync', () => {
 
     expect(res._status).toBe(200)
     expect(mockExpenseReportFindFirst).not.toHaveBeenCalled()
+  })
+})
+
+describe('task authorization', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAuth.mockResolvedValue({ user: { id: 'user-1', email: 'user@example.com' } })
+    mockCompleteTask.mockResolvedValue(undefined)
+    mockDbTsFindFirst.mockResolvedValue(null)
+    mockDbOrgFindFirst.mockResolvedValue(null)
+    mockDbPRFindUnique.mockResolvedValue(null)
+    mockExpenseReportFindFirst.mockResolvedValue(null)
+  })
+
+  it('should return 200 when session user matches direct assignee', async () => {
+    mockGetTask.mockResolvedValue({
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review', assignee: 'user-1' },
+      variables: {},
+    })
+
+    const res = await POST(makeRequest({ decision: 'approved' }), PARAMS)
+
+    expect(res._status).toBe(200)
+    expect(mockCompleteTask).toHaveBeenCalled()
+  })
+
+  it('should return 403 when session user does not match direct assignee', async () => {
+    mockGetTask.mockResolvedValue({
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review', assignee: 'other-user' },
+      variables: {},
+    })
+
+    const res = await POST(makeRequest({ decision: 'approved' }), PARAMS)
+
+    expect(res._status).toBe(403)
+    expect(mockCompleteTask).not.toHaveBeenCalled()
+  })
+
+  it('should return 200 when user holds the required permission-based assignee', async () => {
+    mockGetTask.mockResolvedValue({
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_accounting_review', assignee: 'perm:expenses:accounting-approve' },
+      variables: {},
+    })
+    mockGetEffectivePermissions.mockResolvedValue(['expenses:accounting-approve'])
+
+    const res = await POST(makeRequest({ decision: 'approved' }), PARAMS)
+
+    expect(res._status).toBe(200)
+    expect(mockCompleteTask).toHaveBeenCalled()
+  })
+
+  it('should return 403 when user lacks the required permission-based assignee', async () => {
+    mockGetTask.mockResolvedValue({
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_accounting_review', assignee: 'perm:expenses:accounting-approve' },
+      variables: {},
+    })
+    mockGetEffectivePermissions.mockResolvedValue([])
+
+    const res = await POST(makeRequest({ decision: 'approved' }), PARAMS)
+
+    expect(res._status).toBe(403)
+    expect(mockCompleteTask).not.toHaveBeenCalled()
+  })
+
+  it('should skip authorization check when task has no assignee', async () => {
+    mockGetTask.mockResolvedValue({
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review' }, // no assignee
+      variables: {},
+    })
+
+    const res = await POST(makeRequest({ decision: 'approved' }), PARAMS)
+
+    expect(res._status).toBe(200)
+    expect(mockCompleteTask).toHaveBeenCalled()
   })
 })

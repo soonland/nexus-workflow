@@ -4,6 +4,7 @@ import { auth } from '@/auth'
 import { completeTask, getTask } from '@/lib/workflow'
 import { db } from '@/db/client'
 import { createAuditLog } from '@/lib/audit'
+import { getEffectivePermissions } from '@/lib/permissions'
 
 const completeSchema = z.object({
   decision: z.enum(['approved', 'rejected', 'revision_requested']),
@@ -38,6 +39,22 @@ export async function POST(
 
   const instanceId = taskData.task.instanceId
   const variables = taskData.variables as Record<string, unknown>
+
+  // Authorization: the workflow engine does not validate completedBy against the assignee,
+  // so enforce it here. Permission-based assignees (perm:*) require the user to hold the
+  // named permission; direct assignees must match the session user exactly.
+  const taskAssignee = taskData.task.assignee
+  if (taskAssignee) {
+    if (taskAssignee.startsWith('perm:')) {
+      const permKey = taskAssignee.slice('perm:'.length)
+      const perms = await getEffectivePermissions(session.user.id, db)
+      if (!perms.includes(permKey)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else if (taskAssignee !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+  }
 
   // Expense approval BPMN has no revision loop — only 'approved' or 'rejected' are valid.
   // 'revision_requested' would silently take the default (rejected) branch and permanently
@@ -166,29 +183,37 @@ export async function POST(
     if (expense) {
       const elementId = taskData.task.elementId
 
-      let newStatus: 'APPROVED_MANAGER' | 'REIMBURSED' | 'REJECTED'
+      let newStatus: 'APPROVED_MANAGER' | 'REIMBURSED' | 'REJECTED' | undefined
+      let expectedPreviousStatus: 'SUBMITTED' | 'APPROVED_MANAGER' | undefined
       if (elementId === 'task_manager_review') {
         newStatus = decision === 'approved' ? 'APPROVED_MANAGER' : 'REJECTED'
-      } else {
-        // task_accounting_review
+        expectedPreviousStatus = 'SUBMITTED'
+      } else if (elementId === 'task_accounting_review') {
         newStatus = decision === 'approved' ? 'REIMBURSED' : 'REJECTED'
+        expectedPreviousStatus = 'APPROVED_MANAGER'
+      } else {
+        console.error(`[expense] unrecognized task elementId "${elementId}" for expense ${expense.id} — skipping status sync`)
       }
 
-      const updatedExpense = await db.expenseReport.update({
-        where: { id: expense.id },
-        data: { status: newStatus },
-      })
+      if (newStatus !== undefined && expectedPreviousStatus !== undefined) {
+        const { count } = await db.expenseReport.updateMany({
+          where: { id: expense.id, status: expectedPreviousStatus },
+          data: { status: newStatus },
+        })
 
-      await createAuditLog({
-        db,
-        entityType: 'ExpenseReport',
-        entityId: expense.id,
-        action: 'UPDATE',
-        actorId: session.user.id,
-        actorName: session.user.email ?? session.user.id,
-        before: { status: expense.status },
-        after: { status: updatedExpense.status, ...(rejectionReason ? { rejectionReason } : {}) },
-      })
+        if (count > 0) {
+          await createAuditLog({
+            db,
+            entityType: 'ExpenseReport',
+            entityId: expense.id,
+            action: 'UPDATE',
+            actorId: session.user.id,
+            actorName: session.user.email ?? session.user.id,
+            before: { status: expense.status },
+            after: { status: newStatus, ...(rejectionReason ? { rejectionReason } : {}) },
+          })
+        }
+      }
     }
   }
 

@@ -112,7 +112,7 @@ export async function PATCH(
     const instance = await startInstance(
       'expense-approval',
       { expenseId: id, employeeId: report.employeeId, managerId: employee.manager.user.id },
-      `expense-${id}-${Date.now()}`,
+      `expense-${id}-${crypto.randomUUID()}`,
     )
     workflowInstanceId = instance.id
   }
