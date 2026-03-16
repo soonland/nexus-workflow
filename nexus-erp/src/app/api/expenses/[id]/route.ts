@@ -4,6 +4,7 @@ import { db } from '@/db/client'
 import { auth } from '@/auth'
 import { createAuditLog } from '@/lib/audit'
 import { canViewAllExpenses, canViewTeamExpenses } from '@/lib/expenseAccess'
+import { startInstance } from '@/lib/workflow'
 
 const lineItemSchema = z.object({
   date: z
@@ -98,6 +99,24 @@ export async function PATCH(
   const actorId = session.user.id
   const actorName = session.user.email ?? session.user.id
 
+  // When submitting, start the approval workflow
+  let workflowInstanceId: string | undefined
+  if (parsed.data.status === 'SUBMITTED') {
+    const employee = await db.employee.findUnique({
+      where: { id: report.employeeId },
+      include: { manager: { include: { user: { select: { id: true } } } } },
+    })
+    if (!employee?.manager?.user) {
+      return NextResponse.json({ error: 'No manager assigned — cannot submit for approval' }, { status: 422 })
+    }
+    const instance = await startInstance(
+      'expense-approval',
+      { expenseId: id, employeeId: report.employeeId, managerId: employee.manager.user.id },
+      `expense-${id}-${crypto.randomUUID()}`,
+    )
+    workflowInstanceId = instance.id
+  }
+
   const updated = await db.$transaction(async (tx) => {
     if (parsed.data.lineItems) {
       await tx.expenseLineItem.deleteMany({ where: { reportId: id } })
@@ -112,11 +131,29 @@ export async function PATCH(
       })
     }
 
-    const result = await tx.expenseReport.update({
-      where: { id },
-      data: parsed.data.status ? { status: parsed.data.status } : {},
-      include: { lineItems: { orderBy: { date: 'asc' } } },
-    })
+    // When advancing to SUBMITTED, use updateMany with a status guard to prevent
+    // double-submission races. A concurrent request that also passed the pre-transaction
+    // status check will see count=0 and be turned away as a 409, keeping its
+    // newly-started workflow instance from running to completion untracked.
+    let result
+    if (workflowInstanceId) {
+      const { count } = await tx.expenseReport.updateMany({
+        where: { id, status: { in: ['DRAFT', 'REJECTED'] } },
+        data: { status: 'SUBMITTED', workflowInstanceId },
+      })
+      if (count === 0) return null // race lost — another request already advanced the status
+      result = await tx.expenseReport.findUnique({
+        where: { id },
+        include: { lineItems: { orderBy: { date: 'asc' } } },
+      })
+      if (!result) return null
+    } else {
+      result = await tx.expenseReport.update({
+        where: { id },
+        data: parsed.data.status ? { status: parsed.data.status } : {},
+        include: { lineItems: { orderBy: { date: 'asc' } } },
+      })
+    }
 
     await createAuditLog({
       db: tx,
@@ -131,6 +168,10 @@ export async function PATCH(
 
     return result
   })
+
+  if (updated === null) {
+    return NextResponse.json({ error: 'Conflict — expense was already submitted' }, { status: 409 })
+  }
 
   return NextResponse.json({ report: updated })
 }
