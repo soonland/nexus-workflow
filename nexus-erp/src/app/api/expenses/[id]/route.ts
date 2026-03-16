@@ -179,6 +179,22 @@ export async function PATCH(
         console.error(`[expense] failed to cancel orphaned workflow instance ${workflowInstanceId}:`, err)
       }
     }
+    // Emit a CONFLICT audit entry so there is a searchable record that a SUBMIT
+    // was attempted and lost the race. Written outside the (rolled-back) transaction.
+    try {
+      await createAuditLog({
+        db,
+        entityType: 'ExpenseReport',
+        entityId: id,
+        action: 'CONFLICT',
+        actorId,
+        actorName,
+        before: { status: report.status },
+        after: { conflict: true, workflowInstanceId: workflowInstanceId ?? null },
+      })
+    } catch (err) {
+      console.error('[expense-submit] failed to write conflict audit log:', err)
+    }
     return NextResponse.json({ error: 'Conflict — expense was already submitted' }, { status: 409 })
   }
 
