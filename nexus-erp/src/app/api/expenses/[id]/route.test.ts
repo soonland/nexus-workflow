@@ -6,6 +6,7 @@ const {
   mockCanViewTeamExpenses,
   mockExpenseReportFindUnique,
   mockExpenseReportUpdate,
+  mockEmployeeFindUnique,
   mockEmployeeFindMany,
   mockAuditLogFindMany,
   mockAuditLogCreate,
@@ -13,12 +14,14 @@ const {
   mockLineItemDeleteMany,
   mockLineItemCreateMany,
   mockTransaction,
+  mockStartInstance,
 } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   mockCanViewAllExpenses: vi.fn(),
   mockCanViewTeamExpenses: vi.fn(),
   mockExpenseReportFindUnique: vi.fn(),
   mockExpenseReportUpdate: vi.fn(),
+  mockEmployeeFindUnique: vi.fn(),
   mockEmployeeFindMany: vi.fn(),
   mockAuditLogFindMany: vi.fn(),
   mockAuditLogCreate: vi.fn(),
@@ -26,6 +29,7 @@ const {
   mockLineItemDeleteMany: vi.fn(),
   mockLineItemCreateMany: vi.fn(),
   mockTransaction: vi.fn(),
+  mockStartInstance: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: mockAuth }))
@@ -34,13 +38,14 @@ vi.mock('@/lib/expenseAccess', () => ({
   canViewTeamExpenses: mockCanViewTeamExpenses,
 }))
 vi.mock('@/lib/audit', () => ({ createAuditLog: mockCreateAuditLog }))
+vi.mock('@/lib/workflow', () => ({ startInstance: mockStartInstance }))
 vi.mock('@/db/client', () => ({
   db: {
     expenseReport: {
       findUnique: mockExpenseReportFindUnique,
       update: mockExpenseReportUpdate,
     },
-    employee: { findMany: mockEmployeeFindMany },
+    employee: { findUnique: mockEmployeeFindUnique, findMany: mockEmployeeFindMany },
     expenseLineItem: {
       deleteMany: mockLineItemDeleteMany,
       createMany: mockLineItemCreateMany,
@@ -198,6 +203,13 @@ describe('PATCH /api/expenses/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCreateAuditLog.mockResolvedValue(undefined)
+    // Default workflow mock: resolves with a fake instance
+    mockStartInstance.mockResolvedValue({ id: 'wf-instance-1' })
+    // Default employee with manager for SUBMITTED path
+    mockEmployeeFindUnique.mockResolvedValue({
+      id: 'emp-1',
+      manager: { user: { id: 'user-mgr' } },
+    })
     // Default $transaction: call the callback with a tx object
     mockTransaction.mockImplementation(async (cb: (tx: unknown) => unknown) => {
       const tx = {
@@ -349,7 +361,7 @@ describe('PATCH /api/expenses/[id]', () => {
     expect((res._data as any).report.status).toBe('SUBMITTED')
     expect(mockExpenseReportUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { status: 'SUBMITTED' },
+        data: expect.objectContaining({ status: 'SUBMITTED' }),
       }),
     )
   })
@@ -383,5 +395,56 @@ describe('PATCH /api/expenses/[id]', () => {
 
     expect(mockLineItemDeleteMany).not.toHaveBeenCalled()
     expect(mockLineItemCreateMany).not.toHaveBeenCalled()
+  })
+
+  it('should return 422 when employee has no manager', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'DRAFT' })
+    mockEmployeeFindUnique.mockResolvedValue({ id: 'emp-1', manager: null })
+
+    const res = await PATCH(makePatchRequest({ status: 'SUBMITTED' }), PARAMS)
+
+    expect(res._status).toBe(422)
+  })
+
+  it('should start workflow instance when submitting', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'DRAFT' })
+    mockExpenseReportUpdate.mockResolvedValue({
+      ...BASE_REPORT,
+      status: 'SUBMITTED',
+      workflowInstanceId: 'wf-instance-1',
+      lineItems: [],
+    })
+
+    const res = await PATCH(makePatchRequest({ status: 'SUBMITTED' }), PARAMS)
+
+    expect(res._status).toBe(200)
+    expect(mockStartInstance).toHaveBeenCalledWith(
+      'expense-approval',
+      expect.objectContaining({ expenseId: 'exp-1', employeeId: 'emp-1', managerId: 'user-mgr' }),
+      expect.any(String),
+    )
+    expect(mockExpenseReportUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'SUBMITTED', workflowInstanceId: 'wf-instance-1' }),
+      }),
+    )
+  })
+
+  it('should not start workflow when only line items are patched', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'DRAFT' })
+    mockExpenseReportUpdate.mockResolvedValue({
+      ...BASE_REPORT,
+      lineItems: [{ id: 'li-1', category: 'MEALS', amount: 50 }],
+    })
+
+    const res = await PATCH(makePatchRequest({
+      lineItems: [{ date: '2025-02-01', category: 'MEALS', amount: 50 }],
+    }), PARAMS)
+
+    expect(mockStartInstance).not.toHaveBeenCalled()
+    expect(res._status).toBe(200)
   })
 })

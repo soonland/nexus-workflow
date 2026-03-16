@@ -30,3 +30,7 @@ export async function ensureProfileUpdateDefinitionDeployed(): Promise<void> {
 export async function ensureOrgStatusChangeDefinitionDeployed(): Promise<void> {
   await ensureDeployed('org-status-change', 'org-status-change.xml')
 }
+
+export async function ensureExpenseDefinitionDeployed(): Promise<void> {
+  await ensureDeployed('expense-approval', 'expense-approval.xml')
+}

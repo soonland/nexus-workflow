@@ -148,5 +148,39 @@ export async function POST(
     }
   }
 
+  // Sync expense report status
+  if (variables.expenseId) {
+    const expense = await db.expenseReport.findFirst({
+      where: { workflowInstanceId: instanceId },
+    })
+    if (expense) {
+      const elementId = taskData.task.elementId
+
+      let newStatus: 'APPROVED_MANAGER' | 'REIMBURSED' | 'REJECTED'
+      if (elementId === 'task_manager_review') {
+        newStatus = decision === 'approved' ? 'APPROVED_MANAGER' : 'REJECTED'
+      } else {
+        // task_accounting_review
+        newStatus = decision === 'approved' ? 'REIMBURSED' : 'REJECTED'
+      }
+
+      const updatedExpense = await db.expenseReport.update({
+        where: { id: expense.id },
+        data: { status: newStatus },
+      })
+
+      await createAuditLog({
+        db,
+        entityType: 'ExpenseReport',
+        entityId: expense.id,
+        action: 'UPDATE',
+        actorId: session.user.id,
+        actorName: session.user.email ?? session.user.id,
+        before: { status: expense.status },
+        after: { status: updatedExpense.status, ...(rejectionReason ? { rejectionReason } : {}) },
+      })
+    }
+  }
+
   return NextResponse.json({ success: true, decision })
 }

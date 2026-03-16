@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  expense-approval.bpmn
+  Process: Start
+         → userTask (Manager Review, assignee=${managerId})
+         → XOR Gateway (manager decision)
+             [approved] → userTask (Accounting Review, assignee=perm:expenses:accounting-approve)
+             [default]  → EndEvent (Rejected by Manager)
+         → XOR Gateway (accounting decision)
+             [approved] → EndEvent (Reimbursed)
+             [default]  → EndEvent (Rejected by Accounting)
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_expense"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="expense-approval" name="Expense Approval" isExecutable="true">
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_manager_review</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="task_manager_review" name="Manager Review" assignee="${managerId}">
+      <bpmn:incoming>flow_to_manager_review</bpmn:incoming>
+      <bpmn:outgoing>flow_manager_to_decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="gw_manager_decision" name="Manager Decision" default="flow_manager_rejected">
+      <bpmn:incoming>flow_manager_to_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_manager_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_manager_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="task_accounting_review" name="Accounting Review" assignee="perm:expenses:accounting-approve">
+      <bpmn:incoming>flow_manager_approved</bpmn:incoming>
+      <bpmn:outgoing>flow_accounting_to_decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="gw_accounting_decision" name="Accounting Decision" default="flow_accounting_rejected">
+      <bpmn:incoming>flow_accounting_to_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_accounting_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_accounting_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="end_reimbursed" name="Reimbursed">
+      <bpmn:incoming>flow_accounting_approved</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_rejected_manager" name="Rejected by Manager">
+      <bpmn:incoming>flow_manager_rejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_rejected_accounting" name="Rejected by Accounting">
+      <bpmn:incoming>flow_accounting_rejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_to_manager_review"       sourceRef="start"                 targetRef="task_manager_review"/>
+    <bpmn:sequenceFlow id="flow_manager_to_decision"     sourceRef="task_manager_review"    targetRef="gw_manager_decision"/>
+
+    <bpmn:sequenceFlow id="flow_manager_approved"        sourceRef="gw_manager_decision"    targetRef="task_accounting_review">
+      <bpmn:conditionExpression>decision === 'approved'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_manager_rejected"        sourceRef="gw_manager_decision"    targetRef="end_rejected_manager"/>
+
+    <bpmn:sequenceFlow id="flow_accounting_to_decision"  sourceRef="task_accounting_review" targetRef="gw_accounting_decision"/>
+
+    <bpmn:sequenceFlow id="flow_accounting_approved"     sourceRef="gw_accounting_decision" targetRef="end_reimbursed">
+      <bpmn:conditionExpression>decision === 'approved'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_accounting_rejected"     sourceRef="gw_accounting_decision" targetRef="end_rejected_accounting"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

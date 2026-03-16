@@ -4,12 +4,14 @@ export async function register() {
       ensureTimesheetDefinitionDeployed,
       ensureProfileUpdateDefinitionDeployed,
       ensureOrgStatusChangeDefinitionDeployed,
+      ensureExpenseDefinitionDeployed,
     } = await import('@/lib/bpmn/deploy')
 
     try {
       await ensureTimesheetDefinitionDeployed()
       await ensureProfileUpdateDefinitionDeployed()
       await ensureOrgStatusChangeDefinitionDeployed()
+      await ensureExpenseDefinitionDeployed()
     } catch (err) {
       console.error('[instrumentation] Failed to deploy BPMN definition:', err)
     }

@@ -4,6 +4,7 @@ import { db } from '@/db/client'
 import { auth } from '@/auth'
 import { createAuditLog } from '@/lib/audit'
 import { canViewAllExpenses, canViewTeamExpenses } from '@/lib/expenseAccess'
+import { startInstance } from '@/lib/workflow'
 
 const lineItemSchema = z.object({
   date: z
@@ -98,6 +99,24 @@ export async function PATCH(
   const actorId = session.user.id
   const actorName = session.user.email ?? session.user.id
 
+  // When submitting, start the approval workflow
+  let workflowInstanceId: string | undefined
+  if (parsed.data.status === 'SUBMITTED') {
+    const employee = await db.employee.findUnique({
+      where: { id: report.employeeId },
+      include: { manager: { include: { user: { select: { id: true } } } } },
+    })
+    if (!employee?.manager?.user) {
+      return NextResponse.json({ error: 'No manager assigned — cannot submit for approval' }, { status: 422 })
+    }
+    const instance = await startInstance(
+      'expense-approval',
+      { expenseId: id, employeeId: report.employeeId, managerId: employee.manager.user.id },
+      `expense-${id}-${Date.now()}`,
+    )
+    workflowInstanceId = instance.id
+  }
+
   const updated = await db.$transaction(async (tx) => {
     if (parsed.data.lineItems) {
       await tx.expenseLineItem.deleteMany({ where: { reportId: id } })
@@ -114,7 +133,10 @@ export async function PATCH(
 
     const result = await tx.expenseReport.update({
       where: { id },
-      data: parsed.data.status ? { status: parsed.data.status } : {},
+      data: {
+        ...(parsed.data.status ? { status: parsed.data.status } : {}),
+        ...(workflowInstanceId ? { workflowInstanceId } : {}),
+      },
       include: { lineItems: { orderBy: { date: 'asc' } } },
     })
 
