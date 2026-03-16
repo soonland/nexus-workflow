@@ -17,6 +17,7 @@ const {
   mockLineItemCreateMany,
   mockTransaction,
   mockStartInstance,
+  mockCancelInstance,
 } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   mockCanViewAllExpenses: vi.fn(),
@@ -32,6 +33,7 @@ const {
   mockLineItemCreateMany: vi.fn(),
   mockTransaction: vi.fn(),
   mockStartInstance: vi.fn(),
+  mockCancelInstance: vi.fn(),
   mockExpenseReportUpdateMany: vi.fn(),
   mockExpenseReportFindUniqueInTx: vi.fn(),
 }))
@@ -42,7 +44,7 @@ vi.mock('@/lib/expenseAccess', () => ({
   canViewTeamExpenses: mockCanViewTeamExpenses,
 }))
 vi.mock('@/lib/audit', () => ({ createAuditLog: mockCreateAuditLog }))
-vi.mock('@/lib/workflow', () => ({ startInstance: mockStartInstance }))
+vi.mock('@/lib/workflow', () => ({ startInstance: mockStartInstance, cancelInstance: mockCancelInstance }))
 vi.mock('@/db/client', () => ({
   db: {
     expenseReport: {
@@ -210,6 +212,7 @@ describe('PATCH /api/expenses/[id]', () => {
     mockCreateAuditLog.mockResolvedValue(undefined)
     // Default workflow mock: resolves with a fake instance
     mockStartInstance.mockResolvedValue({ id: 'wf-instance-1' })
+    mockCancelInstance.mockResolvedValue({ instance: { id: 'wf-instance-1', status: 'cancelled' } })
     // Default employee with manager for SUBMITTED path
     mockEmployeeFindUnique.mockResolvedValue({
       id: 'emp-1',
@@ -438,7 +441,7 @@ describe('PATCH /api/expenses/[id]', () => {
     )
   })
 
-  it('should return 409 when concurrent submission wins the race (updateMany count=0)', async () => {
+  it('should return 409 and cancel the orphaned instance when concurrent submission wins the race (updateMany count=0)', async () => {
     mockAuth.mockResolvedValue(SESSION)
     mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'REJECTED' })
     mockExpenseReportUpdateMany.mockResolvedValue({ count: 0 })
@@ -447,6 +450,19 @@ describe('PATCH /api/expenses/[id]', () => {
 
     expect(res._status).toBe(409)
     expect(mockExpenseReportFindUniqueInTx).not.toHaveBeenCalled()
+    expect(mockCancelInstance).toHaveBeenCalledWith('wf-instance-1')
+  })
+
+  it('should still return 409 when cancelInstance fails (best-effort)', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'REJECTED' })
+    mockExpenseReportUpdateMany.mockResolvedValue({ count: 0 })
+    mockCancelInstance.mockRejectedValue(new Error('workflow service unavailable'))
+
+    const res = await PATCH(makePatchRequest({ status: 'SUBMITTED' }), PARAMS)
+
+    expect(res._status).toBe(409)
+    expect(mockCancelInstance).toHaveBeenCalledWith('wf-instance-1')
   })
 
   it('should not start workflow when only line items are patched', async () => {
