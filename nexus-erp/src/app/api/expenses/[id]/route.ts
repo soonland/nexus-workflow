@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
+import { createAuditLog } from '@/lib/audit'
 import { canViewAllExpenses, canViewTeamExpenses } from '@/lib/expenseAccess'
 
 const lineItemSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine((d) => !isNaN(new Date(d).getTime()), { message: 'Invalid date' }),
   category: z.enum(['TRAVEL', 'MEALS', 'EQUIPMENT', 'OTHER']),
   amount: z.number().positive(),
   description: z.string().optional(),
@@ -80,8 +84,8 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' }, { status: 400 })
   }
 
-  if (parsed.data.status === 'SUBMITTED' && report.status !== 'REJECTED') {
-    return NextResponse.json({ error: 'Only rejected reports can be resubmitted' }, { status: 422 })
+  if (parsed.data.status === 'SUBMITTED' && !['DRAFT', 'REJECTED'].includes(report.status)) {
+    return NextResponse.json({ error: 'Report must be in DRAFT or REJECTED status to submit' }, { status: 422 })
   }
 
   const EDITABLE_STATUSES = new Set(['DRAFT', 'REJECTED'])
@@ -112,16 +116,15 @@ export async function PATCH(
       include: { lineItems: { orderBy: { date: 'asc' } } },
     })
 
-    await tx.auditLog.create({
-      data: {
-        entityType: 'ExpenseReport',
-        entityId: id,
-        action: 'UPDATE',
-        actorId,
-        actorName,
-        before: { status: report.status },
-        after: { status: result.status, lineItemsReplaced: parsed.data.lineItems !== undefined, lineItemCount: result.lineItems.length },
-      },
+    await createAuditLog({
+      db: tx,
+      entityType: 'ExpenseReport',
+      entityId: id,
+      action: 'UPDATE',
+      actorId,
+      actorName,
+      before: { status: report.status },
+      after: { status: result.status, lineItemsReplaced: parsed.data.lineItems !== undefined, lineItemCount: result.lineItems.length },
     })
 
     return result

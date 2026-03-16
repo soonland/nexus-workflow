@@ -56,28 +56,32 @@ export async function POST(
 
   await mkdir(uploadsDir, { recursive: true })
   const buffer = Buffer.from(await file.arrayBuffer())
-  await writeFile(filePath, buffer)
-
   const receiptPath = `/uploads/receipts/${filename}`
 
+  await writeFile(filePath, buffer)
+
   try {
-    const updated = await db.expenseReport.update({
-      where: { id },
-      data: { receiptPath },
+    const updated = await db.$transaction(async (tx) => {
+      const result = await tx.expenseReport.update({
+        where: { id },
+        data: { receiptPath },
+      })
+
+      await createAuditLog({
+        db: tx,
+        entityType: 'ExpenseReport',
+        entityId: id,
+        action: 'UPDATE',
+        actorId: session.user.id,
+        actorName: session.user.email ?? session.user.id,
+        before: { receiptPath: report.receiptPath },
+        after: { receiptPath: result.receiptPath },
+      })
+
+      return result
     })
 
-    await createAuditLog({
-      db,
-      entityType: 'ExpenseReport',
-      entityId: id,
-      action: 'UPDATE',
-      actorId: session.user.id,
-      actorName: session.user.email ?? session.user.id,
-      before: { receiptPath: report.receiptPath },
-      after: { receiptPath: updated.receiptPath },
-    })
-
-    return NextResponse.json({ receiptPath }, { status: 201 })
+    return NextResponse.json({ receiptPath: updated.receiptPath }, { status: 201 })
   } catch (err) {
     await unlink(filePath).catch(() => {})
     throw err

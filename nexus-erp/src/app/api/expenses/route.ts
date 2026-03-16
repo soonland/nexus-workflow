@@ -7,7 +7,10 @@ import { createAuditLog } from '@/lib/audit'
 import { canViewAllExpenses, canViewTeamExpenses } from '@/lib/expenseAccess'
 
 const lineItemSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine((d) => !isNaN(new Date(d).getTime()), { message: 'Invalid date' }),
   category: z.enum(['TRAVEL', 'MEALS', 'EQUIPMENT', 'OTHER']),
   amount: z.number().positive(),
   description: z.string().optional(),
