@@ -36,13 +36,23 @@ export async function POST(
     return NextResponse.json({ error: 'Task not found' }, { status: 404 })
   }
 
+  const instanceId = taskData.task.instanceId
+  const variables = taskData.variables as Record<string, unknown>
+
+  // Expense approval BPMN has no revision loop — only 'approved' or 'rejected' are valid.
+  // 'revision_requested' would silently take the default (rejected) branch and permanently
+  // terminate the instance, so reject it here before the engine advances.
+  if (variables.expenseId && decision === 'revision_requested') {
+    return NextResponse.json(
+      { error: "Expense tasks do not support 'revision_requested' — use 'approved' or 'rejected'" },
+      { status: 400 },
+    )
+  }
+
   const outputVariables: Record<string, unknown> = { decision }
   if (rejectionReason) outputVariables.rejectionReason = rejectionReason
 
   await completeTask(id, completedById, outputVariables)
-
-  const instanceId = taskData.task.instanceId
-  const variables = taskData.variables as Record<string, unknown>
 
   // Sync local timesheet status
   if (variables.timesheetId) {

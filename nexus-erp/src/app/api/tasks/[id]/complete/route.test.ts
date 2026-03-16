@@ -274,6 +274,19 @@ describe('expense status sync', () => {
     })
   })
 
+  it('should return 400 for revision_requested on an expense task', async () => {
+    mockGetTask.mockResolvedValue({
+      task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review' },
+      variables: { expenseId: 'exp-1' },
+    })
+
+    const res = await POST(makeRequest({ decision: 'revision_requested' }), PARAMS)
+
+    expect(res._status).toBe(400)
+    expect(mockCompleteTask).not.toHaveBeenCalled()
+    expect(mockExpenseReportUpdate).not.toHaveBeenCalled()
+  })
+
   it('should not update expense when variables has no expenseId', async () => {
     mockGetTask.mockResolvedValue({
       task: { id: 'task-1', instanceId: 'inst-1', elementId: 'task_manager_review' },
