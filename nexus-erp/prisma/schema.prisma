@@ -339,6 +339,7 @@ enum AuditAction {
   CREATE
   UPDATE
   DELETE
+  CONFLICT
 }
 
 model AuditLog {

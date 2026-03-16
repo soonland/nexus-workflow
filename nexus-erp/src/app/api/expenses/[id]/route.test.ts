@@ -451,6 +451,15 @@ describe('PATCH /api/expenses/[id]', () => {
     expect(res._status).toBe(409)
     expect(mockExpenseReportFindUniqueInTx).not.toHaveBeenCalled()
     expect(mockCancelInstance).toHaveBeenCalledWith('wf-instance-1')
+    expect(mockCreateAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'ExpenseReport',
+        entityId: 'exp-1',
+        action: 'CONFLICT',
+        before: { status: 'REJECTED' },
+        after: expect.objectContaining({ conflict: true, workflowInstanceId: 'wf-instance-1' }),
+      }),
+    )
   })
 
   it('should still return 409 when cancelInstance fails (best-effort)', async () => {
@@ -463,6 +472,20 @@ describe('PATCH /api/expenses/[id]', () => {
 
     expect(res._status).toBe(409)
     expect(mockCancelInstance).toHaveBeenCalledWith('wf-instance-1')
+    expect(mockCreateAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'CONFLICT' }),
+    )
+  })
+
+  it('should still return 409 when createAuditLog fails on conflict path (best-effort)', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, status: 'REJECTED' })
+    mockExpenseReportUpdateMany.mockResolvedValue({ count: 0 })
+    mockCreateAuditLog.mockRejectedValue(new Error('db unavailable'))
+
+    const res = await PATCH(makePatchRequest({ status: 'SUBMITTED' }), PARAMS)
+
+    expect(res._status).toBe(409)
   })
 
   it('should not start workflow when only line items are patched', async () => {
