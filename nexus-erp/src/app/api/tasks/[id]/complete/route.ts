@@ -54,6 +54,9 @@ export async function POST(
     } else if (taskAssignee !== session.user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
+  } else {
+    console.warn('[task-complete] task has no assignee — denying completion', { taskId: id })
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   // Expense approval BPMN has no revision loop — only 'approved' or 'rejected' are valid.
