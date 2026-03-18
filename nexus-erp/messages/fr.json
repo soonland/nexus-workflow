@@ -464,6 +464,41 @@
       "APPROVED_ACCOUNTING": "Approuvé par la comptabilité",
       "REJECTED": "Rejeté",
       "REIMBURSED": "Remboursé"
+    },
+    "new": {
+      "title": "Nouvelle note de frais",
+      "sections": {
+        "lineItems": "Lignes de dépense"
+      },
+      "fields": {
+        "date": "Date",
+        "category": "Catégorie",
+        "amount": "Montant",
+        "description": "Description",
+        "receipt": "Joindre un justificatif"
+      },
+      "categories": {
+        "TRAVEL": "Déplacement",
+        "MEALS": "Repas",
+        "EQUIPMENT": "Équipement",
+        "OTHER": "Autre"
+      },
+      "lineItem": "Ligne {number}",
+      "addItem": "Ajouter une ligne",
+      "removeItem": "Supprimer la ligne",
+      "validation": {
+        "dateRequired": "La date est obligatoire",
+        "categoryRequired": "La catégorie est obligatoire",
+        "amountRequired": "Le montant est obligatoire",
+        "amountInvalid": "Entrez un montant positif valide"
+      },
+      "submit": "Soumettre la note de frais",
+      "submitting": "Envoi en cours…",
+      "cancel": "Annuler",
+      "createFailed": "Échec de la création de la note de frais",
+      "receiptUploadFailed": "{count, plural, one {# justificatif} other {# justificatifs}} n'a pas pu être téléversé.",
+      "retryUpload": "Réessayer",
+      "retrying": "Nouvelle tentative…"
     }
   },
   "auditLog": {

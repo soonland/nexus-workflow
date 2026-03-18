@@ -464,6 +464,41 @@
       "APPROVED_ACCOUNTING": "Accounting Approved",
       "REJECTED": "Rejected",
       "REIMBURSED": "Reimbursed"
+    },
+    "new": {
+      "title": "New Expense Report",
+      "sections": {
+        "lineItems": "Line Items"
+      },
+      "fields": {
+        "date": "Date",
+        "category": "Category",
+        "amount": "Amount",
+        "description": "Description",
+        "receipt": "Attach Receipt"
+      },
+      "categories": {
+        "TRAVEL": "Travel",
+        "MEALS": "Meals",
+        "EQUIPMENT": "Equipment",
+        "OTHER": "Other"
+      },
+      "lineItem": "Line Item {number}",
+      "addItem": "Add Line Item",
+      "removeItem": "Remove line item",
+      "validation": {
+        "dateRequired": "Date is required",
+        "categoryRequired": "Category is required",
+        "amountRequired": "Amount is required",
+        "amountInvalid": "Enter a valid positive amount"
+      },
+      "submit": "Submit Expense Report",
+      "submitting": "Submitting…",
+      "cancel": "Cancel",
+      "createFailed": "Failed to create expense report",
+      "receiptUploadFailed": "{count, plural, one {# receipt} other {# receipts}} failed to upload.",
+      "retryUpload": "Retry",
+      "retrying": "Retrying…"
     }
   },
   "auditLog": {
