@@ -26,7 +26,8 @@
       "groups": "Groups",
       "settings": "Settings",
       "auditLog": "Audit Log",
-      "messages": "Messages"
+      "messages": "Messages",
+      "expenses": "Expenses"
     },
     "expandSidebar": "Expand sidebar",
     "collapseSidebar": "Collapse sidebar"
@@ -444,6 +445,25 @@
       "instanceNotFound": "Instance \"{instanceId}\" not found.",
       "fetchFailed": "Failed to fetch events.",
       "networkError": "Network error."
+    }
+  },
+  "expenses": {
+    "title": "Expense Reports",
+    "noExpenses": "No expense reports found.",
+    "view": "View",
+    "columns": {
+      "employee": "Employee",
+      "date": "Date",
+      "total": "Total",
+      "status": "Status"
+    },
+    "status": {
+      "DRAFT": "Draft",
+      "SUBMITTED": "Submitted",
+      "APPROVED_MANAGER": "Manager Approved",
+      "APPROVED_ACCOUNTING": "Accounting Approved",
+      "REJECTED": "Rejected",
+      "REIMBURSED": "Reimbursed"
     }
   },
   "auditLog": {

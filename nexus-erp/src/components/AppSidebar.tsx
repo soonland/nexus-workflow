@@ -23,6 +23,7 @@ import InboxRoundedIcon from '@mui/icons-material/InboxRounded'
 import BusinessRoundedIcon from '@mui/icons-material/BusinessRounded'
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded'
 import ReceiptRoundedIcon from '@mui/icons-material/ReceiptRounded'
+import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded'
 import ShoppingCartRoundedIcon from '@mui/icons-material/ShoppingCartRounded'
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded'
 import PlayCircleRoundedIcon from '@mui/icons-material/PlayCircleRounded'
@@ -84,6 +85,7 @@ const AppSidebar = ({ role, hasEmployee }: AppSidebarProps) => {
       title: t('sections.operations'),
       items: [
         { label: t('items.timesheets'), href: '/timesheets', icon: <AccessTimeRoundedIcon fontSize="small" />, requiresEmployee: true },
+        { label: t('items.expenses'), href: '/expenses', icon: <ReceiptLongRoundedIcon fontSize="small" />, requiresEmployee: true },
         { label: t('items.employees'),  href: '/employees',  icon: <PeopleRoundedIcon fontSize="small" />, managerOnly: true },
         { label: t('items.taskInbox'), href: '/tasks',      icon: <InboxRoundedIcon fontSize="small" /> },
         { label: t('items.messages'),  href: '/messages',   icon: <MailRoundedIcon fontSize="small" /> },

@@ -26,7 +26,8 @@
       "groups": "Groupes",
       "settings": "Paramètres",
       "auditLog": "Journal d’audit",
-      "messages": "Messagerie"
+      "messages": "Messagerie",
+      "expenses": "Notes de frais"
     },
     "expandSidebar": "Développer la barre latérale",
     "collapseSidebar": "Réduire la barre latérale"
@@ -444,6 +445,25 @@
       "instanceNotFound": "Instance \"{instanceId}\" introuvable.",
       "fetchFailed": "Impossible de récupérer les événements.",
       "networkError": "Erreur réseau."
+    }
+  },
+  "expenses": {
+    "title": "Notes de frais",
+    "noExpenses": "Aucune note de frais trouvée.",
+    "view": "Voir",
+    "columns": {
+      "employee": "Employé",
+      "date": "Date",
+      "total": "Total",
+      "status": "Statut"
+    },
+    "status": {
+      "DRAFT": "Brouillon",
+      "SUBMITTED": "Soumis",
+      "APPROVED_MANAGER": "Approuvé par le manager",
+      "APPROVED_ACCOUNTING": "Approuvé par la comptabilité",
+      "REJECTED": "Rejeté",
+      "REIMBURSED": "Remboursé"
     }
   },
   "auditLog": {
