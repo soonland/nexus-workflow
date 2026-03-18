@@ -1,6 +1,7 @@
+import type { SxProps, Theme } from '@mui/material/styles'
 import Typography from '@mui/material/Typography'
 
-const SectionLabel = ({ children, sx }: { children: React.ReactNode; sx?: object }) => (
+const SectionLabel = ({ children, sx }: { children: React.ReactNode; sx?: SxProps<Theme> }) => (
   <Typography
     variant="overline"
     color="text.secondary"

@@ -257,7 +257,7 @@ describe('NewExpenseForm', () => {
   it('shows fileTooLarge error when an oversized file is selected', async () => {
     renderForm()
     const oversizeFile = makeFile('big.pdf', 11 * 1024 * 1024)
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    const input = screen.getByLabelText('fields.receipt') as HTMLInputElement
     fireEvent.change(input, { target: { files: [oversizeFile] } })
     await waitFor(() => {
       expect(screen.getByText('validation.fileTooLarge')).toBeInTheDocument()
@@ -267,7 +267,7 @@ describe('NewExpenseForm', () => {
   it('accepts a file within the 10 MB limit', async () => {
     renderForm()
     const smallFile = makeFile('receipt.pdf', 5 * 1024 * 1024)
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    const input = screen.getByLabelText('fields.receipt') as HTMLInputElement
     fireEvent.change(input, { target: { files: [smallFile] } })
     await waitFor(() => {
       expect(screen.queryByText('validation.fileTooLarge')).not.toBeInTheDocument()
@@ -323,7 +323,7 @@ describe('NewExpenseForm', () => {
 
     // Attach a receipt file
     const file = makeFile('receipt.pdf', 1024)
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    const fileInput = screen.getByLabelText('fields.receipt') as HTMLInputElement
     fireEvent.change(fileInput, { target: { files: [file] } })
 
     submitForm()
@@ -352,7 +352,7 @@ describe('NewExpenseForm', () => {
     fillItem()
 
     const file = makeFile('receipt.pdf', 1024)
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    const fileInput = screen.getByLabelText('fields.receipt') as HTMLInputElement
     fireEvent.change(fileInput, { target: { files: [file] } })
 
     submitForm()
@@ -380,7 +380,7 @@ describe('NewExpenseForm', () => {
     fillItem()
 
     const file = makeFile('receipt.pdf', 1024)
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    const fileInput = screen.getByLabelText('fields.receipt') as HTMLInputElement
     fireEvent.change(fileInput, { target: { files: [file] } })
 
     submitForm()
@@ -413,7 +413,7 @@ describe('NewExpenseForm', () => {
     fillItem()
 
     const file = makeFile('receipt.pdf', 1024)
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    const fileInput = screen.getByLabelText('fields.receipt') as HTMLInputElement
     fireEvent.change(fileInput, { target: { files: [file] } })
 
     submitForm()
@@ -427,6 +427,38 @@ describe('NewExpenseForm', () => {
     await waitFor(() => {
       // Banner still present after failed retry
       expect(screen.getByText('receiptUploadFailed')).toBeInTheDocument()
+    })
+    expect(mockPush).not.toHaveBeenCalled()
+  })
+
+  it('shows a server error alert when retry throws a network error', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ report: { id: 'rpt-net' } }),
+      } as Response)
+      // First upload attempt fails
+      .mockResolvedValueOnce({ ok: false } as Response)
+      // Retry throws
+      .mockRejectedValueOnce(new Error('Network failure'))
+
+    renderForm()
+    fillItem()
+
+    const file = makeFile('receipt.pdf', 1024)
+    const fileInput = screen.getByLabelText('fields.receipt') as HTMLInputElement
+    fireEvent.change(fileInput, { target: { files: [file] } })
+
+    submitForm()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /retryUpload/i })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /retryUpload/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Network failure')).toBeInTheDocument()
     })
     expect(mockPush).not.toHaveBeenCalled()
   })

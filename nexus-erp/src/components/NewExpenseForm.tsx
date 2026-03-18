@@ -142,6 +142,8 @@ const NewExpenseForm = () => {
       if (stillFailed.length === 0) {
         router.push(`/expenses/${pendingReportId}`)
       }
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : t('createFailed'))
     } finally {
       setRetrying(false)
     }
@@ -342,6 +344,7 @@ const NewExpenseForm = () => {
                         type="file"
                         hidden
                         accept="image/jpeg,image/png,image/webp,application/pdf"
+                        aria-label={t('fields.receipt')}
                         aria-describedby={fieldErrors[`items[${i}].receipt`] ? `receipt-error-${i}` : undefined}
                         onChange={(e) => {
                           const file = e.target.files?.[0] ?? null
