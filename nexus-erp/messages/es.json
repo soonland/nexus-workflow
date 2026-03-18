@@ -259,6 +259,7 @@
   },
   "expenses": {
     "title": "Informes de gastos",
+    "newReport": "Nuevo informe de gastos",
     "noExpenses": "No se encontraron informes de gastos.",
     "view": "Ver",
     "columns": {

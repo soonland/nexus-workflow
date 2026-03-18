@@ -474,6 +474,7 @@
   },
   "expenses": {
     "title": "Notes de frais",
+    "newReport": "Nouvelle note de frais",
     "noExpenses": "Aucune note de frais trouvée.",
     "view": "Voir",
     "columns": {

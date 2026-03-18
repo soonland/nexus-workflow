@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
 import Typography from '@mui/material/Typography'
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/db/client'
@@ -57,8 +58,11 @@ const ExpensesPage = async () => {
 
   return (
     <Box>
-      <Box sx={{ mb: 3 }}>
+      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Typography variant="h2">{t('title')}</Typography>
+        <Button variant="contained" href="/expenses/new">
+          {t('newReport')}
+        </Button>
       </Box>
       <ExpensesTable expenses={serialized} showEmployee={showEmployee} />
     </Box>

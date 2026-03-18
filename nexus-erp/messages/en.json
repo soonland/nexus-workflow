@@ -474,6 +474,7 @@
   },
   "expenses": {
     "title": "Expense Reports",
+    "newReport": "New Expense Report",
     "noExpenses": "No expense reports found.",
     "view": "View",
     "columns": {
