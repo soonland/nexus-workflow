@@ -102,7 +102,7 @@ const ExpenseTaskCard = async ({ report }: { report: Report }) => {
           <Typography variant="body1" fontWeight={600}>
             {t('total')}: ${total.toFixed(2)}
           </Typography>
-          {report.receiptPath && (
+          {report.receiptPath && (report.receiptPath.startsWith('/') || report.receiptPath.startsWith('https://')) && (
             <Link href={report.receiptPath} target="_blank" rel="noopener noreferrer" variant="body2">
               {t('viewReceipt')}
             </Link>
