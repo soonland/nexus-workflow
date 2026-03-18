@@ -16,6 +16,7 @@ import { db } from '@/db/client'
 import { auth } from '@/auth'
 import TaskDecisionForm from './TaskDecisionForm'
 import ProfileUpdateCard from './ProfileUpdateCard'
+import ExpenseTaskCard from './ExpenseTaskCard'
 
 interface DetailRowProps {
   label: string
@@ -61,6 +62,16 @@ const TaskDetailPage = async ({ params }: { params: Promise<{ id: string }> }) =
     ? await db.employeeProfileUpdateRequest.findUnique({
         where: { id: variables.updateRequestId as string },
         include: { employee: { include: { user: { select: { email: true } } } } },
+      })
+    : null
+
+  const expenseReport = variables.expenseId
+    ? await db.expenseReport.findUnique({
+        where: { id: variables.expenseId as string },
+        include: {
+          employee: { include: { user: { select: { email: true } } } },
+          lineItems: { orderBy: { date: 'asc' } },
+        },
       })
     : null
 
@@ -146,6 +157,11 @@ const TaskDetailPage = async ({ params }: { params: Promise<{ id: string }> }) =
         {/* Profile update request card */}
         {profileUpdateRequest && (
           <ProfileUpdateCard request={profileUpdateRequest} />
+        )}
+
+        {/* Expense report card */}
+        {expenseReport && (
+          <ExpenseTaskCard report={expenseReport} />
         )}
       </Stack>
     </Box>

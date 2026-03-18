@@ -199,6 +199,31 @@
       "submitDecision": "Enviar decisión",
       "submitFailed": "Error al enviar la decisión"
     },
+    "expenseReview": {
+      "title": "Informe de gastos",
+      "total": "Total",
+      "viewReceipt": "Ver recibo",
+      "columns": {
+        "date": "Fecha",
+        "category": "Categoría",
+        "amount": "Monto",
+        "description": "Descripción"
+      },
+      "category": {
+        "TRAVEL": "Viaje",
+        "MEALS": "Comidas",
+        "EQUIPMENT": "Equipamiento",
+        "OTHER": "Otro"
+      },
+      "status": {
+        "DRAFT": "Borrador",
+        "SUBMITTED": "Enviado",
+        "APPROVED_MANAGER": "Aprobado (gerente)",
+        "APPROVED_ACCOUNTING": "Aprobado (contabilidad)",
+        "REJECTED": "Rechazado",
+        "REIMBURSED": "Reembolsado"
+      }
+    },
     "profileUpdate": {
       "title": "Cambios de contacto propuestos",
       "columns": {

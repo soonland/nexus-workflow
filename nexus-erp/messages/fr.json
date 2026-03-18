@@ -297,6 +297,31 @@
       "submitDecision": "Soumettre la décision",
       "submitFailed": "Échec de la soumission"
     },
+    "expenseReview": {
+      "title": "Note de frais",
+      "total": "Total",
+      "viewReceipt": "Voir le reçu",
+      "columns": {
+        "date": "Date",
+        "category": "Catégorie",
+        "amount": "Montant",
+        "description": "Description"
+      },
+      "category": {
+        "TRAVEL": "Déplacement",
+        "MEALS": "Repas",
+        "EQUIPMENT": "Équipement",
+        "OTHER": "Autre"
+      },
+      "status": {
+        "DRAFT": "Brouillon",
+        "SUBMITTED": "Soumise",
+        "APPROVED_MANAGER": "Approuvée (responsable)",
+        "APPROVED_ACCOUNTING": "Approuvée (comptabilité)",
+        "REJECTED": "Rejetée",
+        "REIMBURSED": "Remboursée"
+      }
+    },
     "profileUpdate": {
       "title": "Modifications de contact proposées",
       "columns": {
