@@ -249,6 +249,43 @@
       "APPROVED_ACCOUNTING": "Aprobado por contabilidad",
       "REJECTED": "Rechazado",
       "REIMBURSED": "Reembolsado"
+    },
+    "new": {
+      "title": "Nuevo informe de gastos",
+      "sections": {
+        "lineItems": "Líneas de gasto"
+      },
+      "fields": {
+        "date": "Fecha",
+        "category": "Categoría",
+        "amount": "Importe",
+        "description": "Descripción",
+        "receipt": "Adjuntar justificante"
+      },
+      "categories": {
+        "TRAVEL": "Viaje",
+        "MEALS": "Comidas",
+        "EQUIPMENT": "Equipamiento",
+        "OTHER": "Otro"
+      },
+      "lineItem": "Línea {number}",
+      "addItem": "Añadir línea",
+      "removeItem": "Eliminar línea",
+      "validation": {
+        "dateRequired": "La fecha es obligatoria",
+        "categoryRequired": "La categoría es obligatoria",
+        "amountRequired": "El importe es obligatorio",
+        "amountInvalid": "Introduce un importe positivo válido",
+        "fileTooLarge": "El archivo supera el límite de 10 MB"
+      },
+      "submit": "Enviar informe de gastos",
+      "submitting": "Enviando…",
+      "cancel": "Cancelar",
+      "createFailed": "Error al crear el informe de gastos",
+      "receiptUploadFailed": "{count, plural, one {# justificante no se pudo subir.} other {# justificantes no se pudieron subir.}}",
+      "retryUpload": "Reintentar",
+      "retrying": "Reintentando…",
+      "viewReport": "Ver informe"
     }
   },
   "auditLog": {
