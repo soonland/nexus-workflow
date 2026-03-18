@@ -17,6 +17,7 @@ import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined'
 import { useTranslations } from 'next-intl'
 import { useSnackbar } from '@/components/SnackbarContext'
 import PermissionMatrix, { type InheritedSource } from '@/components/PermissionMatrix'
+import SectionLabel from './SectionLabel'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,18 +79,6 @@ interface EmployeeEditFormProps {
   allGroups?: GroupOption[]
   userGroups?: GroupOption[]
 }
-
-// ── Section header ────────────────────────────────────────────────────────────
-
-const SectionLabel = ({ children, sx }: { children: React.ReactNode; sx?: object }) => (
-  <Typography
-    variant="overline"
-    color="text.secondary"
-    sx={{ display: 'block', mb: 2, letterSpacing: '0.08em', ...sx }}
-  >
-    {children}
-  </Typography>
-)
 
 // ── Main component ────────────────────────────────────────────────────────────
 

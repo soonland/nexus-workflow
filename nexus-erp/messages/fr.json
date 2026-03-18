@@ -490,7 +490,8 @@
         "dateRequired": "La date est obligatoire",
         "categoryRequired": "La catégorie est obligatoire",
         "amountRequired": "Le montant est obligatoire",
-        "amountInvalid": "Entrez un montant positif valide"
+        "amountInvalid": "Entrez un montant positif valide",
+        "fileTooLarge": "Le fichier dépasse la limite de 10 Mo"
       },
       "submit": "Soumettre la note de frais",
       "submitting": "Envoi en cours…",
@@ -498,7 +499,8 @@
       "createFailed": "Échec de la création de la note de frais",
       "receiptUploadFailed": "{count, plural, one {# justificatif} other {# justificatifs}} n'a pas pu être téléversé.",
       "retryUpload": "Réessayer",
-      "retrying": "Nouvelle tentative…"
+      "retrying": "Nouvelle tentative…",
+      "viewReport": "Voir le rapport"
     }
   },
   "auditLog": {

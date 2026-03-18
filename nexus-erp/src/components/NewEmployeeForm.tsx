@@ -10,8 +10,8 @@ import Grid from '@mui/material/Grid'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
 import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
 import { useTranslations } from 'next-intl'
+import SectionLabel from './SectionLabel'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,18 +29,6 @@ interface NewEmployeeFormProps {
   managers: ManagerOption[]
   departments: DepartmentOption[]
 }
-
-// ── Section header ────────────────────────────────────────────────────────────
-
-const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-  <Typography
-    variant="overline"
-    color="text.secondary"
-    sx={{ display: 'block', mb: 2, letterSpacing: '0.08em' }}
-  >
-    {children}
-  </Typography>
-)
 
 // ── Main component ────────────────────────────────────────────────────────────
 

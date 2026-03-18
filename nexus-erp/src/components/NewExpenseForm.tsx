@@ -19,6 +19,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import type { Dayjs } from 'dayjs'
 import { useTranslations } from 'next-intl'
+import SectionLabel from './SectionLabel'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,7 +27,10 @@ type Category = 'TRAVEL' | 'MEALS' | 'EQUIPMENT' | 'OTHER'
 
 const CATEGORIES: Category[] = ['TRAVEL', 'MEALS', 'EQUIPMENT', 'OTHER']
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+
 interface LineItemField {
+  id: string
   date: Dayjs | null
   category: string
   amount: string
@@ -41,24 +45,13 @@ interface RetryItem {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const emptyItem = (): LineItemField => ({
+  id: crypto.randomUUID(),
   date: null,
   category: '',
   amount: '',
   description: '',
   receipt: null,
 })
-
-// ── Section header ────────────────────────────────────────────────────────────
-
-const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-  <Typography
-    variant="overline"
-    color="text.secondary"
-    sx={{ display: 'block', mb: 2, letterSpacing: '0.08em' }}
-  >
-    {children}
-  </Typography>
-)
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -94,11 +87,18 @@ const NewExpenseForm = () => {
 
   function removeItem(index: number) {
     setItems((prev) => prev.filter((_, i) => i !== index))
-    setFieldErrors((prev) =>
-      Object.fromEntries(
-        Object.entries(prev).filter(([k]) => !k.startsWith(`items[${index}]`)),
-      ),
-    )
+    setFieldErrors((prev) => {
+      const next: Record<string, string> = {}
+      for (const [k, v] of Object.entries(prev)) {
+        const m = k.match(/^items\[(\d+)\](\..+)$/)
+        if (!m) { next[k] = v; continue }
+        const idx = Number(m[1])
+        if (idx === index) continue
+        const newIdx = idx > index ? idx - 1 : idx
+        next[`items[${newIdx}]${m[2]}`] = v
+      }
+      return next
+    })
   }
 
   function validate(): Record<string, string> {
@@ -215,14 +215,25 @@ const NewExpenseForm = () => {
             severity="warning"
             sx={{ mb: 3 }}
             action={
-              <Button
-                color="inherit"
-                size="small"
-                onClick={handleRetry}
-                disabled={retrying}
-              >
-                {retrying ? t('retrying') : t('retryUpload')}
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={handleRetry}
+                  disabled={retrying}
+                >
+                  {retrying ? t('retrying') : t('retryUpload')}
+                </Button>
+                {pendingReportId && (
+                  <Button
+                    color="inherit"
+                    size="small"
+                    href={`/expenses/${pendingReportId}`}
+                  >
+                    {t('viewReport')}
+                  </Button>
+                )}
+              </Box>
             }
           >
             {t('receiptUploadFailed', { count: retryItems.length })}
@@ -234,7 +245,7 @@ const NewExpenseForm = () => {
             <SectionLabel>{t('sections.lineItems')}</SectionLabel>
 
             {items.map((item, i) => (
-              <Box key={i}>
+              <Box key={item.id}>
                 {i > 0 && <Divider sx={{ my: 3 }} />}
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <Typography variant="subtitle2" sx={{ flex: 1 }}>
@@ -304,7 +315,7 @@ const NewExpenseForm = () => {
                       disabled={submitting}
                       error={!!fieldErrors[`items[${i}].amount`]}
                       helperText={fieldErrors[`items[${i}].amount`]}
-                      slotProps={{ htmlInput: { min: 0, step: 0.01, 'aria-required': true } }}
+                      slotProps={{ htmlInput: { min: 0.01, step: 0.01, 'aria-required': true } }}
                     />
                   </Grid>
 
@@ -333,10 +344,28 @@ const NewExpenseForm = () => {
                         accept="image/jpeg,image/png,image/webp,application/pdf"
                         onChange={(e) => {
                           const file = e.target.files?.[0] ?? null
+                          if (file && file.size > MAX_FILE_SIZE) {
+                            setFieldErrors((prev) => ({
+                              ...prev,
+                              [`items[${i}].receipt`]: t('validation.fileTooLarge'),
+                            }))
+                            e.target.value = ''
+                            return
+                          }
+                          setFieldErrors((prev) =>
+                            Object.fromEntries(
+                              Object.entries(prev).filter(([k]) => k !== `items[${i}].receipt`),
+                            ),
+                          )
                           setItemField(i, 'receipt', file)
                         }}
                       />
                     </Button>
+                    {fieldErrors[`items[${i}].receipt`] && (
+                      <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
+                        {fieldErrors[`items[${i}].receipt`]}
+                      </Typography>
+                    )}
                   </Grid>
                 </Grid>
               </Box>

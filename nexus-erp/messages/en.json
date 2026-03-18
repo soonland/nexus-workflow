@@ -490,7 +490,8 @@
         "dateRequired": "Date is required",
         "categoryRequired": "Category is required",
         "amountRequired": "Amount is required",
-        "amountInvalid": "Enter a valid positive amount"
+        "amountInvalid": "Enter a valid positive amount",
+        "fileTooLarge": "File exceeds the 10 MB limit"
       },
       "submit": "Submit Expense Report",
       "submitting": "Submitting…",
@@ -498,7 +499,8 @@
       "createFailed": "Failed to create expense report",
       "receiptUploadFailed": "{count, plural, one {# receipt} other {# receipts}} failed to upload.",
       "retryUpload": "Retry",
-      "retrying": "Retrying…"
+      "retrying": "Retrying…",
+      "viewReport": "View report"
     }
   },
   "auditLog": {

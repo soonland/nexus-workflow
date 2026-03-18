@@ -275,7 +275,8 @@
         "dateRequired": "La fecha es obligatoria",
         "categoryRequired": "La categoría es obligatoria",
         "amountRequired": "El importe es obligatorio",
-        "amountInvalid": "Introduce un importe positivo válido"
+        "amountInvalid": "Introduce un importe positivo válido",
+        "fileTooLarge": "El archivo supera el límite de 10 MB"
       },
       "submit": "Enviar informe de gastos",
       "submitting": "Enviando…",
@@ -283,7 +284,8 @@
       "createFailed": "Error al crear el informe de gastos",
       "receiptUploadFailed": "{count, plural, one {# justificante} other {# justificantes}} no se pudo subir.",
       "retryUpload": "Reintentar",
-      "retrying": "Reintentando…"
+      "retrying": "Reintentando…",
+      "viewReport": "Ver informe"
     }
   },
   "auditLog": {
