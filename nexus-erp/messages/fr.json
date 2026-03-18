@@ -497,7 +497,7 @@
       "submitting": "Envoi en cours…",
       "cancel": "Annuler",
       "createFailed": "Échec de la création de la note de frais",
-      "receiptUploadFailed": "{count, plural, one {# justificatif} other {# justificatifs}} n'a pas pu être téléversé.",
+      "receiptUploadFailed": "{count, plural, one {# justificatif n'a pas pu être téléversé.} other {# justificatifs n'ont pas pu être téléversés.}}",
       "retryUpload": "Réessayer",
       "retrying": "Nouvelle tentative…",
       "viewReport": "Voir le rapport"

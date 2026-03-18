@@ -282,7 +282,7 @@
       "submitting": "Enviando…",
       "cancel": "Cancelar",
       "createFailed": "Error al crear el informe de gastos",
-      "receiptUploadFailed": "{count, plural, one {# justificante} other {# justificantes}} no se pudo subir.",
+      "receiptUploadFailed": "{count, plural, one {# justificante no se pudo subir.} other {# justificantes no se pudieron subir.}}",
       "retryUpload": "Reintentar",
       "retrying": "Reintentando…",
       "viewReport": "Ver informe"

@@ -194,8 +194,8 @@ const NewExpenseForm = () => {
       }
 
       router.push(`/expenses/${reportId}`)
-    } catch (e) {
-      setServerError(e instanceof Error ? e.message : t('createFailed'))
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : t('createFailed'))
     } finally {
       setSubmitting(false)
     }
@@ -342,6 +342,7 @@ const NewExpenseForm = () => {
                         type="file"
                         hidden
                         accept="image/jpeg,image/png,image/webp,application/pdf"
+                        aria-describedby={fieldErrors[`items[${i}].receipt`] ? `receipt-error-${i}` : undefined}
                         onChange={(e) => {
                           const file = e.target.files?.[0] ?? null
                           if (file && file.size > MAX_FILE_SIZE) {
@@ -362,7 +363,7 @@ const NewExpenseForm = () => {
                       />
                     </Button>
                     {fieldErrors[`items[${i}].receipt`] && (
-                      <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
+                      <Typography id={`receipt-error-${i}`} variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
                         {fieldErrors[`items[${i}].receipt`]}
                       </Typography>
                     )}
