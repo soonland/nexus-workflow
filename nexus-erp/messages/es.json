@@ -26,7 +26,8 @@
       "groups": "Grupos",
       "settings": "Configuración",
       "auditLog": "Registro de auditoría",
-      "messages": "Mensajes"
+      "messages": "Mensajes",
+      "expenses": "Gastos"
     },
     "expandSidebar": "Expandir barra lateral",
     "collapseSidebar": "Contraer barra lateral"
@@ -230,6 +231,25 @@
     "linkedTimesheet": "Hoja de tiempo del {weekStart}",
     "unknownUser": "Usuario desconocido",
     "unreadBadge": "Mensajes no le\u00eddos"
+  },
+  "expenses": {
+    "title": "Informes de gastos",
+    "noExpenses": "No se encontraron informes de gastos.",
+    "view": "Ver",
+    "columns": {
+      "employee": "Empleado",
+      "date": "Fecha",
+      "total": "Total",
+      "status": "Estado"
+    },
+    "status": {
+      "DRAFT": "Borrador",
+      "SUBMITTED": "Enviado",
+      "APPROVED_MANAGER": "Aprobado por el manager",
+      "APPROVED_ACCOUNTING": "Aprobado por contabilidad",
+      "REJECTED": "Rechazado",
+      "REIMBURSED": "Reembolsado"
+    }
   },
   "auditLog": {
     "title": "Registro de auditoría",
