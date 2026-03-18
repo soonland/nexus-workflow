@@ -296,6 +296,31 @@
       "submitDecision": "Submit Decision",
       "submitFailed": "Failed to submit decision"
     },
+    "expenseReview": {
+      "title": "Expense Report",
+      "total": "Total",
+      "viewReceipt": "View Receipt",
+      "columns": {
+        "date": "Date",
+        "category": "Category",
+        "amount": "Amount",
+        "description": "Description"
+      },
+      "category": {
+        "TRAVEL": "Travel",
+        "MEALS": "Meals",
+        "EQUIPMENT": "Equipment",
+        "OTHER": "Other"
+      },
+      "status": {
+        "DRAFT": "Draft",
+        "SUBMITTED": "Submitted",
+        "APPROVED_MANAGER": "Manager Approved",
+        "APPROVED_ACCOUNTING": "Accounting Approved",
+        "REJECTED": "Rejected",
+        "REIMBURSED": "Reimbursed"
+      }
+    },
     "profileUpdate": {
       "title": "Proposed Contact Changes",
       "columns": {
