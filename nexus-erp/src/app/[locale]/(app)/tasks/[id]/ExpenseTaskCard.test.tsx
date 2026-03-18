@@ -2,8 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { ExpenseReportStatus, ExpenseLineItemCategory } from '@prisma/client'
-import type { Employee, ExpenseLineItem, ExpenseReport, User } from '@prisma/client'
+import { ExpenseReportStatus, ExpenseLineItemCategory, type Employee, type ExpenseLineItem, type ExpenseReport, type User } from '@prisma/client'
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
