@@ -16,7 +16,7 @@ import { runMigrations } from './migrate.js'
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const TEST_DB_URL = process.env['DATABASE_URL'] ?? 'postgres://localhost/nexus_workflow_test'
+const TEST_DB_URL = process.env['DATABASE_URL'] ?? 'postgres://nexus:nexus@localhost:5433/nexus_workflow'
 const hasDb = Boolean(process.env['DATABASE_URL'])
 
 // ─── Fixture Builders ─────────────────────────────────────────────────────────

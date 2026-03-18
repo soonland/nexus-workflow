@@ -5,7 +5,7 @@ export default defineConfig({
     include: ['src/**/*.test.ts'],
     setupFiles: ['tests/setup.ts'],
     env: {
-      DATABASE_URL: 'postgres://nexus:nexus@localhost:5433/nexus_workflow_test',
+      DATABASE_URL: 'postgres://nexus:nexus@localhost:5433/nexus_workflow',
     },
     coverage: {
       provider: 'v8',

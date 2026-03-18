@@ -114,7 +114,7 @@ describe('InMemoryEventLog', () => {
 
 // ─── PostgresEventLog ────────────────────────────────────────────────────────
 
-const DATABASE_URL = process.env['DATABASE_URL'] ?? 'postgres://nexus:nexus@localhost:5433/nexus_workflow_test'
+const DATABASE_URL = process.env['DATABASE_URL'] ?? 'postgres://nexus:nexus@localhost:5433/nexus_workflow'
 
 describe('PostgresEventLog', () => {
   let log: PostgresEventLog

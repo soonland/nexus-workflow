@@ -2,6 +2,7 @@
   "name": "nexus-workflow",
   "private": true,
   "scripts": {
+    "init": "bash scripts/init.sh",
     "lint": "npm run lint --prefix nexus-workflow-core && npm run lint --prefix nexus-workflow-app && npm run lint --prefix nexus-erp",
     "test:scripts": "vitest run --config vitest.scripts.config.js"
   },

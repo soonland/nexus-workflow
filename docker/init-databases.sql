@@ -1,0 +1,1 @@
+CREATE DATABASE nexus_erp;
