@@ -26,7 +26,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs, { type Dayjs } from 'dayjs'
-import { useTranslations } from 'next-intl'
+import { useTranslations, useFormatter } from 'next-intl'
 import SectionLabel from './SectionLabel'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -95,15 +95,6 @@ const ACTION_COLORS: Record<string, 'success' | 'warning' | 'error' | 'default'>
   DELETE: 'error',
 }
 
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 interface EditItem {
   id: string
@@ -137,6 +128,7 @@ function newEditItem(): EditItem {
 
 const ExpenseDetailView = ({ report, isOwner, title }: Props) => {
   const router = useRouter()
+  const format = useFormatter()
   const t = useTranslations('expenses.detail')
   const tStatus = useTranslations('expenses.status')
 
@@ -158,7 +150,7 @@ const ExpenseDetailView = ({ report, isOwner, title }: Props) => {
       )
     : null
   const rejectionComment =
-    (rejectionEntry?.after as Record<string, unknown> | null)?.comment as string | undefined
+    (rejectionEntry?.after as Record<string, unknown> | null)?.rejectionReason as string | undefined
 
   function setItemField<K extends keyof EditItem>(index: number, field: K, value: EditItem[K]) {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)))
@@ -428,6 +420,7 @@ const ExpenseDetailView = ({ report, isOwner, title }: Props) => {
             <Box sx={{ p: 3, pb: 1 }}>
               <SectionLabel>{t('sections.lineItems')}</SectionLabel>
             </Box>
+            <Box sx={{ overflowX: 'auto' }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -447,7 +440,7 @@ const ExpenseDetailView = ({ report, isOwner, title }: Props) => {
                       <Typography variant="body2">{t(`categories.${item.category as Category}`)}</Typography>
                     </TableCell>
                     <TableCell align="right">
-                      <Typography variant="body2">{item.amount.toFixed(2)}</Typography>
+                      <Typography variant="body2">{format.number(item.amount, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Typography>
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" color="text.secondary">
@@ -460,7 +453,7 @@ const ExpenseDetailView = ({ report, isOwner, title }: Props) => {
                   <TableCell colSpan={2} />
                   <TableCell align="right">
                     <Typography variant="body2" fontWeight={600}>
-                      {total.toFixed(2)}
+                      {format.number(total, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -471,6 +464,7 @@ const ExpenseDetailView = ({ report, isOwner, title }: Props) => {
                 </TableRow>
               </TableBody>
             </Table>
+            </Box>
           </Paper>
         )}
 
@@ -496,7 +490,7 @@ const ExpenseDetailView = ({ report, isOwner, title }: Props) => {
                       {entry.actorName}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {formatDateTime(entry.createdAt)}
+                      {format.dateTime(new Date(entry.createdAt), { day: 'numeric', month: 'short', year: 'numeric' })}{' '}{format.dateTime(new Date(entry.createdAt), { hour: '2-digit', minute: '2-digit' })}
                     </Typography>
                     {typeof (entry.after as Record<string, unknown> | null)?.status === 'string' && (
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>

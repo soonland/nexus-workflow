@@ -8,7 +8,7 @@ import Grid from '@mui/material/Grid'
 import Link from '@mui/material/Link'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import { getTranslations } from 'next-intl/server'
+import { getTranslations, getFormatter } from 'next-intl/server'
 import type { Employee, ExpenseLineItem, ExpenseReport, User } from '@prisma/client'
 
 type Report = ExpenseReport & {
@@ -26,9 +26,13 @@ const STATUS_COLOR: Record<string, 'default' | 'warning' | 'success' | 'error' |
 }
 
 const ExpenseTaskCard = async ({ report }: { report: Report }) => {
-  const t = await getTranslations('tasks.expenseReview')
+  const [t, format] = await Promise.all([getTranslations('tasks.expenseReview'), getFormatter()])
 
   const total = report.lineItems.reduce((sum, item) => sum + Number(item.amount), 0)
+  const formatAmount = (n: number) =>
+    format.number(n, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const formatDate = (d: Date | string) =>
+    format.dateTime(new Date(d), { day: 'numeric', month: 'short', year: 'numeric' })
 
   const borderColor = 'divider'
   const cellSx = { px: 2, py: 1.5, borderTop: '1px solid', borderColor }
@@ -75,7 +79,7 @@ const ExpenseTaskCard = async ({ report }: { report: Report }) => {
             <React.Fragment key={item.id}>
               <Grid size={3} sx={cellSx}>
                 <Typography variant="body2">
-                  {new Date(item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {formatDate(item.date)}
                 </Typography>
               </Grid>
               <Grid size={3} sx={{ ...cellSx, borderLeft: '1px solid', borderColor }}>
@@ -85,7 +89,7 @@ const ExpenseTaskCard = async ({ report }: { report: Report }) => {
               </Grid>
               <Grid size={3} sx={{ ...cellSx, borderLeft: '1px solid', borderColor }}>
                 <Typography variant="body2" fontWeight={500}>
-                  ${Number(item.amount).toFixed(2)}
+                  {formatAmount(Number(item.amount))}
                 </Typography>
               </Grid>
               <Grid size={3} sx={{ ...cellSx, borderLeft: '1px solid', borderColor }}>
@@ -100,7 +104,7 @@ const ExpenseTaskCard = async ({ report }: { report: Report }) => {
         {/* Footer: total + receipt */}
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Typography variant="body1" fontWeight={600}>
-            {t('total')}: ${total.toFixed(2)}
+            {t('total')}: {formatAmount(total)}
           </Typography>
           {report.receiptPath && (report.receiptPath.startsWith('/') || report.receiptPath.startsWith('https://')) && (
             <Link href={report.receiptPath} target="_blank" rel="noopener noreferrer" variant="body2">
@@ -120,11 +124,11 @@ const ExpenseTaskCard = async ({ report }: { report: Report }) => {
                     {t(`category.${item.category}`)}
                   </Typography>
                   <Typography variant="body2" fontWeight={500}>
-                    ${Number(item.amount).toFixed(2)}
+                    {formatAmount(Number(item.amount))}
                   </Typography>
                 </Box>
                 <Typography variant="caption" color="text.secondary">
-                  {new Date(item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {formatDate(item.date)}
                   {item.description && ` — ${item.description}`}
                 </Typography>
               </Stack>

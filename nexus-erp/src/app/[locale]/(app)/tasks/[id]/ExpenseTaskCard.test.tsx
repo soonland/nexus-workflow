@@ -8,6 +8,13 @@ import { ExpenseReportStatus, ExpenseLineItemCategory, type Employee, type Expen
 
 vi.mock('next-intl/server', () => ({
   getTranslations: vi.fn().mockResolvedValue((key: string) => key),
+  getFormatter: vi.fn().mockResolvedValue({
+    dateTime: (date: Date) => date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+    number: (value: number, opts?: { minimumFractionDigits?: number; maximumFractionDigits?: number }) => {
+      const digits = opts?.minimumFractionDigits ?? 0
+      return value.toFixed(digits)
+    },
+  }),
 }))
 
 // ── Component import (after mocks) ────────────────────────────────────────────
@@ -135,8 +142,8 @@ describe('ExpenseTaskCard', () => {
 
   it('should render the formatted amount for each line item', async () => {
     await renderCard(makeReport())
-    expect(screen.getAllByText('$150.75').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('$42.50').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('150.75').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('42.50').length).toBeGreaterThanOrEqual(1)
   })
 
   it('should render the formatted date for each line item (en-GB locale)', async () => {
@@ -176,12 +183,12 @@ describe('ExpenseTaskCard', () => {
   it('should display the sum of all line item amounts as the total', async () => {
     // 150.75 + 42.50 = 193.25
     await renderCard(makeReport())
-    expect(screen.getByText('total: $193.25')).toBeInTheDocument()
+    expect(screen.getByText('total: 193.25')).toBeInTheDocument()
   })
 
-  it('should display $0.00 total when there are no line items', async () => {
+  it('should display 0.00 total when there are no line items', async () => {
     await renderCard(makeReport({ lineItems: [] }))
-    expect(screen.getByText('total: $0.00')).toBeInTheDocument()
+    expect(screen.getByText('total: 0.00')).toBeInTheDocument()
   })
 
   // ── Receipt link ──────────────────────────────────────────────────────────
@@ -204,10 +211,10 @@ describe('ExpenseTaskCard', () => {
 
   it('should render no line item rows when lineItems is empty', async () => {
     await renderCard(makeReport({ lineItems: [] }))
-    // No per-item amounts should be present (the footer total "$0.00" still renders,
+    // No per-item amounts should be present (the footer total "0.00" still renders,
     // so we check for the absence of any non-zero line item amount)
-    expect(screen.queryByText('$150.75')).not.toBeInTheDocument()
-    expect(screen.queryByText('$42.50')).not.toBeInTheDocument()
+    expect(screen.queryByText('150.75')).not.toBeInTheDocument()
+    expect(screen.queryByText('42.50')).not.toBeInTheDocument()
     // No category keys should be present
     expect(screen.queryByText(/category\./)).not.toBeInTheDocument()
   })

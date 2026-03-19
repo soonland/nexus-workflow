@@ -15,6 +15,13 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
+  useFormatter: () => ({
+    dateTime: (date: Date) => date.toISOString(),
+    number: (value: number, opts?: { minimumFractionDigits?: number; maximumFractionDigits?: number }) => {
+      const digits = opts?.minimumFractionDigits ?? 0
+      return value.toFixed(digits)
+    },
+  }),
 }))
 
 // Mock DatePicker with a simple text input so we can interact with it in tests
@@ -89,7 +96,7 @@ const rejectedReport = {
   status: 'REJECTED',
   auditLogs: [
     ...baseReport.auditLogs,
-    { id: 'al-2', action: 'UPDATE', actorName: 'manager@example.com', createdAt: '2024-01-16T09:00:00.000Z', before: { status: 'SUBMITTED' }, after: { status: 'REJECTED', comment: 'Missing receipts' } },
+    { id: 'al-2', action: 'UPDATE', actorName: 'manager@example.com', createdAt: '2024-01-16T09:00:00.000Z', before: { status: 'SUBMITTED' }, after: { status: 'REJECTED', rejectionReason: 'Missing receipts' } },
   ],
 }
 
