@@ -527,6 +527,44 @@
       "retryUpload": "Retry",
       "retrying": "Retrying…",
       "viewReport": "View report"
+    },
+    "detail": {
+      "title": "Expense Report",
+      "back": "Back to expenses",
+      "sections": {
+        "lineItems": "Line Items",
+        "auditTrail": "Audit Trail"
+      },
+      "fields": {
+        "date": "Date",
+        "category": "Category",
+        "amount": "Amount",
+        "description": "Description",
+        "total": "Total"
+      },
+      "categories": {
+        "TRAVEL": "Travel",
+        "MEALS": "Meals",
+        "EQUIPMENT": "Equipment",
+        "OTHER": "Other"
+      },
+      "rejectionReason": "Rejection reason",
+      "noRejectionReason": "No reason provided",
+      "noAuditEntries": "No audit history available.",
+      "resubmit": "Edit & Resubmit",
+      "cancelEdit": "Cancel",
+      "submitResubmit": "Resubmit",
+      "submitting": "Submitting…",
+      "resubmitFailed": "Failed to resubmit expense report",
+      "lineItem": "Line Item {number}",
+      "addItem": "Add Line Item",
+      "removeItem": "Remove line item",
+      "validation": {
+        "dateRequired": "Date is required",
+        "categoryRequired": "Category is required",
+        "amountRequired": "Amount is required",
+        "amountInvalid": "Enter a valid positive amount"
+      }
     }
   },
   "auditLog": {

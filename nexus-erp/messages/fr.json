@@ -527,6 +527,44 @@
       "retryUpload": "Réessayer",
       "retrying": "Nouvelle tentative…",
       "viewReport": "Voir le rapport"
+    },
+    "detail": {
+      "title": "Note de frais",
+      "back": "Retour aux notes de frais",
+      "sections": {
+        "lineItems": "Lignes de dépense",
+        "auditTrail": "Historique"
+      },
+      "fields": {
+        "date": "Date",
+        "category": "Catégorie",
+        "amount": "Montant",
+        "description": "Description",
+        "total": "Total"
+      },
+      "categories": {
+        "TRAVEL": "Déplacement",
+        "MEALS": "Repas",
+        "EQUIPMENT": "Équipement",
+        "OTHER": "Autre"
+      },
+      "rejectionReason": "Motif du rejet",
+      "noRejectionReason": "Aucun motif fourni",
+      "noAuditEntries": "Aucun historique disponible.",
+      "resubmit": "Modifier et resoumettre",
+      "cancelEdit": "Annuler",
+      "submitResubmit": "Resoumettre",
+      "submitting": "Envoi en cours…",
+      "resubmitFailed": "Échec de la resoumission de la note de frais",
+      "lineItem": "Ligne {number}",
+      "addItem": "Ajouter une ligne",
+      "removeItem": "Supprimer la ligne",
+      "validation": {
+        "dateRequired": "La date est obligatoire",
+        "categoryRequired": "La catégorie est obligatoire",
+        "amountRequired": "Le montant est obligatoire",
+        "amountInvalid": "Entrez un montant positif valide"
+      }
     }
   },
   "auditLog": {
