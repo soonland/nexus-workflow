@@ -52,7 +52,7 @@ jobs:
             - Perform the action described in the comment directly.
 
             If triggered from an issue comment or issue body containing "@claude implement":
-            - Read the skill file at `.github/skills/implement-feature.md` and follow it exactly.
+            - Read the skill file at `.claude/skills/implement-feature.md` and follow it exactly.
             - The issue that triggered this workflow is the current issue context.
 
             If triggered from an issue body or comment containing "@claude" (but NOT "implement"):
