@@ -11,7 +11,7 @@ import TableCell from '@mui/material/TableCell'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import Typography from '@mui/material/Typography'
-import { useTranslations } from 'next-intl'
+import { useTranslations, useFormatter } from 'next-intl'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -54,6 +54,7 @@ const STATUS_COLORS: Record<
 
 const ExpensesTable = ({ expenses, showEmployee }: ExpensesTableProps) => {
   const t = useTranslations('expenses')
+  const format = useFormatter()
 
   return (
     <Card>
@@ -64,6 +65,7 @@ const ExpensesTable = ({ expenses, showEmployee }: ExpensesTableProps) => {
           </Typography>
         </Box>
       ) : (
+        <Box sx={{ overflowX: 'auto' }}>
         <Table>
           <TableHead>
             <TableRow>
@@ -94,12 +96,12 @@ const ExpensesTable = ({ expenses, showEmployee }: ExpensesTableProps) => {
                   )}
                   <TableCell>
                     <Typography variant="body2" color="text.secondary">
-                      {new Date(exp.createdAt).toLocaleDateString()}
+                      {format.dateTime(new Date(exp.createdAt), { day: 'numeric', month: 'short', year: 'numeric' })}
                     </Typography>
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {total.toFixed(2)}
+                      {format.number(total, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -124,6 +126,7 @@ const ExpensesTable = ({ expenses, showEmployee }: ExpensesTableProps) => {
             })}
           </TableBody>
         </Table>
+        </Box>
       )}
     </Card>
   )
