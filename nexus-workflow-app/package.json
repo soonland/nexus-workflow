@@ -19,7 +19,7 @@
   "dependencies": {
     "@hono/node-server": "^1.13.7",
     "hono": "^4.12.8",
-    "ioredis": "^5.10.0",
+    "ioredis": "^5.10.1",
     "nexus-workflow-core": "file:../nexus-workflow-core",
     "postgres": "^3.4.5",
     "zod": "^4.3.6"
