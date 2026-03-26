@@ -8,7 +8,9 @@ import Grid from '@mui/material/Grid'
 import Link from '@mui/material/Link'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import { getTranslations, getFormatter } from 'next-intl/server'
+import { getTranslations, getFormatter, getLocale } from 'next-intl/server'
+import { dinero, add, toDecimal } from 'dinero.js'
+import { USD } from 'dinero.js/currencies'
 import type { Employee, ExpenseLineItem, ExpenseReport, User } from '@prisma/client'
 
 type Report = ExpenseReport & {
@@ -25,12 +27,34 @@ const STATUS_COLOR: Record<string, 'default' | 'warning' | 'success' | 'error' |
   REIMBURSED: 'success',
 }
 
-const ExpenseTaskCard = async ({ report }: { report: Report }) => {
-  const [t, format] = await Promise.all([getTranslations('tasks.expenseReview'), getFormatter()])
+function toDinero(value: number | { toString(): string }) {
+  const amount = Math.round(Number(value) * 10 ** USD.exponent)
+  return dinero({ amount, currency: USD })
+}
 
-  const total = report.lineItems.reduce((sum, item) => sum + Number(item.amount), 0)
-  const formatAmount = (n: number) =>
-    format.number(n, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const ExpenseTaskCard = async ({ report }: { report: Report }) => {
+  const [t, format, locale] = await Promise.all([
+    getTranslations('tasks.expenseReview'),
+    getFormatter(),
+    getLocale(),
+  ])
+
+  const zero = dinero({ amount: 0, currency: USD })
+  const total = report.lineItems.reduce((sum, item) => add(sum, toDinero(item.amount)), zero)
+  const formatAmount = (value: number | { toString(): string }) =>
+    toDecimal(toDinero(value), ({ value: v, currency }) =>
+      Number(v).toLocaleString(locale, {
+        style: 'currency',
+        currency: currency.code,
+      }),
+    )
+  const formatTotal = () =>
+    toDecimal(total, ({ value: v, currency }) =>
+      Number(v).toLocaleString(locale, {
+        style: 'currency',
+        currency: currency.code,
+      }),
+    )
   const formatDate = (d: Date | string) =>
     format.dateTime(new Date(d), { day: 'numeric', month: 'short', year: 'numeric' })
 
@@ -89,7 +113,7 @@ const ExpenseTaskCard = async ({ report }: { report: Report }) => {
               </Grid>
               <Grid size={3} sx={{ ...cellSx, borderLeft: '1px solid', borderColor }}>
                 <Typography variant="body2" fontWeight={500}>
-                  {formatAmount(Number(item.amount))}
+                  {formatAmount(item.amount)}
                 </Typography>
               </Grid>
               <Grid size={3} sx={{ ...cellSx, borderLeft: '1px solid', borderColor }}>
@@ -104,7 +128,7 @@ const ExpenseTaskCard = async ({ report }: { report: Report }) => {
         {/* Footer: total + receipt */}
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Typography variant="body1" fontWeight={600}>
-            {t('total')}: {formatAmount(total)}
+            {t('total')}: {formatTotal()}
           </Typography>
           {report.receiptPath && (report.receiptPath.startsWith('/') || report.receiptPath.startsWith('https://')) && (
             <Link href={report.receiptPath} target="_blank" rel="noopener noreferrer" variant="body2">
@@ -124,7 +148,7 @@ const ExpenseTaskCard = async ({ report }: { report: Report }) => {
                     {t(`category.${item.category}`)}
                   </Typography>
                   <Typography variant="body2" fontWeight={500}>
-                    {formatAmount(Number(item.amount))}
+                    {formatAmount(item.amount)}
                   </Typography>
                 </Box>
                 <Typography variant="caption" color="text.secondary">
