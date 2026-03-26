@@ -279,17 +279,20 @@ describe('NewExpenseForm', () => {
   // ── Successful submission ─────────────────────────────────────────────────────
 
   it('POSTs to /api/expenses and redirects to the new report on success', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ report: { id: 'rpt-1' } }),
-    } as Response)
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ report: { id: 'rpt-1' } }),
+      } as Response)
+      // submitReport PATCH call
+      .mockResolvedValueOnce({ ok: true } as Response)
 
     renderForm()
     fillItem()
     submitForm()
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledOnce()
+      expect(fetch).toHaveBeenCalledTimes(2)
     })
 
     const [url, options] = vi.mocked(fetch).mock.calls[0]
@@ -304,18 +307,23 @@ describe('NewExpenseForm', () => {
       amount: 50,
     })
 
+    const [submitUrl, submitOptions] = vi.mocked(fetch).mock.calls[1]
+    expect(submitUrl).toBe('/api/expenses/rpt-1')
+    expect((submitOptions as RequestInit).method).toBe('PATCH')
+
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/expenses/rpt-1')
     })
   })
 
   it('uploads receipt after creating the report and redirects when upload succeeds', async () => {
-    // First call: create report; second call: upload receipt
+    // First call: create report; second call: upload receipt; third call: submitReport PATCH
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ report: { id: 'rpt-2' } }),
       } as Response)
+      .mockResolvedValueOnce({ ok: true } as Response)
       .mockResolvedValueOnce({ ok: true } as Response)
 
     renderForm()
@@ -374,6 +382,8 @@ describe('NewExpenseForm', () => {
       // First upload attempt fails
       .mockResolvedValueOnce({ ok: false } as Response)
       // Retry succeeds
+      .mockResolvedValueOnce({ ok: true } as Response)
+      // submitReport PATCH after successful retry
       .mockResolvedValueOnce({ ok: true } as Response)
 
     renderForm()

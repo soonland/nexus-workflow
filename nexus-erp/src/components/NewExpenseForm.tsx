@@ -129,6 +129,18 @@ const NewExpenseForm = () => {
     return res.ok
   }
 
+  async function submitReport(reportId: string): Promise<void> {
+    const res = await fetch(`/api/expenses/${reportId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'SUBMITTED' }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error((data as { error?: string }).error ?? t('submitFailed'))
+    }
+  }
+
   async function handleRetry() {
     if (!pendingReportId) return
     setRetrying(true)
@@ -140,6 +152,7 @@ const NewExpenseForm = () => {
       }
       setRetryItems(stillFailed)
       if (stillFailed.length === 0) {
+        await submitReport(pendingReportId)
         router.push(`/expenses/${pendingReportId}`)
       }
     } catch (err) {
@@ -195,6 +208,7 @@ const NewExpenseForm = () => {
         return
       }
 
+      await submitReport(reportId)
       router.push(`/expenses/${reportId}`)
     } catch (err) {
       setServerError(err instanceof Error ? err.message : t('createFailed'))
