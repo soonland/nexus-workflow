@@ -140,6 +140,7 @@ const ExpenseDetailView = ({ report, isOwner, title }: Props) => {
 
   const status = report.status as ExpenseStatus
   const isRejected = status === 'REJECTED'
+  const isDraft = status === 'DRAFT'
 
   // Find rejection reason from the most recent REJECTED status audit entry
   const rejectionEntry = isRejected
@@ -205,6 +206,28 @@ const ExpenseDetailView = ({ report, isOwner, title }: Props) => {
     setFieldErrors({})
     setServerError(null)
     setEditing(false)
+  }
+
+  async function handleSubmitDraft() {
+    setServerError(null)
+    setSubmitting(true)
+    try {
+      const res = await fetch(`/api/expenses/${report.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'SUBMITTED' }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as { error?: string }).error ?? t('submitFailed'))
+      }
+      router.refresh()
+      router.push('/expenses')
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : t('submitFailed'))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   async function handleResubmit(e: React.FormEvent) {
@@ -274,6 +297,20 @@ const ExpenseDetailView = ({ report, isOwner, title }: Props) => {
               {rejectionComment ?? t('noRejectionReason')}
             </Typography>
           </Alert>
+        )}
+
+        {/* Submit action button for DRAFT reports (view mode) */}
+        {isDraft && isOwner && !editing && (
+          <Box sx={{ mb: 3 }}>
+            {serverError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {serverError}
+              </Alert>
+            )}
+            <Button variant="contained" onClick={handleSubmitDraft} disabled={submitting}>
+              {submitting ? t('submitting') : t('submit')}
+            </Button>
+          </Box>
         )}
 
         {/* Resubmit action button (view mode) */}
