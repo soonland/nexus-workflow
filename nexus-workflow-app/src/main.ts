@@ -11,6 +11,7 @@ import { createTasksRouter } from './http/tasks.js'
 import { createAdminRouter } from './http/admin.js'
 import { createEventsRouter } from './http/events.js'
 import { createObservabilityRouter } from './http/observability.js'
+import { createAuthMiddleware } from './http/middleware/auth.js'
 import { PostgresEventLog } from './db/EventLog.js'
 import { TaskWorker } from './worker/TaskWorker.js'
 import { HttpCallHandler } from './worker/handlers/HttpCallHandler.js'
@@ -45,6 +46,7 @@ await scheduler.start()
 
 const app = new Hono()
 app.use(timeout(config.requestTimeoutMs))
+app.use('*', createAuthMiddleware(config.apiKeys))
 app.get('/health', (c) => c.json({ status: 'ok' }))
 app.route('/definitions', createDefinitionsRouter(store, store))
 app.route('/', createInstancesRouter(store, eventBus))
