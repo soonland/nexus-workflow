@@ -13,6 +13,7 @@ import { join } from 'node:path'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { execute, type EngineState } from '../../src/engine/ExecutionEngine.js'
 import { parseBpmn } from '../../src/parser/BpmnXmlParser.js'
+import { RuntimeError } from '../../src/model/errors.js'
 import type { GatewayElement } from '../../src/model/types.js'
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
@@ -191,7 +192,7 @@ describe('Scenario: delivering the losing event after resolution has no effect',
     // Attempt to fire the already-cancelled timer token — must throw (token is cancelled, not waiting)
     expect(() =>
       execute(definition, { type: 'FireTimer', tokenId: timerToken.id }, state, opts),
-    ).toThrow()
+    ).toThrow(RuntimeError)
   })
 })
 
