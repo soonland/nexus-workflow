@@ -2,7 +2,7 @@ import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { timeout } from 'hono/timeout'
 import { InMemoryEventBus } from 'nexus-workflow-core'
-import { config } from './config.js'
+import { config, assertConfigValid } from './config.js'
 import { PostgresStateStore } from './db/PostgresStateStore.js'
 import { runMigrations } from './db/migrate.js'
 import { createDefinitionsRouter } from './http/definitions.js'
@@ -11,6 +11,7 @@ import { createTasksRouter } from './http/tasks.js'
 import { createAdminRouter } from './http/admin.js'
 import { createEventsRouter } from './http/events.js'
 import { createObservabilityRouter } from './http/observability.js'
+import { createAuthMiddleware } from './http/middleware/auth.js'
 import { PostgresEventLog } from './db/EventLog.js'
 import { TaskWorker } from './worker/TaskWorker.js'
 import { HttpCallHandler } from './worker/handlers/HttpCallHandler.js'
@@ -18,6 +19,8 @@ import { LogHandler } from './worker/handlers/LogHandler.js'
 import { PostgresScheduler } from './scheduler/PostgresScheduler.js'
 import { TimerCoordinator } from './scheduler/TimerCoordinator.js'
 import { RedisStreamPublisher } from './events/RedisStreamPublisher.js'
+
+assertConfigValid(config)
 
 const store = new PostgresStateStore(config.databaseUrl)
 const eventBus = new InMemoryEventBus()
@@ -45,6 +48,7 @@ await scheduler.start()
 
 const app = new Hono()
 app.use(timeout(config.requestTimeoutMs))
+app.use('*', createAuthMiddleware(config.apiKeys))
 app.get('/health', (c) => c.json({ status: 'ok' }))
 app.route('/definitions', createDefinitionsRouter(store, store))
 app.route('/', createInstancesRouter(store, eventBus))
