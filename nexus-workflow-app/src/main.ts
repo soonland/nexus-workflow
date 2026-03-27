@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
+import { timeout } from 'hono/timeout'
 import { InMemoryEventBus } from 'nexus-workflow-core'
 import { config } from './config.js'
 import { PostgresStateStore } from './db/PostgresStateStore.js'
@@ -25,8 +26,9 @@ eventBus.subscribe(event => { void eventLog.append(event) })
 
 await runMigrations(config.databaseUrl)
 
+let redisPublisher: RedisStreamPublisher | null = null
 if (config.redisUrl) {
-  const redisPublisher = new RedisStreamPublisher(config.redisUrl)
+  redisPublisher = new RedisStreamPublisher(config.redisUrl)
   await redisPublisher.connect()
   redisPublisher.attach(eventBus)
 }
@@ -42,6 +44,7 @@ timerCoordinator.start()
 await scheduler.start()
 
 const app = new Hono()
+app.use(timeout(config.requestTimeoutMs))
 app.get('/health', (c) => c.json({ status: 'ok' }))
 app.route('/definitions', createDefinitionsRouter(store, store))
 app.route('/', createInstancesRouter(store, eventBus))
@@ -49,6 +52,46 @@ app.route('/', createTasksRouter(store, eventBus))
 app.route('/', createAdminRouter(store, eventBus))
 app.route('/', createEventsRouter(store, eventBus))
 app.route('/', createObservabilityRouter(store, eventLog))
-serve({ fetch: app.fetch, port: config.port }, () => {
+
+const server = serve({ fetch: app.fetch, port: config.port }, () => {
   console.log(`nexus-workflow-app listening on port ${config.port}`)
 })
+
+// ─── Graceful shutdown ────────────────────────────────────────────────────────
+
+async function shutdown(signal: string): Promise<void> {
+  console.log(`[shutdown] received ${signal}, draining (timeout: ${config.shutdownTimeoutMs} ms)`)
+
+  const forceExit = setTimeout(() => {
+    console.error('[shutdown] drain timeout exceeded, forcing exit')
+    process.exit(1)
+  }, config.shutdownTimeoutMs)
+  // Don't let this timer prevent the process from exiting on its own
+  forceExit.unref()
+
+  try {
+    // 1. Stop accepting new connections; wait for in-flight HTTP requests to finish
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+
+    // 2. Stop background workers — unsubscribes from events; in-flight tasks settle independently
+    worker.stop()
+    timerCoordinator.stop()
+    await scheduler.stop()
+
+    // 3. Disconnect Redis
+    if (redisPublisher) await redisPublisher.disconnect()
+
+    // 4. Close DB pool — postgres.js waits for active queries before closing
+    await store.end()
+
+    clearTimeout(forceExit)
+    console.log('[shutdown] clean exit')
+    process.exit(0)
+  } catch (err) {
+    console.error('[shutdown] error during shutdown:', err)
+    process.exit(1)
+  }
+}
+
+process.once('SIGTERM', () => { void shutdown('SIGTERM') })
+process.once('SIGINT', () => { void shutdown('SIGINT') })

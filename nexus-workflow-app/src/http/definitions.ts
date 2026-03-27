@@ -1,6 +1,9 @@
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { parseBpmn, DefinitionError, type StateStore } from 'nexus-workflow-core'
 import { validationError, versionQuerySchema } from './validation.js'
+
+const ONE_MB = 1 * 1024 * 1024
 
 interface XmlStore {
   saveDefinitionXml(id: string, version: number, xml: string): Promise<void>
@@ -12,7 +15,13 @@ export function createDefinitionsRouter(store: StateStore, xmlStore: XmlStore): 
   const app = new Hono()
 
   // POST /definitions — upload BPMN XML, parse, store, return summary
-  app.post('/', async (c) => {
+  app.post(
+    '/',
+    bodyLimit({
+      maxSize: ONE_MB,
+      onError: (c) => c.json({ error: 'PAYLOAD_TOO_LARGE', message: 'Request body exceeds 1 MB limit' }, 413),
+    }),
+    async (c) => {
     const xml = await c.req.text()
 
     let result
@@ -54,6 +63,7 @@ export function createDefinitionsRouter(store: StateStore, xmlStore: XmlStore): 
   })
 
   // GET /definitions — list all definitions (summaries)
+
   app.get('/', async (c) => {
     const isDeployableParam = c.req.query('isDeployable')
     const filter: { isDeployable?: boolean } = {}
