@@ -2,6 +2,7 @@ import { DefinitionError, RuntimeError } from '../model/errors.js'
 import { evaluateExclusiveSplit } from '../gateways/ExclusiveGateway.js'
 import { evaluateParallelSplit, evaluateParallelJoin } from '../gateways/ParallelGateway.js'
 import { evaluateInclusiveSplit, evaluateInclusiveJoin } from '../gateways/InclusiveGateway.js'
+import { validateEventBasedGateway } from '../gateways/EventBasedGateway.js'
 import { JsEvaluator } from '../expression/JsEvaluator.js'
 import type { ExpressionEvaluator } from '../interfaces/ExpressionEvaluator.js'
 import type {
@@ -344,6 +345,9 @@ function processToken(ctx: ExecutionContext, token: Token, definition: ProcessDe
     case 'inclusiveGateway':
       handleInclusiveGateway(ctx, token, element as GatewayElement, definition)
       break
+    case 'eventBasedGateway':
+      handleEventBasedGateway(ctx, token, element as GatewayElement, definition)
+      break
     default:
       throw new RuntimeError(`Unsupported element type: "${element.type}"`)
   }
@@ -477,6 +481,8 @@ function handleFireTimer(
     }
     runLoop(ctx, definition)
   } else {
+    // Cancel EBG sibling branches before advancing (no-op if not an EBG branch)
+    cancelEbgSiblings(ctx, token)
     // Intermediate timer catch event — advance normally
     handleCompleteTask(ctx, tokenId, undefined, definition)
   }
@@ -494,10 +500,13 @@ function handleDeliverMessage(
   )
 
   for (const token of targets) {
+    // Re-check: EBG sibling cancellation mid-loop may have already cancelled this token
+    if (ctx.requireToken(token.id).status !== 'waiting') continue
     if (command.variables && Object.keys(command.variables).length > 0) {
       ctx.mergeVariables(token.scopeId, command.variables)
     }
     ctx.updateToken({ ...token, status: 'completed', updatedAt: ctx.now() })
+    cancelEbgSiblings(ctx, token)
     advanceTokenFlows(ctx, token, definition)
   }
 
@@ -516,10 +525,13 @@ function handleBroadcastSignal(
   )
 
   for (const token of targets) {
+    // Re-check: EBG sibling cancellation mid-loop may have already cancelled this token
+    if (ctx.requireToken(token.id).status !== 'waiting') continue
     if (command.variables && Object.keys(command.variables).length > 0) {
       ctx.mergeVariables(token.scopeId, command.variables)
     }
     ctx.updateToken({ ...token, status: 'completed', updatedAt: ctx.now() })
+    cancelEbgSiblings(ctx, token)
     advanceTokenFlows(ctx, token, definition)
   }
 
@@ -740,6 +752,73 @@ function handleInclusiveGateway(
 
   for (const flowId of activatedFlowIds) {
     moveTokenToFlow(ctx, token, flowId, definition)
+  }
+}
+
+function handleEventBasedGateway(
+  ctx: ExecutionContext,
+  token: Token,
+  element: GatewayElement,
+  definition: ProcessDefinition,
+): void {
+  validateEventBasedGateway(element, definition)
+
+  const outgoing = getOutgoingFlows(definition, element.id)
+
+  // Consume the EBG token
+  ctx.updateToken({ ...token, status: 'completed', updatedAt: ctx.now() })
+
+  const branchElementIds: string[] = []
+
+  // Spawn one child token per outgoing flow, placed directly at the target ICE
+  for (const flow of outgoing) {
+    const targetElement = getElement(definition, flow.targetRef)
+    branchElementIds.push(targetElement.id)
+
+    const baseToken = ctx.createToken(
+      token.instanceId,
+      targetElement.id,
+      targetElement.type,
+      token.scopeId,
+      flow.id,
+    )
+    // Set parentTokenId so siblings can be found and cancelled when one branch wins
+    const childToken: Token = { ...baseToken, parentTokenId: token.id }
+    ctx.updateToken(childToken)
+    ctx.emit({
+      type: 'TokenMoved',
+      instanceId: token.instanceId,
+      tokenId: childToken.id,
+      fromElementId: token.elementId,
+      toElementId: targetElement.id,
+      toElementType: targetElement.type,
+    })
+    ctx.enqueuePending(childToken)
+  }
+
+  ctx.emit({
+    type: 'EventBasedGatewayActivated',
+    instanceId: token.instanceId,
+    tokenId: token.id,
+    elementId: element.id,
+    branches: branchElementIds,
+  })
+}
+
+/**
+ * When an EBG child token wins the race (its event fires), cancel all sibling tokens
+ * (tokens sharing the same parentTokenId) that are still waiting.
+ * No-op if the token has no parentTokenId (i.e. is not an EBG child).
+ */
+function cancelEbgSiblings(ctx: ExecutionContext, winnerToken: Token): void {
+  if (!winnerToken.parentTokenId) return
+  const now = ctx.now()
+  for (const t of ctx.getAllTokens()) {
+    if (t.id === winnerToken.id) continue
+    if (t.parentTokenId !== winnerToken.parentTokenId) continue
+    if (t.status !== 'waiting') continue
+    ctx.updateToken({ ...t, status: 'cancelled', updatedAt: now })
+    ctx.emit({ type: 'TokenCancelled', instanceId: t.instanceId, tokenId: t.id, elementId: t.elementId })
   }
 }
 
