@@ -4,49 +4,42 @@ const {
   mockAuth,
   mockExpenseReportFindUnique,
   mockExpenseReportUpdate,
-  mockEmployeeFindMany,
   mockCreateAuditLog,
   mockTransaction,
   mockFileTypeFromBuffer,
-  mockCanViewAllExpenses,
-  mockUploadStream,
-  mockCloudinaryUrl,
+  mockWriteFile,
+  mockMkdir,
+  mockUnlink,
 } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   mockExpenseReportFindUnique: vi.fn(),
   mockExpenseReportUpdate: vi.fn(),
-  mockEmployeeFindMany: vi.fn(),
   mockCreateAuditLog: vi.fn().mockResolvedValue(undefined),
   mockTransaction: vi.fn(),
   mockFileTypeFromBuffer: vi.fn(),
-  mockCanViewAllExpenses: vi.fn(),
-  mockUploadStream: vi.fn(),
-  mockCloudinaryUrl: vi.fn(),
+  mockWriteFile: vi.fn(),
+  mockMkdir: vi.fn(),
+  mockUnlink: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: mockAuth }))
 vi.mock('file-type', () => ({ fileTypeFromBuffer: mockFileTypeFromBuffer }))
 vi.mock('@/lib/audit', () => ({ createAuditLog: mockCreateAuditLog }))
-vi.mock('@/lib/expenseAccess', () => ({
-  canViewAllExpenses: mockCanViewAllExpenses,
-  canViewTeamExpenses: () => false,
-}))
 vi.mock('@/db/client', () => ({
   db: {
     expenseReport: {
       findUnique: mockExpenseReportFindUnique,
       update: mockExpenseReportUpdate,
     },
-    employee: { findMany: mockEmployeeFindMany },
     $transaction: mockTransaction,
   },
 }))
-vi.mock('@/lib/cloudinary', () => ({
-  cloudinary: {
-    uploader: { upload_stream: mockUploadStream },
-    url: mockCloudinaryUrl,
-  },
+vi.mock('fs/promises', () => ({
+  writeFile: mockWriteFile,
+  mkdir: mockMkdir,
+  unlink: mockUnlink,
 }))
+// path.join is used to build the upload directory — keep real join logic
 vi.mock('next/server', () => {
   class MockNextRequest {
     private _formData: FormData | null
@@ -69,7 +62,7 @@ vi.mock('next/server', () => {
 })
 
 import { NextRequest } from 'next/server'
-import { POST, GET } from './route'
+import { POST } from './route'
 
 const SESSION = { user: { id: 'user-1', email: 'user@example.com', employeeId: 'emp-1' } }
 const PARAMS = { params: Promise.resolve({ id: 'exp-1' }) }
@@ -95,30 +88,14 @@ function makeRequest(file?: File | null) {
   })
 }
 
-/** Makes mockUploadStream resolve with a successful Cloudinary result. */
-function mockUploadSuccess(publicId = 'receipts/exp-1') {
-  mockUploadStream.mockImplementation(
-    (_opts: unknown, cb: (err: null, result: { public_id: string }) => void) => {
-      const stream = { end: () => cb(null, { public_id: publicId }) }
-      return stream
-    },
-  )
-}
-
-/** Makes mockUploadStream reject with an error. */
-function mockUploadFailure(message = 'Upload failed') {
-  mockUploadStream.mockImplementation(
-    (_opts: unknown, cb: (err: Error, result: null) => void) => {
-      const stream = { end: () => cb(new Error(message), null) }
-      return stream
-    },
-  )
-}
-
 describe('POST /api/expenses/[id]/receipts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockWriteFile.mockResolvedValue(undefined)
+    mockMkdir.mockResolvedValue(undefined)
+    mockUnlink.mockResolvedValue(undefined)
     mockCreateAuditLog.mockResolvedValue(undefined)
+    // Default: magic bytes match the declared MIME type
     mockFileTypeFromBuffer.mockResolvedValue({ mime: 'application/pdf', ext: 'pdf' })
     mockTransaction.mockImplementation(async (cb: (tx: unknown) => unknown) => {
       const tx = {
@@ -127,7 +104,6 @@ describe('POST /api/expenses/[id]/receipts', () => {
       }
       return cb(tx)
     })
-    mockUploadSuccess()
   })
 
   it('should return 403 when session has no employeeId', async () => {
@@ -183,6 +159,8 @@ describe('POST /api/expenses/[id]/receipts', () => {
   it('should return 400 when no file is provided in the form data', async () => {
     mockAuth.mockResolvedValue(SESSION)
     mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
+
+    // FormData with no file appended
     const fd = new FormData()
     const req = new (NextRequest as any)('http://localhost/api/expenses/exp-1/receipts', {
       formData: fd,
@@ -191,127 +169,130 @@ describe('POST /api/expenses/[id]/receipts', () => {
     expect(res._status).toBe(400)
   })
 
+  it('should return 201 with receiptPath on successful upload', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
+    const updatedReport = { ...BASE_REPORT, receiptPath: '/uploads/receipts/exp-1-123456789.pdf' }
+    mockExpenseReportUpdate.mockResolvedValue(updatedReport)
+
+    const res = await POST(makeRequest(makeMockFile('receipt.pdf')), PARAMS)
+
+    expect(res._status).toBe(201)
+    expect((res._data as any).receiptPath).toMatch(/^\/uploads\/receipts\/exp-1-\d+\.pdf$/)
+  })
+
+  it('should call mkdir with recursive: true before writing the file', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
+    mockExpenseReportUpdate.mockResolvedValue({ ...BASE_REPORT, receiptPath: '/uploads/receipts/exp-1-123.pdf' })
+
+    await POST(makeRequest(makeMockFile()), PARAMS)
+
+    expect(mockMkdir).toHaveBeenCalledWith(
+      expect.stringContaining('receipts'),
+      { recursive: true },
+    )
+  })
+
+  it('should call writeFile with a buffer of the uploaded file content', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
+    mockExpenseReportUpdate.mockResolvedValue({ ...BASE_REPORT, receiptPath: '/uploads/receipts/exp-1-123.pdf' })
+
+    await POST(makeRequest(makeMockFile('receipt.pdf', 'binary-content')), PARAMS)
+
+    expect(mockWriteFile).toHaveBeenCalledTimes(1)
+    const [filePath, buffer] = mockWriteFile.mock.calls[0]
+    expect(filePath).toMatch(/exp-1-\d+\.pdf$/)
+    expect(Buffer.isBuffer(buffer)).toBe(true)
+  })
+
+  it('should derive the file extension from the MIME type, not the filename', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
+    mockExpenseReportUpdate.mockResolvedValue({ ...BASE_REPORT, receiptPath: '/uploads/receipts/exp-1-123.png' })
+    mockFileTypeFromBuffer.mockResolvedValue({ mime: 'image/png', ext: 'png' })
+
+    // File has a .pdf name but image/png MIME type — extension must come from MIME
+    await POST(makeRequest(makeMockFile('photo.pdf', 'img', 'image/png')), PARAMS)
+
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      expect.stringMatching(/\.png$/),
+      expect.any(Buffer),
+    )
+  })
+
   it('should return 415 when magic bytes do not match the declared MIME type', async () => {
     mockAuth.mockResolvedValue(SESSION)
     mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
+    // Declared as PDF but magic bytes say it is actually an image/png
     mockFileTypeFromBuffer.mockResolvedValue({ mime: 'image/png', ext: 'png' })
+
     const res = await POST(makeRequest(makeMockFile('evil.pdf', 'content', 'application/pdf')), PARAMS)
+
     expect(res._status).toBe(415)
-    expect(mockUploadStream).not.toHaveBeenCalled()
+    expect(mockWriteFile).not.toHaveBeenCalled()
   })
 
   it('should return 415 when file-type cannot detect the content type', async () => {
     mockAuth.mockResolvedValue(SESSION)
     mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
     mockFileTypeFromBuffer.mockResolvedValue(undefined)
+
     const res = await POST(makeRequest(makeMockFile()), PARAMS)
+
     expect(res._status).toBe(415)
-    expect(mockUploadStream).not.toHaveBeenCalled()
+    expect(mockWriteFile).not.toHaveBeenCalled()
   })
 
-  it('should return 201 with receiptPath on successful upload', async () => {
+  it('should delete the new file if the DB update fails', async () => {
     mockAuth.mockResolvedValue(SESSION)
     mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
-    mockExpenseReportUpdate.mockResolvedValue({ ...BASE_REPORT, receiptPath: 'receipts/exp-1' })
+    mockExpenseReportUpdate.mockRejectedValue(new Error('DB error'))
+    mockUnlink.mockResolvedValue(undefined)
 
-    const res = await POST(makeRequest(makeMockFile('receipt.pdf')), PARAMS)
+    await expect(POST(makeRequest(makeMockFile()), PARAMS)).rejects.toThrow('DB error')
 
-    expect(res._status).toBe(201)
-    expect((res._data as any).receiptPath).toBe('receipts/exp-1')
+    expect(mockUnlink).toHaveBeenCalledWith(expect.stringMatching(/exp-1-\d+\.pdf$/))
   })
 
-  it('should upload to Cloudinary with overwrite:true and the expense-scoped public_id', async () => {
+  it('should not delete the old file if writeFile fails', async () => {
     mockAuth.mockResolvedValue(SESSION)
-    mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
-    mockExpenseReportUpdate.mockResolvedValue({ ...BASE_REPORT, receiptPath: 'receipts/exp-1' })
+    const reportWithReceipt = { ...BASE_REPORT, receiptPath: '/uploads/receipts/old.pdf' }
+    mockExpenseReportFindUnique.mockResolvedValue(reportWithReceipt)
+    mockWriteFile.mockRejectedValue(new Error('disk full'))
+
+    await expect(POST(makeRequest(makeMockFile()), PARAMS)).rejects.toThrow('disk full')
+
+    // Old file must not be deleted — it is still the authoritative receipt
+    expect(mockUnlink).not.toHaveBeenCalledWith(expect.stringContaining('old.pdf'))
+  })
+
+  it('should delete the old file only after the DB transaction commits', async () => {
+    mockAuth.mockResolvedValue(SESSION)
+    const reportWithReceipt = { ...BASE_REPORT, receiptPath: '/uploads/receipts/old.pdf' }
+    mockExpenseReportFindUnique.mockResolvedValue(reportWithReceipt)
+    mockExpenseReportUpdate.mockResolvedValue({ ...reportWithReceipt, receiptPath: '/uploads/receipts/exp-1-new.pdf' })
 
     await POST(makeRequest(makeMockFile()), PARAMS)
 
-    expect(mockUploadStream).toHaveBeenCalledWith(
-      expect.objectContaining({ public_id: 'receipts/exp-1', overwrite: true }),
-      expect.any(Function),
-    )
+    expect(mockUnlink).toHaveBeenCalledWith(expect.stringContaining('old.pdf'))
+    // New file must not have been deleted
+    expect(mockUnlink).not.toHaveBeenCalledWith(expect.stringMatching(/exp-1-\d+\.pdf$/))
   })
 
-  it('should propagate Cloudinary upload errors', async () => {
+  it('should update the expenseReport with the new receiptPath', async () => {
     mockAuth.mockResolvedValue(SESSION)
     mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT)
-    mockUploadFailure('network error')
+    mockExpenseReportUpdate.mockResolvedValue({ ...BASE_REPORT, receiptPath: '/uploads/receipts/exp-1-123.pdf' })
 
-    await expect(POST(makeRequest(makeMockFile()), PARAMS)).rejects.toThrow('network error')
-  })
-})
+    await POST(makeRequest(makeMockFile('receipt.pdf')), PARAMS)
 
-describe('GET /api/expenses/[id]/receipts', () => {
-  const GET_PARAMS = { params: Promise.resolve({ id: 'exp-1' }) }
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCanViewAllExpenses.mockResolvedValue(false)
-  })
-
-  function makeGetRequest() {
-    return new (NextRequest as any)('http://localhost/api/expenses/exp-1/receipts', {})
-  }
-
-  it('should return 403 when there is no session', async () => {
-    mockAuth.mockResolvedValue(null)
-    const res = await GET(makeGetRequest(), GET_PARAMS)
-    expect(res._status).toBe(403)
-  })
-
-  it('should return 403 when session has no employeeId', async () => {
-    mockAuth.mockResolvedValue({ user: { id: 'user-1', employeeId: null } })
-    const res = await GET(makeGetRequest(), GET_PARAMS)
-    expect(res._status).toBe(403)
-  })
-
-  it('should return 404 when report does not exist', async () => {
-    mockAuth.mockResolvedValue(SESSION)
-    mockExpenseReportFindUnique.mockResolvedValue(null)
-    const res = await GET(makeGetRequest(), GET_PARAMS)
-    expect(res._status).toBe(404)
-  })
-
-  it('should return 403 when user does not own the report and has no elevated access', async () => {
-    mockAuth.mockResolvedValue(SESSION)
-    mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, employeeId: 'emp-other' })
-    const res = await GET(makeGetRequest(), GET_PARAMS)
-    expect(res._status).toBe(403)
-  })
-
-  it('should return 404 when report has no receipt attached', async () => {
-    mockAuth.mockResolvedValue(SESSION)
-    mockExpenseReportFindUnique.mockResolvedValue(BASE_REPORT) // receiptPath: null
-    const res = await GET(makeGetRequest(), GET_PARAMS)
-    expect(res._status).toBe(404)
-    expect((res._data as any).error).toBe('No receipt attached')
-  })
-
-  it('should return 200 with a signed URL for the report owner', async () => {
-    mockAuth.mockResolvedValue(SESSION)
-    mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, receiptPath: 'receipts/exp-1' })
-    mockCloudinaryUrl.mockReturnValue('https://res.cloudinary.com/signed-url')
-
-    const res = await GET(makeGetRequest(), GET_PARAMS)
-
-    expect(res._status).toBe(200)
-    expect((res._data as any).url).toBe('https://res.cloudinary.com/signed-url')
-    expect(mockCloudinaryUrl).toHaveBeenCalledWith(
-      'receipts/exp-1',
-      expect.objectContaining({ sign_url: true }),
+    expect(mockExpenseReportUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'exp-1' },
+        data: expect.objectContaining({ receiptPath: expect.stringMatching(/^\/uploads\/receipts\/exp-1-\d+\.pdf$/) }),
+      }),
     )
-  })
-
-  it('should return 200 with a signed URL for users with canViewAllExpenses', async () => {
-    mockAuth.mockResolvedValue({ user: { id: 'admin-1', email: 'admin@example.com', employeeId: 'emp-admin' } })
-    mockExpenseReportFindUnique.mockResolvedValue({ ...BASE_REPORT, employeeId: 'emp-other', receiptPath: 'receipts/exp-1' })
-    mockCanViewAllExpenses.mockResolvedValue(true)
-    mockCloudinaryUrl.mockReturnValue('https://res.cloudinary.com/signed-url')
-
-    const res = await GET(makeGetRequest(), GET_PARAMS)
-
-    expect(res._status).toBe(200)
-    expect((res._data as any).url).toBeDefined()
   })
 })
