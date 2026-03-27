@@ -5,7 +5,7 @@ COPY nexus-workflow-core/package.json nexus-workflow-core/package-lock.json ./
 RUN npm ci
 COPY nexus-workflow-core/src ./src
 COPY nexus-workflow-core/tsconfig.json nexus-workflow-core/tsconfig.build.json ./
-RUN npm run build
+RUN npm run build && npm prune --omit=dev
 
 # Stage 2: Build nexus-workflow-app
 # Core's dist/ must exist before npm ci so the file: dep resolves correctly
@@ -18,7 +18,7 @@ COPY nexus-workflow-app/package.json nexus-workflow-app/package-lock.json ./
 RUN npm ci
 COPY nexus-workflow-app/src ./src
 COPY nexus-workflow-app/tsconfig.json ./
-RUN npm run build
+RUN npm run build && npm prune --omit=dev
 
 # Stage 3: Minimal runtime image
 # Keep the monorepo directory layout so the node_modules/nexus-workflow-core
@@ -38,4 +38,6 @@ COPY nexus-workflow-app/package.json ./
 COPY nexus-workflow-app/src/db/migrations ./dist/db/migrations/
 ENV NODE_ENV=production
 EXPOSE 3000
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
 CMD ["node", "dist/main.js"]
