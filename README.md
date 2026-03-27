@@ -42,8 +42,9 @@ curl http://localhost:3000/health
 **Environment overrides** — create a `.env` file at the repo root before starting:
 
 ```env
-POSTGRES_PASSWORD=changeme   # default: nexus
-PORT=3000                    # default: 3000
+POSTGRES_PASSWORD=changeme          # default: nexus (change this in production)
+PORT=3000                           # default: 3000
+REDIS_URL=redis://redis:6379        # default: bundled redis service
 ```
 
 > **Note:** `docker-compose.yml` (without the `.prod` suffix) is for local development and CI — it uses ephemeral `tmpfs` storage and does not run the app container.
