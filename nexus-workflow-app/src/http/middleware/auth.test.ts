@@ -20,6 +20,7 @@ describe('auth middleware', () => {
       const res = await app.fetch(new Request('http://localhost/protected'))
       expect(res.status).toBe(401)
       expect(await res.json()).toEqual({ error: 'unauthorized' })
+      expect(res.headers.get('WWW-Authenticate')).toBe('Bearer realm="nexus-workflow"')
     })
 
     it('401 when key is wrong', async () => {
@@ -31,6 +32,7 @@ describe('auth middleware', () => {
       )
       expect(res.status).toBe(401)
       expect(await res.json()).toEqual({ error: 'unauthorized' })
+      expect(res.headers.get('WWW-Authenticate')).toBe('Bearer realm="nexus-workflow"')
     })
 
     it('401 when Authorization scheme is not Bearer', async () => {
@@ -42,6 +44,7 @@ describe('auth middleware', () => {
       )
       expect(res.status).toBe(401)
       expect(await res.json()).toEqual({ error: 'unauthorized' })
+      expect(res.headers.get('WWW-Authenticate')).toBe('Bearer realm="nexus-workflow"')
     })
 
     it('200 when key is valid', async () => {
@@ -73,6 +76,7 @@ describe('auth middleware', () => {
         }),
       )
       expect(res.status).toBe(401)
+      expect(res.headers.get('WWW-Authenticate')).toBe('Bearer realm="nexus-workflow"')
     })
   })
 

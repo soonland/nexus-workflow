@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto'
 import type { Context, Next } from 'hono'
 
 /**
@@ -8,6 +9,12 @@ import type { Context, Next } from 'hono'
  *
  * The `/health` path is always bypassed so liveness probes work without credentials.
  */
+
+function safeEq(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b))
+}
+
 export function createAuthMiddleware(apiKeys: string[]) {
   return async function authMiddleware(c: Context, next: Next) {
     if (c.req.path === '/health') {
@@ -16,12 +23,16 @@ export function createAuthMiddleware(apiKeys: string[]) {
 
     const authHeader = c.req.header('Authorization')
     if (!authHeader) {
-      return c.json({ error: 'unauthorized' }, 401)
+      return c.json({ error: 'unauthorized' }, 401, {
+        'WWW-Authenticate': 'Bearer realm="nexus-workflow"',
+      })
     }
 
     const [scheme, key] = authHeader.split(' ')
-    if (scheme !== 'Bearer' || !key || !apiKeys.includes(key)) {
-      return c.json({ error: 'unauthorized' }, 401)
+    if (scheme !== 'Bearer' || !key || !apiKeys.some(k => safeEq(k, key))) {
+      return c.json({ error: 'unauthorized' }, 401, {
+        'WWW-Authenticate': 'Bearer realm="nexus-workflow"',
+      })
     }
 
     return next()

@@ -2,7 +2,7 @@ import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { timeout } from 'hono/timeout'
 import { InMemoryEventBus } from 'nexus-workflow-core'
-import { config } from './config.js'
+import { config, assertConfigValid } from './config.js'
 import { PostgresStateStore } from './db/PostgresStateStore.js'
 import { runMigrations } from './db/migrate.js'
 import { createDefinitionsRouter } from './http/definitions.js'
@@ -19,6 +19,8 @@ import { LogHandler } from './worker/handlers/LogHandler.js'
 import { PostgresScheduler } from './scheduler/PostgresScheduler.js'
 import { TimerCoordinator } from './scheduler/TimerCoordinator.js'
 import { RedisStreamPublisher } from './events/RedisStreamPublisher.js'
+
+assertConfigValid(config)
 
 const store = new PostgresStateStore(config.databaseUrl)
 const eventBus = new InMemoryEventBus()
