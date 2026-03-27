@@ -11,7 +11,10 @@ import { createTasksRouter } from './http/tasks.js'
 import { createAdminRouter } from './http/admin.js'
 import { createEventsRouter } from './http/events.js'
 import { createObservabilityRouter } from './http/observability.js'
+import { createWebhooksRouter } from './http/webhooks.js'
 import { createAuthMiddleware } from './http/middleware/auth.js'
+import { PostgresWebhookStore } from './webhooks/WebhookStore.js'
+import { WebhookDispatcher } from './webhooks/WebhookDispatcher.js'
 import { PostgresEventLog } from './db/EventLog.js'
 import { TaskWorker } from './worker/TaskWorker.js'
 import { HttpCallHandler } from './worker/handlers/HttpCallHandler.js'
@@ -36,6 +39,10 @@ if (config.redisUrl) {
   redisPublisher.attach(eventBus)
 }
 
+const webhookStore = new PostgresWebhookStore(config.databaseUrl)
+const webhookDispatcher = new WebhookDispatcher(webhookStore, eventBus)
+webhookDispatcher.start()
+
 const worker = new TaskWorker(store, eventBus)
 worker.register(new HttpCallHandler())
 worker.register(new LogHandler())
@@ -56,6 +63,7 @@ app.route('/', createTasksRouter(store, eventBus))
 app.route('/', createAdminRouter(store, eventBus))
 app.route('/', createEventsRouter(store, eventBus))
 app.route('/', createObservabilityRouter(store, eventLog))
+app.route('/', createWebhooksRouter(webhookStore))
 
 const server = serve({ fetch: app.fetch, port: config.port }, () => {
   console.log(`nexus-workflow-app listening on port ${config.port}`)
@@ -81,6 +89,7 @@ async function shutdown(signal: string): Promise<void> {
     await new Promise<void>((resolve) => server.close(() => resolve()))
 
     // 2. Stop background workers — unsubscribes from events; in-flight tasks settle independently
+    webhookDispatcher.stop()
     worker.stop()
     timerCoordinator.stop()
     await scheduler.stop()
@@ -88,7 +97,8 @@ async function shutdown(signal: string): Promise<void> {
     // 3. Disconnect Redis
     if (redisPublisher) await redisPublisher.disconnect()
 
-    // 4. Close DB pool — postgres.js waits for active queries before closing
+    // 4. Close DB pools — postgres.js waits for active queries before closing
+    await webhookStore.end()
     await store.end()
 
     clearTimeout(forceExit)
