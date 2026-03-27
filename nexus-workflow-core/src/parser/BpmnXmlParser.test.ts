@@ -562,3 +562,82 @@ describe('BpmnXmlParser — parse → execute round-trip', () => {
     expect(state.instance.status).toBe('completed')
   })
 })
+
+// ─── Multi-instance loop characteristics ──────────────────────────────────────
+
+describe('BpmnXmlParser — multiInstanceLoopCharacteristics', () => {
+  const parallelMiBpmn = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://test">
+  <process id="proc_mi" name="MI Process">
+    <startEvent id="start_1"><outgoing>flow_1</outgoing></startEvent>
+    <serviceTask id="task_1">
+      <incoming>flow_1</incoming>
+      <outgoing>flow_2</outgoing>
+      <multiInstanceLoopCharacteristics isSequential="false">
+        <loopDataInputRef>items</loopDataInputRef>
+        <inputDataItem name="item"/>
+        <outputDataItem name="result"/>
+        <loopDataOutputRef>results</loopDataOutputRef>
+        <completionCondition>done === true</completionCondition>
+      </multiInstanceLoopCharacteristics>
+    </serviceTask>
+    <endEvent id="end_1"><incoming>flow_2</incoming></endEvent>
+    <sequenceFlow id="flow_1" sourceRef="start_1" targetRef="task_1"/>
+    <sequenceFlow id="flow_2" sourceRef="task_1" targetRef="end_1"/>
+  </process>
+</definitions>`
+
+  const sequentialMiBpmn = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://test">
+  <process id="proc_mi_seq" name="MI Sequential">
+    <startEvent id="start_1"><outgoing>flow_1</outgoing></startEvent>
+    <userTask id="task_1">
+      <incoming>flow_1</incoming>
+      <outgoing>flow_2</outgoing>
+      <multiInstanceLoopCharacteristics isSequential="true">
+        <loopDataInputRef>approvers</loopDataInputRef>
+        <inputDataItem name="approver"/>
+      </multiInstanceLoopCharacteristics>
+    </userTask>
+    <endEvent id="end_1"><incoming>flow_2</incoming></endEvent>
+    <sequenceFlow id="flow_1" sourceRef="start_1" targetRef="task_1"/>
+    <sequenceFlow id="flow_2" sourceRef="task_1" targetRef="end_1"/>
+  </process>
+</definitions>`
+
+  it('parses parallel multiInstanceLoopCharacteristics on a service task', () => {
+    const { definition, errors } = parseBpmn(parallelMiBpmn)
+    expect(errors).toHaveLength(0)
+    const task = definition!.elements.find(e => e.id === 'task_1') as any
+    expect(task.loopCharacteristics).toBeDefined()
+    expect(task.loopCharacteristics.isSequential).toBe(false)
+    expect(task.loopCharacteristics.inputCollection).toBe('items')
+    expect(task.loopCharacteristics.inputElement).toBe('item')
+    expect(task.loopCharacteristics.outputElement).toBe('result')
+    expect(task.loopCharacteristics.outputCollection).toBe('results')
+    expect(task.loopCharacteristics.completionCondition).toBe('done === true')
+  })
+
+  it('parses sequential multiInstanceLoopCharacteristics on a user task', () => {
+    const { definition, errors } = parseBpmn(sequentialMiBpmn)
+    expect(errors).toHaveLength(0)
+    const task = definition!.elements.find(e => e.id === 'task_1') as any
+    expect(task.loopCharacteristics).toBeDefined()
+    expect(task.loopCharacteristics.isSequential).toBe(true)
+    expect(task.loopCharacteristics.inputCollection).toBe('approvers')
+    expect(task.loopCharacteristics.inputElement).toBe('approver')
+    expect(task.loopCharacteristics.outputElement).toBeUndefined()
+    expect(task.loopCharacteristics.outputCollection).toBeUndefined()
+    expect(task.loopCharacteristics.completionCondition).toBeUndefined()
+  })
+
+  it('tasks without multiInstanceLoopCharacteristics have no loopCharacteristics property', () => {
+    const { definition } = parseBpmn(loadFixture('service-task.bpmn'))
+    const task = definition!.elements.find(e => e.id === 'task_1') as any
+    expect(task.loopCharacteristics).toBeUndefined()
+  })
+})
