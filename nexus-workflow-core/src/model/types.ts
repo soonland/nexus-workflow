@@ -284,6 +284,11 @@ export interface CallActivityElement extends BpmnElement {
 export interface GatewayElement extends BpmnElement {
   type: 'exclusiveGateway' | 'parallelGateway' | 'inclusiveGateway' | 'eventBasedGateway'
   defaultFlow?: string
+  /**
+   * For eventBasedGateway only: true if this is an instantiating variant (not supported).
+   * Must not be set on other gateway types.
+   */
+  instantiate?: boolean
 }
 
 export interface SubProcessElement extends BpmnElement {

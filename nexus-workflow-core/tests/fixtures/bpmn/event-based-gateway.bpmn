@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  event-based-gateway.bpmn
+  Process: Start → EBG → (ICE message "payment_confirmed" | ICE timer PT1H) → End
+  Used by: tests/scenarios/event-based-gateway.scenario.test.ts
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_EBG"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="proc_ebg" name="Event-Based Gateway" isExecutable="true">
+
+    <bpmn:startEvent id="start_1">
+      <bpmn:outgoing>flow_start_ebg</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:eventBasedGateway id="ebg_1" name="Wait for event">
+      <bpmn:incoming>flow_start_ebg</bpmn:incoming>
+      <bpmn:outgoing>flow_ebg_message</bpmn:outgoing>
+      <bpmn:outgoing>flow_ebg_timer</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <bpmn:intermediateCatchEvent id="ice_message" name="Payment Confirmed">
+      <bpmn:incoming>flow_ebg_message</bpmn:incoming>
+      <bpmn:outgoing>flow_message_end</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="payment_confirmed"/>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:intermediateCatchEvent id="ice_timer" name="1 Hour Timeout">
+      <bpmn:incoming>flow_ebg_timer</bpmn:incoming>
+      <bpmn:outgoing>flow_timer_end</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT1H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:endEvent id="end_message" name="Payment Received">
+      <bpmn:incoming>flow_message_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_timer" name="Timed Out">
+      <bpmn:incoming>flow_timer_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_start_ebg"   sourceRef="start_1"   targetRef="ebg_1"/>
+    <bpmn:sequenceFlow id="flow_ebg_message" sourceRef="ebg_1"     targetRef="ice_message"/>
+    <bpmn:sequenceFlow id="flow_ebg_timer"   sourceRef="ebg_1"     targetRef="ice_timer"/>
+    <bpmn:sequenceFlow id="flow_message_end" sourceRef="ice_message" targetRef="end_message"/>
+    <bpmn:sequenceFlow id="flow_timer_end"   sourceRef="ice_timer"   targetRef="end_timer"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

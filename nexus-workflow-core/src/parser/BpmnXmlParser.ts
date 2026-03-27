@@ -321,6 +321,7 @@ function parseGateway(type: GatewayElement['type']) {
     ...baseElement(raw, flows),
     type,
     ...(raw['@_default'] !== undefined ? { defaultFlow: String(raw['@_default']) } : {}),
+    ...(type === 'eventBasedGateway' && raw['@_instantiate'] === 'true' ? { instantiate: true } : {}),
   })
 }
 

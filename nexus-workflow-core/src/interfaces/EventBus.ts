@@ -28,6 +28,7 @@ export type ExecutionEvent =
   | { type: 'BoundaryEventTriggered'; instanceId: string; tokenId: string; boundaryEventId: string; interrupting: boolean }
   | { type: 'CallActivityStarted'; instanceId: string; tokenId: string; childInstanceId: string }
   | { type: 'CallActivityCompleted'; instanceId: string; tokenId: string; childInstanceId: string }
+  | { type: 'EventBasedGatewayActivated'; instanceId: string; tokenId: string; elementId: string; branches: string[] }
 
 export type ExecutionEventType = ExecutionEvent['type']
 
