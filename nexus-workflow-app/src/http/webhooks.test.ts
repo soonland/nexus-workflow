@@ -189,7 +189,7 @@ describe('webhooks HTTP API', () => {
       expect(entry).toHaveProperty('id')
       expect(entry).toHaveProperty('url')
       expect(entry).toHaveProperty('events')
-      expect(entry).toHaveProperty('secret')
+      expect(entry).not.toHaveProperty('secret')
       expect(entry).toHaveProperty('createdAt')
     })
   })

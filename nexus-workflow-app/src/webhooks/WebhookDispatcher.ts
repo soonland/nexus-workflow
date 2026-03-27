@@ -22,6 +22,7 @@ export class WebhookDispatcher {
   private readonly baseRetryDelayMs: number
   private readonly fetch: typeof fetch
   private unsubscribe: (() => void) | null = null
+  private stopped = false
 
   constructor(store: WebhookStore, eventBus: EventBus, options: WebhookDispatcherOptions = {}) {
     this.store = store
@@ -39,6 +40,7 @@ export class WebhookDispatcher {
   }
 
   stop(): void {
+    this.stopped = true
     this.unsubscribe?.()
     this.unsubscribe = null
   }
@@ -94,7 +96,7 @@ export class WebhookDispatcher {
       console.warn(`[webhook] delivery to ${url} threw (attempt ${attempt}/${this.maxAttempts}):`, err)
     }
 
-    if (!ok && attempt < this.maxAttempts) {
+    if (!this.stopped && !ok && attempt < this.maxAttempts) {
       const delay = this.baseRetryDelayMs * Math.pow(2, attempt - 1)
       setTimeout(() => {
         void this.deliver(url, secret, eventType, body, attempt + 1)

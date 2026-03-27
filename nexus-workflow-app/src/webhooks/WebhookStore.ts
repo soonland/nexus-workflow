@@ -24,6 +24,7 @@ export interface WebhookStore {
   save(input: CreateWebhookInput): Promise<WebhookRegistration>
   list(): Promise<WebhookRegistration[]>
   delete(id: string): Promise<boolean>
+  end?(): Promise<void>
 }
 
 // ─── InMemoryWebhookStore ─────────────────────────────────────────────────────
@@ -100,6 +101,10 @@ export class PostgresWebhookStore implements WebhookStore {
       DELETE FROM webhook_registrations WHERE id = ${id}
     `
     return result.count > 0
+  }
+
+  async end(): Promise<void> {
+    await this.sql.end()
   }
 }
 

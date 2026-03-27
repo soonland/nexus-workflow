@@ -97,7 +97,8 @@ async function shutdown(signal: string): Promise<void> {
     // 3. Disconnect Redis
     if (redisPublisher) await redisPublisher.disconnect()
 
-    // 4. Close DB pool — postgres.js waits for active queries before closing
+    // 4. Close DB pools — postgres.js waits for active queries before closing
+    await webhookStore.end()
     await store.end()
 
     clearTimeout(forceExit)

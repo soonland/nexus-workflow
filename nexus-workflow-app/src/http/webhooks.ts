@@ -32,10 +32,11 @@ export function createWebhooksRouter(store: WebhookStore): Hono {
     return c.json(reg, 201)
   })
 
-  // GET /webhooks — list all registered webhooks
+  // GET /webhooks — list all registered webhooks (secret is omitted from responses)
   app.get('/webhooks', async (c) => {
     const registrations = await store.list()
-    return c.json({ webhooks: registrations })
+    const safeRegistrations = registrations.map(({ secret: _s, ...r }) => r)
+    return c.json({ webhooks: safeRegistrations })
   })
 
   // DELETE /webhooks/:id — remove a webhook
