@@ -213,6 +213,34 @@ describe('definitions HTTP API', () => {
       const all = await store.listDefinitions()
       expect(all).toHaveLength(0)
     })
+
+    it('413: returns PAYLOAD_TOO_LARGE when body exceeds 1 MB', async () => {
+      const oversized = 'x'.repeat(1 * 1024 * 1024 + 1)
+      const res = await app.fetch(
+        new Request('http://localhost/definitions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/xml' },
+          body: oversized,
+        }),
+      )
+      expect(res.status).toBe(413)
+      const body = await res.json()
+      expect(body.error).toBe('PAYLOAD_TOO_LARGE')
+    })
+
+    it('does not reject a body just under the 1 MB limit', async () => {
+      // A body of ONE_MB - 1 bytes must not trigger the 413 limit
+      const underLimit = 'x'.repeat(1 * 1024 * 1024 - 1)
+      const res = await app.fetch(
+        new Request('http://localhost/definitions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/xml' },
+          body: underLimit,
+        }),
+      )
+      // 400 because it's not valid BPMN — the key assertion is NOT 413
+      expect(res.status).not.toBe(413)
+    })
   })
 
   // ─── GET /definitions ───────────────────────────────────────────────────────
