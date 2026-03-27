@@ -71,6 +71,9 @@ async function shutdown(signal: string): Promise<void> {
 
   try {
     // 1. Stop accepting new connections; wait for in-flight HTTP requests to finish
+    // closeIdleConnections() drains idle keep-alive sockets (Node ≥ 18.2) so that
+    // server.close() resolves without waiting for them to time out naturally.
+    ;(server as unknown as import('node:http').Server).closeIdleConnections()
     await new Promise<void>((resolve) => server.close(() => resolve()))
 
     // 2. Stop background workers — unsubscribes from events; in-flight tasks settle independently
