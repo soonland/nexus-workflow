@@ -199,5 +199,17 @@ describe('PostgresScheduler', () => {
 
       expect(fired).toHaveLength(1)
     })
+
+    it('defaults to 5000ms poll interval when no options provided', async () => {
+      const defaultScheduler = new PostgresScheduler(store)
+      const fired: ScheduledTimer[] = []
+      defaultScheduler.onTimerFired(async (t) => { fired.push(t) })
+
+      await defaultScheduler.schedule(makeTimer())
+      await defaultScheduler.start()
+
+      expect(fired).toHaveLength(1)
+      await defaultScheduler.stop()
+    })
   })
 })

@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { parseBpmn, InMemoryStateStore, InMemoryEventBus, InMemoryScheduler, execute ,type  ProcessDefinition,type  ExecutionEvent } from 'nexus-workflow-core'
+import * as coreModule from 'nexus-workflow-core'
+
+vi.mock('nexus-workflow-core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('nexus-workflow-core')>()
+  return { ...actual, execute: vi.fn(actual.execute) }
+})
 // 5 minutes + 1 second in ms — enough to make timer-1 (PT5M) and timer-boundary (PT1H) both "due"
 const ADVANCE_PAST_5M = 5 * 60 * 1000 + 1000
 const ADVANCE_PAST_1H = 60 * 60 * 1000 + 1000
@@ -364,6 +370,29 @@ describe('TimerCoordinator', () => {
 
       const after = await store.getInstance(instanceId)
       expect(after!.status).toBe('completed')
+    })
+  })
+
+  // ─── RuntimeError during fireTimer ──────────────────────────────────────────
+
+  describe('onTimerFired: execute throws RuntimeError', () => {
+    it('swallows RuntimeError from execute and does not rethrow', async () => {
+      coordinator.start()
+
+      await seedDefinition(store, INTERMEDIATE_TIMER_BPMN)
+      const { instanceId } = await startInstance(store, eventBus, 'timer-proc')
+
+      vi.mocked(coreModule.execute).mockImplementationOnce(() => {
+        throw new coreModule.RuntimeError('token no longer actionable')
+      })
+
+      // Advance fake time and fire the timer — RuntimeError should be silently swallowed
+      vi.advanceTimersByTime(ADVANCE_PAST_5M)
+      await expect(inMemoryScheduler.tickDue()).resolves.not.toThrow()
+
+      // Instance is still in same state (the execute that would have advanced it threw)
+      const instance = await store.getInstance(instanceId)
+      expect(instance?.status).toBe('active')
     })
   })
 
