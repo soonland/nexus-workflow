@@ -29,6 +29,8 @@ export type ExecutionEvent =
   | { type: 'CallActivityStarted'; instanceId: string; tokenId: string; childInstanceId: string }
   | { type: 'CallActivityCompleted'; instanceId: string; tokenId: string; childInstanceId: string }
   | { type: 'EventBasedGatewayActivated'; instanceId: string; tokenId: string; elementId: string; branches: string[] }
+  | { type: 'MultiInstanceStarted'; instanceId: string; tokenId: string; elementId: string; count: number; isSequential: boolean }
+  | { type: 'MultiInstanceCompleted'; instanceId: string; tokenId: string; elementId: string; iterationsRan: number }
 
 export type ExecutionEventType = ExecutionEvent['type']
 

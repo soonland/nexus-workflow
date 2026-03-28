@@ -16,6 +16,7 @@ import type {
   CallActivityElement,
   GatewayElement,
   EventDefinition,
+  MultiInstanceLoopCharacteristics,
 } from '../model/types.js'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
@@ -264,6 +265,41 @@ function parseEventDefinition(raw: Record<string, unknown>): EventDefinition {
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 
+function parseMultiInstanceLoopCharacteristics(
+  raw: Record<string, unknown>,
+): MultiInstanceLoopCharacteristics | undefined {
+  const miRaw = firstOf(raw['multiInstanceLoopCharacteristics']) as Record<string, unknown> | undefined
+  if (!miRaw) return undefined
+
+  const inputCollection = extractText(miRaw['loopDataInputRef']) ?? ''
+  if (!inputCollection) return undefined
+
+  const isSequential = miRaw['@_isSequential'] === 'true' || miRaw['@_isSequential'] === true
+
+  const inputElementRaw = firstOf(miRaw['inputDataItem']) as Record<string, unknown> | undefined
+  const inputElement = inputElementRaw
+    ? (inputElementRaw['@_name'] as string | undefined)
+    : undefined
+
+  const outputElementRaw = firstOf(miRaw['outputDataItem']) as Record<string, unknown> | undefined
+  const outputElement = outputElementRaw
+    ? (outputElementRaw['@_name'] as string | undefined)
+    : undefined
+
+  const outputCollection = extractText(miRaw['loopDataOutputRef'])
+
+  const completionCondition = extractText(miRaw['completionCondition'])
+
+  return {
+    isSequential,
+    inputCollection,
+    ...(inputElement !== undefined ? { inputElement } : {}),
+    ...(outputElement !== undefined ? { outputElement } : {}),
+    ...(outputCollection !== undefined ? { outputCollection } : {}),
+    ...(completionCondition !== undefined ? { completionCondition } : {}),
+  }
+}
+
 function parseServiceTask(
   raw: Record<string, unknown>,
   flows: SequenceFlow[],
@@ -273,34 +309,45 @@ function parseServiceTask(
     (raw['@_nexus:type'] as string | undefined) ??
     (raw['@_type'] as string | undefined) ??
     undefined
+  const loopCharacteristics = parseMultiInstanceLoopCharacteristics(raw)
   return {
     ...baseElement(raw, flows),
     type: 'serviceTask',
     ...(taskType !== undefined ? { taskType } : {}),
+    ...(loopCharacteristics !== undefined ? { loopCharacteristics } : {}),
   }
 }
 
 function parseUserTask(raw: Record<string, unknown>, flows: SequenceFlow[]): UserTaskElement {
+  const loopCharacteristics = parseMultiInstanceLoopCharacteristics(raw)
   return {
     ...baseElement(raw, flows),
     type: 'userTask',
     priority: 50,
     ...(raw['@_assignee'] !== undefined ? { assignee: String(raw['@_assignee']) } : {}),
     ...(raw['@_formKey'] !== undefined ? { formKey: String(raw['@_formKey']) } : {}),
+    ...(loopCharacteristics !== undefined ? { loopCharacteristics } : {}),
   }
 }
 
 function parseScriptTask(raw: Record<string, unknown>, flows: SequenceFlow[]): ScriptTaskElement {
+  const loopCharacteristics = parseMultiInstanceLoopCharacteristics(raw)
   return {
     ...baseElement(raw, flows),
     type: 'scriptTask',
     scriptLanguage: String(raw['@_scriptFormat'] ?? 'javascript'),
     script: extractText(raw['script']) ?? '',
+    ...(loopCharacteristics !== undefined ? { loopCharacteristics } : {}),
   }
 }
 
 function parseManualTask(raw: Record<string, unknown>, flows: SequenceFlow[]): ManualTaskElement {
-  return { ...baseElement(raw, flows), type: 'manualTask' }
+  const loopCharacteristics = parseMultiInstanceLoopCharacteristics(raw)
+  return {
+    ...baseElement(raw, flows),
+    type: 'manualTask',
+    ...(loopCharacteristics !== undefined ? { loopCharacteristics } : {}),
+  }
 }
 
 function parseCallActivity(

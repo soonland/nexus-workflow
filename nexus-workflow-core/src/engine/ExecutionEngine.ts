@@ -21,10 +21,13 @@ import type {
   BpmnElementType,
   GatewayElement,
   ServiceTaskElement,
-  EndEventElement,
   UserTaskElement,
+  ScriptTaskElement,
+  ManualTaskElement,
+  EndEventElement,
   IntermediateCatchEventElement,
   BoundaryEventElement,
+  MultiInstanceLoopCharacteristics,
 } from '../model/types.js'
 import type { ExecutionEvent } from '../interfaces/EventBus.js'
 
@@ -174,6 +177,21 @@ function handleCompleteTask(
 
   const element = getElement(definition, token.elementId)
 
+  // Check if this is a multi-instance child token completing
+  if (token.parentTokenId) {
+    const parentToken = ctx.getAllTokens().find(t => t.id === token.parentTokenId)
+    const lc = getLoopCharacteristics(element)
+    if (parentToken && parentToken.elementId === token.elementId && lc) {
+      // Only emit ServiceTaskCompleted for service task children; other types use their own events
+      if (element.type === 'serviceTask') {
+        ctx.emit({ type: 'ServiceTaskCompleted', instanceId: ctx.requireInstance().id, tokenId, elementId: token.elementId, durationMs: 0 })
+      }
+      handleMultiInstanceChildCompletion(ctx, token, element, lc, definition)
+      runLoop(ctx, definition)
+      return
+    }
+  }
+
   ctx.emit({ type: 'ServiceTaskCompleted', instanceId: ctx.requireInstance().id, tokenId, elementId: token.elementId, durationMs: 0 })
 
   // Cancel any waiting boundary tokens attached to this task
@@ -322,14 +340,31 @@ function processToken(ctx: ExecutionContext, token: Token, definition: ProcessDe
     case 'userTask':
       handleUserTask(ctx, token, element as UserTaskElement, definition)
       break
-    case 'scriptTask':
-      // Script tasks are synchronous — treat like service tasks for now
-      suspendToken(ctx, token, 'external')
+    case 'scriptTask': {
+      const scriptElement = element as ScriptTaskElement
+      if (scriptElement.loopCharacteristics && !token.parentTokenId) {
+        handleMultiInstanceStart(ctx, token, scriptElement, scriptElement.loopCharacteristics, definition)
+      } else {
+        // Script tasks are synchronous — treat like service tasks for now
+        suspendToken(ctx, token, 'external')
+      }
       break
-    case 'manualTask':
-      // Manual tasks auto-complete
-      advanceToken(ctx, token, element, definition)
+    }
+    case 'manualTask': {
+      const manualElement = element as ManualTaskElement
+      if (manualElement.loopCharacteristics && !token.parentTokenId) {
+        handleMultiInstanceStart(ctx, token, manualElement, manualElement.loopCharacteristics, definition)
+      } else if (token.parentTokenId) {
+        // MI child: auto-completes immediately; route through aggregation
+        const lc = getLoopCharacteristics(element)
+        if (lc) handleMultiInstanceChildCompletion(ctx, token, element, lc, definition)
+        else advanceToken(ctx, token, element, definition)
+      } else {
+        // Manual tasks auto-complete
+        advanceToken(ctx, token, element, definition)
+      }
       break
+    }
     case 'intermediateCatchEvent':
       handleIntermediateCatchEvent(ctx, token, element as IntermediateCatchEventElement)
       break
@@ -390,6 +425,10 @@ function handleServiceTask(
   element: ServiceTaskElement,
   definition: ProcessDefinition,
 ): void {
+  if (element.loopCharacteristics && !token.parentTokenId) {
+    handleMultiInstanceStart(ctx, token, element, element.loopCharacteristics, definition)
+    return
+  }
   ctx.emit({
     type: 'ServiceTaskStarted',
     instanceId: ctx.requireInstance().id,
@@ -407,6 +446,10 @@ function handleUserTask(
   element: UserTaskElement,
   definition: ProcessDefinition,
 ): void {
+  if (element.loopCharacteristics && !token.parentTokenId) {
+    handleMultiInstanceStart(ctx, token, element, element.loopCharacteristics, definition)
+    return
+  }
   suspendToken(ctx, token, 'user-task')
   spawnBoundaryTokens(ctx, token, element.id, definition)
 }
@@ -819,6 +862,264 @@ function cancelEbgSiblings(ctx: ExecutionContext, winnerToken: Token): void {
     if (t.status !== 'waiting') continue
     ctx.updateToken({ ...t, status: 'cancelled', updatedAt: now })
     ctx.emit({ type: 'TokenCancelled', instanceId: t.instanceId, tokenId: t.id, elementId: t.elementId })
+  }
+}
+
+// ─── Multi-instance ───────────────────────────────────────────────────────────
+
+type MultiInstanceTaskElement = ServiceTaskElement | UserTaskElement | ScriptTaskElement | ManualTaskElement
+
+function getLoopCharacteristics(element: BpmnFlowElement): MultiInstanceLoopCharacteristics | undefined {
+  const el = element as MultiInstanceTaskElement
+  return el.loopCharacteristics
+}
+
+function handleMultiInstanceStart(
+  ctx: ExecutionContext,
+  token: Token,
+  element: MultiInstanceTaskElement,
+  lc: MultiInstanceLoopCharacteristics,
+  definition: ProcessDefinition,
+): void {
+  const scope = ctx.resolveScope(token.scopeId)
+  const rawCollection = ctx.expressionEvaluator.evaluate(lc.inputCollection, { variables: scope })
+
+  if (!Array.isArray(rawCollection)) {
+    throw new RuntimeError(
+      `Multi-instance inputCollection "${lc.inputCollection}" did not resolve to an array`,
+      ctx.instance?.id,
+    )
+  }
+
+  const collection = rawCollection as unknown[]
+
+  // Empty collection — skip task entirely
+  if (collection.length === 0) {
+    const completed: Token = { ...token, status: 'completed', updatedAt: ctx.now() }
+    ctx.updateToken(completed)
+    ctx.emit({
+      type: 'MultiInstanceCompleted',
+      instanceId: ctx.requireInstance().id,
+      tokenId: token.id,
+      elementId: element.id,
+      iterationsRan: 0,
+    })
+    advanceToken(ctx, token, element, definition)
+    return
+  }
+
+  // Suspend parent token to wait for children
+  const waiting: Token = {
+    ...token,
+    status: 'waiting',
+    waitingFor: { type: 'external' },
+    updatedAt: ctx.now(),
+  }
+  ctx.updateToken(waiting)
+
+  if (lc.isSequential) {
+    // Store loop state on the parent token (not in user-visible variable scope)
+    ctx.updateToken({ ...waiting, loopState: { collection, index: 0, iterationsRan: 0 } })
+    ctx.emit({
+      type: 'MultiInstanceStarted',
+      instanceId: ctx.requireInstance().id,
+      tokenId: token.id,
+      elementId: element.id,
+      count: collection.length,
+      isSequential: true,
+    })
+    spawnMultiInstanceChild(ctx, token, element, lc, collection[0], definition)
+  } else {
+    // Parallel: spawn one child per item
+    ctx.emit({
+      type: 'MultiInstanceStarted',
+      instanceId: ctx.requireInstance().id,
+      tokenId: token.id,
+      elementId: element.id,
+      count: collection.length,
+      isSequential: false,
+    })
+
+    // Initialize outputCollection in parent scope if configured
+    if (lc.outputCollection) {
+      ctx.mergeVariables(token.scopeId, {
+        [lc.outputCollection]: { type: 'array', value: [] },
+      })
+    }
+
+    for (const item of collection) {
+      spawnMultiInstanceChild(ctx, token, element, lc, item, definition)
+    }
+  }
+}
+
+function spawnMultiInstanceChild(
+  ctx: ExecutionContext,
+  parentToken: Token,
+  element: MultiInstanceTaskElement,
+  lc: MultiInstanceLoopCharacteristics,
+  item: unknown,
+  _definition: ProcessDefinition,
+): void {
+  // Create a child scope with the loop variable
+  const childScope: VariableScope = {
+    id: ctx.newId(),
+    parentScopeId: parentToken.scopeId,
+    variables: lc.inputElement
+      ? { [lc.inputElement]: { type: 'object', value: item } }
+      : {},
+  }
+  ctx.saveScope(childScope)
+
+  const childToken = ctx.createToken(
+    parentToken.instanceId,
+    element.id,
+    element.type,
+    childScope.id,
+  )
+  // Tag child token with parent
+  ctx.updateToken({ ...childToken, parentTokenId: parentToken.id })
+  ctx.enqueuePending({ ...childToken, parentTokenId: parentToken.id })
+}
+
+function handleMultiInstanceChildCompletion(
+  ctx: ExecutionContext,
+  childToken: Token,
+  element: BpmnFlowElement,
+  lc: MultiInstanceLoopCharacteristics,
+  definition: ProcessDefinition,
+): void {
+  const parentToken = ctx.getAllTokens().find(t => t.id === childToken.parentTokenId)
+  if (!parentToken) return
+
+  // Mark child as completed
+  ctx.updateToken({ ...childToken, status: 'completed', updatedAt: ctx.now() })
+
+  // Collect output into parent scope
+  if (lc.outputElement && lc.outputCollection) {
+    const childScope = ctx.resolveScope(childToken.scopeId)
+    const outputVal = childScope[lc.outputElement]
+    if (outputVal !== undefined) {
+      const parentScope = ctx.resolveScope(parentToken.scopeId)
+      const existing = parentScope[lc.outputCollection]
+      const arr = Array.isArray(existing?.value) ? [...(existing.value as unknown[])] : []
+      arr.push(outputVal.value)
+      ctx.mergeVariables(parentToken.scopeId, {
+        [lc.outputCollection]: { type: 'array', value: arr },
+      })
+    }
+  }
+
+  if (lc.isSequential) {
+    handleSequentialChildCompletion(ctx, childToken, parentToken, element, lc, definition)
+  } else {
+    handleParallelChildCompletion(ctx, childToken, parentToken, element, lc, definition)
+  }
+}
+
+function handleSequentialChildCompletion(
+  ctx: ExecutionContext,
+  childToken: Token,
+  parentToken: Token,
+  element: BpmnFlowElement,
+  lc: MultiInstanceLoopCharacteristics,
+  definition: ProcessDefinition,
+): void {
+  const loopState = parentToken.loopState
+  if (!loopState) return
+
+  const iterationsRan = loopState.iterationsRan + 1
+
+  // Check completion condition — evaluate against child scope chain (includes output vars)
+  if (lc.completionCondition) {
+    const condScope = ctx.resolveScope(childToken.scopeId)
+    const condResult = ctx.expressionEvaluator.evaluate(lc.completionCondition, { variables: condScope })
+    if (condResult) {
+      completeMultiInstance(ctx, parentToken, element, iterationsRan, definition)
+      return
+    }
+  }
+
+  const nextIndex = loopState.index + 1
+
+  if (nextIndex >= loopState.collection.length) {
+    // All items processed
+    completeMultiInstance(ctx, parentToken, element, iterationsRan, definition)
+    return
+  }
+
+  // Update loop state on parent token and spawn next child
+  ctx.updateToken({ ...parentToken, loopState: { collection: loopState.collection, index: nextIndex, iterationsRan } })
+
+  const miElement = element as MultiInstanceTaskElement
+  spawnMultiInstanceChild(ctx, parentToken, miElement, lc, loopState.collection[nextIndex], definition)
+}
+
+function handleParallelChildCompletion(
+  ctx: ExecutionContext,
+  childToken: Token,
+  parentToken: Token,
+  element: BpmnFlowElement,
+  lc: MultiInstanceLoopCharacteristics,
+  definition: ProcessDefinition,
+): void {
+  // Check completion condition first — evaluate against child scope chain (includes output vars)
+  if (lc.completionCondition) {
+    const condScope = ctx.resolveScope(childToken.scopeId)
+    const condResult = ctx.expressionEvaluator.evaluate(lc.completionCondition, { variables: condScope })
+    if (condResult) {
+      // Cancel all remaining sibling tokens
+      const siblings = ctx.getAllTokens().filter(
+        t => t.parentTokenId === parentToken.id && t.status === 'waiting',
+      )
+      const now = ctx.now()
+      for (const sibling of siblings) {
+        ctx.updateToken({ ...sibling, status: 'cancelled', updatedAt: now })
+        ctx.emit({ type: 'TokenCancelled', instanceId: sibling.instanceId, tokenId: sibling.id, elementId: sibling.elementId })
+      }
+      // Count completed iterations (already updated child to completed above)
+      const iterationsRan = ctx.getAllTokens().filter(
+        t => t.parentTokenId === parentToken.id && t.status === 'completed',
+      ).length
+      completeMultiInstance(ctx, parentToken, element, iterationsRan, definition)
+      return
+    }
+  }
+
+  // Check if all sibling tokens are done
+  const siblings = ctx.getAllTokens().filter(t => t.parentTokenId === parentToken.id)
+  const allDone = siblings.every(t => t.status === 'completed' || t.status === 'cancelled')
+
+  if (allDone) {
+    const iterationsRan = siblings.filter(t => t.status === 'completed').length
+    completeMultiInstance(ctx, parentToken, element, iterationsRan, definition)
+  }
+}
+
+function completeMultiInstance(
+  ctx: ExecutionContext,
+  parentToken: Token,
+  element: BpmnFlowElement,
+  iterationsRan: number,
+  definition: ProcessDefinition,
+): void {
+  const completed: Token = { ...parentToken, status: 'completed', updatedAt: ctx.now() }
+  ctx.updateToken(completed)
+
+  ctx.emit({
+    type: 'MultiInstanceCompleted',
+    instanceId: ctx.requireInstance().id,
+    tokenId: parentToken.id,
+    elementId: element.id,
+    iterationsRan,
+  })
+
+  // Cancel any waiting boundary tokens attached to this task
+  cancelBoundaryTokensFor(ctx, element.id)
+
+  // Advance through outgoing flows
+  for (const flowId of element.outgoingFlows) {
+    moveTokenToFlow(ctx, parentToken, flowId, definition)
   }
 }
 

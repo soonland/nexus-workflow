@@ -36,6 +36,8 @@ export interface Token {
   parentTokenId?: string
   subProcessInstanceId?: string
   waitingFor?: WaitCondition
+  /** Internal engine state for sequential multi-instance loops. Not user-visible. */
+  loopState?: { collection: unknown[]; index: number; iterationsRan: number }
   createdAt: Date
   updatedAt: Date
 }
@@ -246,12 +248,22 @@ export interface BoundaryEventElement extends BpmnElement {
   eventDefinition: EventDefinition
 }
 
+export interface MultiInstanceLoopCharacteristics {
+  isSequential: boolean
+  inputCollection: string
+  inputElement?: string
+  outputElement?: string
+  outputCollection?: string
+  completionCondition?: string
+}
+
 export interface ServiceTaskElement extends BpmnElement {
   type: 'serviceTask'
   taskType?: string
   inputMappings?: VariableMapping[]
   outputMappings?: VariableMapping[]
   retryConfig?: RetryConfig
+  loopCharacteristics?: MultiInstanceLoopCharacteristics
 }
 
 export interface UserTaskElement extends BpmnElement {
@@ -261,16 +273,19 @@ export interface UserTaskElement extends BpmnElement {
   dueDate?: string
   priority?: number
   formKey?: string
+  loopCharacteristics?: MultiInstanceLoopCharacteristics
 }
 
 export interface ScriptTaskElement extends BpmnElement {
   type: 'scriptTask'
   scriptLanguage: string
   script: string
+  loopCharacteristics?: MultiInstanceLoopCharacteristics
 }
 
 export interface ManualTaskElement extends BpmnElement {
   type: 'manualTask'
+  loopCharacteristics?: MultiInstanceLoopCharacteristics
 }
 
 export interface CallActivityElement extends BpmnElement {
