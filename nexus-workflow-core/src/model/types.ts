@@ -36,6 +36,8 @@ export interface Token {
   parentTokenId?: string
   subProcessInstanceId?: string
   waitingFor?: WaitCondition
+  /** Internal engine state for sequential multi-instance loops. Not user-visible. */
+  loopState?: { collection: unknown[]; index: number; iterationsRan: number }
   createdAt: Date
   updatedAt: Date
 }

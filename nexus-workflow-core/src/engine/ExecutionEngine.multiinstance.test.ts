@@ -8,6 +8,7 @@ import type {
   EndEventElement,
   ServiceTaskElement,
   UserTaskElement,
+  ManualTaskElement,
   MultiInstanceLoopCharacteristics,
 } from '../model/types.js'
 import { execute, type EngineState, type EngineCommand } from './ExecutionEngine.js'
@@ -514,5 +515,87 @@ describe('ExecutionEngine — Multi-Instance empty collection', () => {
     expect(newState.instance.status).toBe('completed')
     expect(events.find(e => e.type === 'MultiInstanceCompleted')).toBeDefined()
     expect(events.find(e => e.type === 'MultiInstanceStarted')).toBeUndefined()
+  })
+})
+
+// ─── Manual Task Multi-Instance ───────────────────────────────────────────────
+
+function buildParallelMIManualTaskDef(lc: MultiInstanceLoopCharacteristics) {
+  const start: StartEventElement = {
+    id: 'start_1', type: 'startEvent', eventDefinition: { type: 'none' },
+    incomingFlows: [], outgoingFlows: ['flow_1'],
+  }
+  const task: ManualTaskElement = {
+    id: 'task_1', type: 'manualTask',
+    incomingFlows: ['flow_1'], outgoingFlows: ['flow_2'],
+    loopCharacteristics: lc,
+  }
+  const end: EndEventElement = {
+    id: 'end_1', type: 'endEvent', eventDefinition: { type: 'none' },
+    incomingFlows: ['flow_2'], outgoingFlows: [],
+  }
+  const elements: BpmnFlowElement[] = [start, task, end]
+  const sequenceFlows: SequenceFlow[] = [
+    { id: 'flow_1', sourceRef: 'start_1', targetRef: 'task_1' },
+    { id: 'flow_2', sourceRef: 'task_1', targetRef: 'end_1' },
+  ]
+  return buildDefinition({ elements, sequenceFlows, startEventId: 'start_1' })
+}
+
+describe('ExecutionEngine — Parallel Multi-Instance ManualTask', () => {
+  beforeEach(() => { idCounter = 0 })
+
+  it('auto-completes all children and advances parent to end', () => {
+    const def = buildParallelMIManualTaskDef({
+      isSequential: false,
+      inputCollection: 'items',
+      inputElement: 'item',
+    })
+
+    const { newState, events } = execute(
+      def,
+      {
+        type: 'StartProcess',
+        variables: { items: { type: 'array', value: ['x', 'y', 'z'] } },
+      },
+      null,
+      options,
+    )
+
+    // All children auto-complete synchronously; instance should be done
+    expect(newState.instance.status).toBe('completed')
+
+    const miStarted = events.find(e => e.type === 'MultiInstanceStarted')
+    expect(miStarted).toMatchObject({ count: 3, isSequential: false, elementId: 'task_1' })
+
+    const miCompleted = events.find(e => e.type === 'MultiInstanceCompleted')
+    expect(miCompleted).toMatchObject({ iterationsRan: 3, elementId: 'task_1' })
+  })
+
+  it('routes children through MI aggregation (not direct advanceToken)', () => {
+    const def = buildParallelMIManualTaskDef({
+      isSequential: false,
+      inputCollection: 'items',
+      inputElement: 'item',
+    })
+
+    const { newState } = execute(
+      def,
+      {
+        type: 'StartProcess',
+        variables: { items: { type: 'array', value: ['a', 'b'] } },
+      },
+      null,
+      options,
+    )
+
+    // Children should all be completed (not stranded at end_1 without going through parent)
+    const atTask = newState.tokens.filter(t => t.elementId === 'task_1')
+    const parentToken = atTask.find(t => !t.parentTokenId)
+    // Parent token should be completed (MI finished)
+    expect(parentToken?.status).toBe('completed')
+    // No tokens should be stuck in waiting state
+    const waiting = newState.tokens.filter(t => t.status === 'waiting')
+    expect(waiting).toHaveLength(0)
   })
 })
