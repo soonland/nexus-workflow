@@ -712,3 +712,135 @@ describe('compensation element parsing', () => {
     expect(task.isForCompensation).toBeUndefined()
   })
 })
+
+// ─── Sub-process ──────────────────────────────────────────────────────────────
+
+const subProcessBpmn = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://example.com">
+  <process id="proc_sub" name="Sub-Process Test">
+    <startEvent id="start_1"><outgoing>f1</outgoing></startEvent>
+    <subProcess id="sub_1" name="My Sub-Process">
+      <incoming>f1</incoming><outgoing>f2</outgoing>
+      <startEvent id="inner_start"><outgoing>if1</outgoing></startEvent>
+      <serviceTask id="inner_task" name="Inner Task"><incoming>if1</incoming><outgoing>if2</outgoing></serviceTask>
+      <endEvent id="inner_end"><incoming>if2</incoming></endEvent>
+      <sequenceFlow id="if1" sourceRef="inner_start" targetRef="inner_task"/>
+      <sequenceFlow id="if2" sourceRef="inner_task" targetRef="inner_end"/>
+    </subProcess>
+    <endEvent id="end_1"><incoming>f2</incoming></endEvent>
+    <sequenceFlow id="f1" sourceRef="start_1" targetRef="sub_1"/>
+    <sequenceFlow id="f2" sourceRef="sub_1" targetRef="end_1"/>
+  </process>
+</definitions>`
+
+describe('BpmnXmlParser — sub-process', () => {
+  it('parses a sub-process element without errors', () => {
+    const { definition, errors } = parseBpmn(subProcessBpmn)
+    expect(errors).toHaveLength(0)
+    expect(definition).not.toBeNull()
+  })
+
+  it('places sub-process as a top-level element', () => {
+    const { definition } = parseBpmn(subProcessBpmn)
+    const sub = definition!.elements.find(e => e.id === 'sub_1')
+    expect(sub).toBeDefined()
+    expect(sub!.type).toBe('subProcess')
+  })
+
+  it('parses inner elements inside the sub-process', () => {
+    const { definition } = parseBpmn(subProcessBpmn)
+    const sub = definition!.elements.find(e => e.id === 'sub_1') as any
+    expect(sub.elements.length).toBe(3)
+    expect(sub.elements.find((e: any) => e.id === 'inner_task')?.type).toBe('serviceTask')
+  })
+
+  it('sets startEventId on the sub-process', () => {
+    const { definition } = parseBpmn(subProcessBpmn)
+    const sub = definition!.elements.find(e => e.id === 'sub_1') as any
+    expect(sub.startEventId).toBe('inner_start')
+  })
+
+  it('parses inner sequence flows', () => {
+    const { definition } = parseBpmn(subProcessBpmn)
+    const sub = definition!.elements.find(e => e.id === 'sub_1') as any
+    expect(sub.sequenceFlows.length).toBe(2)
+    expect(sub.sequenceFlows.find((f: any) => f.id === 'if1')).toBeDefined()
+  })
+
+  it('does not set isTransaction on a plain sub-process', () => {
+    const { definition } = parseBpmn(subProcessBpmn)
+    const sub = definition!.elements.find(e => e.id === 'sub_1') as any
+    expect(sub.isTransaction).toBeUndefined()
+  })
+
+  it('sub-process element has correct incomingFlows and outgoingFlows', () => {
+    const { definition } = parseBpmn(subProcessBpmn)
+    const sub = definition!.elements.find(e => e.id === 'sub_1') as any
+    expect(sub.incomingFlows).toContain('f1')
+    expect(sub.outgoingFlows).toContain('f2')
+  })
+})
+
+// ─── Transaction ──────────────────────────────────────────────────────────────
+
+const transactionBpmn = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://example.com">
+  <process id="proc_txn" name="Transaction Test">
+    <startEvent id="start_1"><outgoing>f1</outgoing></startEvent>
+    <transaction id="txn_1" name="My Transaction">
+      <incoming>f1</incoming>
+      <startEvent id="t_start"><outgoing>tf1</outgoing></startEvent>
+      <serviceTask id="t_task"><incoming>tf1</incoming><outgoing>tf2</outgoing></serviceTask>
+      <endEvent id="t_cancel_end">
+        <incoming>tf2</incoming>
+        <cancelEventDefinition/>
+      </endEvent>
+      <sequenceFlow id="tf1" sourceRef="t_start" targetRef="t_task"/>
+      <sequenceFlow id="tf2" sourceRef="t_task" targetRef="t_cancel_end"/>
+    </transaction>
+    <boundaryEvent id="cancel_boundary" attachedToRef="txn_1" cancelActivity="true">
+      <outgoing>f2</outgoing>
+      <cancelEventDefinition/>
+    </boundaryEvent>
+    <endEvent id="end_1"><incoming>f2</incoming></endEvent>
+    <sequenceFlow id="f1" sourceRef="start_1" targetRef="txn_1"/>
+    <sequenceFlow id="f2" sourceRef="cancel_boundary" targetRef="end_1"/>
+  </process>
+</definitions>`
+
+describe('BpmnXmlParser — transaction', () => {
+  it('parses a transaction element without errors', () => {
+    const { definition, errors } = parseBpmn(transactionBpmn)
+    expect(errors).toHaveLength(0)
+    expect(definition).not.toBeNull()
+  })
+
+  it('creates a subProcess element with isTransaction: true', () => {
+    const { definition } = parseBpmn(transactionBpmn)
+    const txn = definition!.elements.find(e => e.id === 'txn_1') as any
+    expect(txn).toBeDefined()
+    expect(txn.type).toBe('subProcess')
+    expect(txn.isTransaction).toBe(true)
+  })
+
+  it('parses the cancel end event inside the transaction', () => {
+    const { definition } = parseBpmn(transactionBpmn)
+    const txn = definition!.elements.find(e => e.id === 'txn_1') as any
+    const cancelEnd = txn.elements.find((e: any) => e.id === 't_cancel_end')
+    expect(cancelEnd).toBeDefined()
+    expect(cancelEnd.eventDefinition.type).toBe('cancel')
+  })
+
+  it('parses the cancel boundary event attached to the transaction', () => {
+    const { definition } = parseBpmn(transactionBpmn)
+    const boundary = definition!.elements.find(e => e.id === 'cancel_boundary') as any
+    expect(boundary).toBeDefined()
+    expect(boundary.type).toBe('boundaryEvent')
+    expect(boundary.eventDefinition.type).toBe('cancel')
+    expect(boundary.attachedToRef).toBe('txn_1')
+    expect(boundary.cancelActivity).toBe(true)
+  })
+})

@@ -33,6 +33,9 @@ export type ExecutionEvent =
   | { type: 'MultiInstanceCompleted'; instanceId: string; tokenId: string; elementId: string; iterationsRan: number }
   | { type: 'CompensationTriggered'; instanceId: string; tokenId: string; elementId: string; targetActivityId?: string; handlersStarted: string[] }
   | { type: 'CompensationCompleted'; instanceId: string; tokenId: string; elementId: string }
+  | { type: 'SubProcessStarted'; instanceId: string; tokenId: string; elementId: string }
+  | { type: 'SubProcessCompleted'; instanceId: string; tokenId: string; elementId: string }
+  | { type: 'TransactionCancelled'; instanceId: string; tokenId: string; elementId: string; compensatedActivities: string[] }
 
 export type ExecutionEventType = ExecutionEvent['type']
 

@@ -28,6 +28,7 @@ import type {
   IntermediateCatchEventElement,
   IntermediateThrowEventElement,
   BoundaryEventElement,
+  SubProcessElement,
   MultiInstanceLoopCharacteristics,
   CompensationRecord,
 } from '../model/types.js'
@@ -195,9 +196,14 @@ function handleCompleteTask(
     }
 
     // Check if this is a compensation handler completing
+    // Parent can be an intermediateThrowEvent (compensation throw) or
+    // an endEvent (cancel end event inside a transaction)
+    const parentIsCompensationSource =
+      parentToken?.elementType === 'intermediateThrowEvent' ||
+      (parentToken?.elementType === 'endEvent')
     if (
       parentToken &&
-      parentToken.elementType === 'intermediateThrowEvent' &&
+      parentIsCompensationSource &&
       (element as { isForCompensation?: boolean }).isForCompensation === true
     ) {
       handleCompensationHandlerCompletion(ctx, token, parentToken, element, definition)
@@ -403,6 +409,9 @@ function processToken(ctx: ExecutionContext, token: Token, definition: ProcessDe
     case 'eventBasedGateway':
       handleEventBasedGateway(ctx, token, element as GatewayElement, definition)
       break
+    case 'subProcess':
+      handleSubProcess(ctx, token, element as SubProcessElement, definition)
+      break
     default:
       throw new RuntimeError(`Unsupported element type: "${element.type}"`)
   }
@@ -414,10 +423,16 @@ function handleEndEvent(
   ctx: ExecutionContext,
   token: Token,
   element: EndEventElement,
-  _definition: ProcessDefinition,
+  definition: ProcessDefinition,
 ): void {
   const completed: Token = { ...token, status: 'completed', updatedAt: ctx.now() }
   ctx.updateToken(completed)
+
+  if (element.eventDefinition.type === 'cancel') {
+    // Cancel end event inside a transaction sub-process
+    handleTransactionCancel(ctx, token, definition)
+    return
+  }
 
   if (element.eventDefinition.type === 'terminate') {
     // Cancel all other active tokens
@@ -428,6 +443,12 @@ function handleEndEvent(
       }
     }
     completeInstance(ctx)
+    return
+  }
+
+  // If inside a sub-process, check sub-process completion instead of instance completion
+  if (token.subProcessInstanceId) {
+    checkSubProcessCompletion(ctx, token.subProcessInstanceId, definition)
     return
   }
 
@@ -592,8 +613,194 @@ function handleBoundaryEventWait(
   } else if (type === 'error') {
     // Error boundary tokens wait passively — they fire via FailServiceTask, not via a command
     suspendTokenWithCondition(ctx, token, { type: 'external', correlationData: base })
+  } else if (type === 'cancel') {
+    // Cancel boundary tokens wait passively — they fire via a cancel end event inside the transaction
+    suspendTokenWithCondition(ctx, token, { type: 'external', correlationData: base })
   } else {
     throw new RuntimeError(`Unsupported boundaryEvent definition type: "${type}"`)
+  }
+}
+
+// ─── Sub-process ──────────────────────────────────────────────────────────────
+
+function handleSubProcess(
+  ctx: ExecutionContext,
+  token: Token,
+  element: SubProcessElement,
+  definition: ProcessDefinition,
+): void {
+  const instanceId = ctx.requireInstance().id
+
+  // Create a child variable scope for the sub-process
+  const childScopeId = ctx.newId()
+  ctx.saveScope({ id: childScopeId, parentScopeId: token.scopeId, variables: {} })
+
+  // Suspend the outer token to wait for sub-process completion
+  suspendToken(ctx, token, 'external')
+
+  // Spawn cancel boundary tokens for transaction sub-processes
+  if (element.isTransaction) {
+    spawnBoundaryTokens(ctx, token, element.id, definition)
+  }
+
+  ctx.emit({ type: 'SubProcessStarted', instanceId, tokenId: token.id, elementId: element.id })
+
+  // Spawn a start token inside the sub-process
+  const innerStartBase = ctx.createToken(instanceId, element.startEventId, 'startEvent', childScopeId)
+  const innerStart: Token = { ...innerStartBase, subProcessInstanceId: element.id }
+  ctx.updateToken(innerStart)
+  ctx.enqueuePending(innerStart)
+}
+
+/**
+ * Called when an inner end event of a sub-process completes.
+ * Propagates inner scope variables out and advances the outer sub-process token.
+ */
+function checkSubProcessCompletion(
+  ctx: ExecutionContext,
+  subProcessInstanceId: string,
+  definition: ProcessDefinition,
+): void {
+  // Check if any inner tokens are still active/waiting
+  const innerLive = ctx.getAllTokens().filter(
+    t => t.subProcessInstanceId === subProcessInstanceId && (t.status === 'active' || t.status === 'waiting'),
+  )
+  if (innerLive.length > 0) return
+
+  // Find the outer token waiting at the sub-process element
+  const outerToken = ctx.getAllTokens().find(
+    t => t.elementId === subProcessInstanceId && t.status === 'waiting',
+  )
+  if (!outerToken) return
+
+  const instanceId = ctx.requireInstance().id
+
+  // Propagate inner scope variables to outer scope
+  const innerTokens = ctx.getAllTokens().filter(t => t.subProcessInstanceId === subProcessInstanceId)
+  const firstInner = innerTokens[0]
+  if (firstInner !== undefined) {
+    const innerScopeId = firstInner.scopeId
+    const innerVars = ctx.resolveScope(innerScopeId)
+    if (Object.keys(innerVars).length > 0) {
+      ctx.mergeVariables(outerToken.scopeId, innerVars)
+    }
+  }
+
+  ctx.emit({ type: 'SubProcessCompleted', instanceId, tokenId: outerToken.id, elementId: subProcessInstanceId })
+
+  const subProcessElement = getElement(definition, subProcessInstanceId)
+  advanceToken(ctx, outerToken, subProcessElement, definition)
+}
+
+/**
+ * Called when a cancel end event fires inside a transaction sub-process.
+ * Cancels all inner tokens, triggers compensation for inner scope, then fires the cancel boundary.
+ */
+function handleTransactionCancel(
+  ctx: ExecutionContext,
+  cancelToken: Token,
+  definition: ProcessDefinition,
+): void {
+  const subProcessInstanceId = cancelToken.subProcessInstanceId
+  if (!subProcessInstanceId) return
+
+  const instanceId = ctx.requireInstance().id
+  const now = ctx.now()
+
+  // Cancel all other active/waiting inner tokens
+  for (const t of ctx.getAllTokens()) {
+    if (t.id === cancelToken.id) continue
+    if (t.subProcessInstanceId === subProcessInstanceId && (t.status === 'active' || t.status === 'waiting')) {
+      ctx.updateToken({ ...t, status: 'cancelled', updatedAt: now })
+      ctx.emit({ type: 'TokenCancelled', instanceId: t.instanceId, tokenId: t.id, elementId: t.elementId })
+    }
+  }
+
+  // Find the outer transaction token
+  const outerToken = ctx.getAllTokens().find(
+    t => t.elementId === subProcessInstanceId && t.status === 'waiting',
+  )
+
+  // Trigger compensation for records in this instance (transaction scope)
+  const records = ctx.consumeAllCompensationRecords()
+  const compensatedActivities: string[] = []
+
+  for (const record of records) {
+    const handlerElement = findElementInTree(definition.elements, record.handlerId)
+    if (!handlerElement) continue
+    compensatedActivities.push(record.activityId)
+    const handlerToken = ctx.createToken(instanceId, record.handlerId, handlerElement.type, cancelToken.scopeId)
+    const taggedHandler: Token = {
+      ...handlerToken,
+      parentTokenId: cancelToken.id,
+      subProcessInstanceId,
+    }
+    ctx.updateToken(taggedHandler)
+    ctx.emit({
+      type: 'TokenMoved',
+      instanceId,
+      tokenId: taggedHandler.id,
+      fromElementId: cancelToken.elementId,
+      toElementId: record.handlerId,
+      toElementType: handlerElement.type,
+    })
+    ctx.enqueuePending(taggedHandler)
+  }
+
+  ctx.emit({
+    type: 'TransactionCancelled',
+    instanceId,
+    tokenId: cancelToken.id,
+    elementId: subProcessInstanceId,
+    compensatedActivities,
+  })
+
+  if (records.length === 0 && outerToken) {
+    // No compensation — fire the cancel boundary immediately
+    fireCancelBoundary(ctx, outerToken, subProcessInstanceId, definition)
+  }
+  // If there are handlers, they will complete via handleCompensationHandlerCompletion,
+  // which resumes cancelToken → but cancelToken is a cancel end event with no outgoing flows.
+  // We intercept this in handleTransactionCancelCompensationDone.
+}
+
+/**
+ * Fire the cancel boundary event token attached to a transaction sub-process.
+ */
+function fireCancelBoundary(
+  ctx: ExecutionContext,
+  outerToken: Token,
+  subProcessElementId: string,
+  definition: ProcessDefinition,
+): void {
+  // Find the cancel boundary event attached to the transaction
+  const cancelBoundary = findBoundariesFor(definition, subProcessElementId).find(
+    b => b.eventDefinition.type === 'cancel',
+  )
+  if (!cancelBoundary) return
+
+  // Find and complete the waiting cancel boundary token
+  const boundaryToken = ctx.getAllTokens().find(
+    t => t.elementId === cancelBoundary.id && t.status === 'waiting',
+  )
+  if (!boundaryToken) return
+
+  ctx.updateToken({ ...boundaryToken, status: 'completed', updatedAt: ctx.now() })
+  ctx.emit({
+    type: 'BoundaryEventTriggered',
+    instanceId: outerToken.instanceId,
+    tokenId: boundaryToken.id,
+    boundaryEventId: cancelBoundary.id,
+    interrupting: true,
+  })
+
+  // Cancel the outer sub-process token
+  ctx.updateToken({ ...outerToken, status: 'cancelled', updatedAt: ctx.now() })
+  ctx.emit({ type: 'TokenCancelled', instanceId: outerToken.instanceId, tokenId: outerToken.id, elementId: outerToken.elementId })
+
+  // Route the cancel boundary token through its outgoing flows
+  for (const flowId of cancelBoundary.outgoingFlows) {
+    moveTokenToFlow(ctx, boundaryToken, flowId, definition)
   }
 }
 
@@ -689,14 +896,15 @@ function spawnBoundaryTokens(
   taskElementId: string,
   definition: ProcessDefinition,
 ): void {
-  const boundaries = definition.elements.filter(
-    (e): e is BoundaryEventElement =>
-      e.type === 'boundaryEvent' &&
-      (e as BoundaryEventElement).attachedToRef === taskElementId &&
-      (e as BoundaryEventElement).eventDefinition.type !== 'compensation',
+  const boundaries = findBoundariesFor(definition, taskElementId).filter(
+    b => b.eventDefinition.type !== 'compensation',
   )
   for (const boundary of boundaries) {
-    const bToken = ctx.createToken(hostToken.instanceId, boundary.id, 'boundaryEvent', hostToken.scopeId)
+    const bTokenBase = ctx.createToken(hostToken.instanceId, boundary.id, 'boundaryEvent', hostToken.scopeId)
+    const bToken = hostToken.subProcessInstanceId
+      ? { ...bTokenBase, subProcessInstanceId: hostToken.subProcessInstanceId }
+      : bTokenBase
+    if (hostToken.subProcessInstanceId) ctx.updateToken(bToken)
     ctx.enqueuePending(bToken)
   }
 }
@@ -710,11 +918,8 @@ function findMatchingErrorBoundary(
   taskElementId: string,
   errorCode: string,
 ): BoundaryEventElement | null {
-  const boundaries = definition.elements.filter(
-    (e): e is BoundaryEventElement =>
-      e.type === 'boundaryEvent' &&
-      (e as BoundaryEventElement).attachedToRef === taskElementId &&
-      (e as BoundaryEventElement).eventDefinition.type === 'error',
+  const boundaries = findBoundariesFor(definition, taskElementId).filter(
+    b => b.eventDefinition.type === 'error',
   )
   const exact = boundaries.find(b => b.eventDefinition.errorCode === errorCode)
   if (exact) return exact
@@ -980,12 +1185,9 @@ function recordCompensationIfNeeded(
   element: BpmnFlowElement,
   definition: ProcessDefinition,
 ): void {
-  const compBoundary = definition.elements.find(
-    (e): e is BoundaryEventElement =>
-      e.type === 'boundaryEvent' &&
-      (e as BoundaryEventElement).attachedToRef === element.id &&
-      (e as BoundaryEventElement).eventDefinition.type === 'compensation',
-  ) as BoundaryEventElement | undefined
+  const compBoundary = findBoundariesFor(definition, element.id).find(
+    b => b.eventDefinition.type === 'compensation',
+  )
 
   if (!compBoundary) return
 
@@ -1029,8 +1231,23 @@ function handleCompensationHandlerCompletion(
     elementId: throwToken.elementId,
   })
 
-  // Resume the suspended throw token and advance it
+  // If the throw token is a cancel end event inside a transaction, fire the cancel boundary
   const throwElement = getElement(definition, throwToken.elementId)
+  if (
+    throwElement.type === 'endEvent' &&
+    (throwElement as EndEventElement).eventDefinition.type === 'cancel' &&
+    throwToken.subProcessInstanceId
+  ) {
+    const outerToken = ctx.getAllTokens().find(
+      t => t.elementId === throwToken.subProcessInstanceId && t.status === 'waiting',
+    )
+    if (outerToken) {
+      fireCancelBoundary(ctx, outerToken, throwToken.subProcessInstanceId, definition)
+    }
+    return
+  }
+
+  // Resume the suspended throw token and advance it
   advanceToken(ctx, throwToken, throwElement, definition)
 }
 
@@ -1316,13 +1533,17 @@ function moveTokenToFlow(
 ): void {
   const flow = getFlow(definition, flowId)
   const targetElement = getElement(definition, flow.targetRef)
-  const newToken = ctx.createToken(
+  const baseToken = ctx.createToken(
     fromToken.instanceId,
     targetElement.id,
     targetElement.type,
     fromToken.scopeId,
     flowId,
   )
+  const newToken = fromToken.subProcessInstanceId
+    ? { ...baseToken, subProcessInstanceId: fromToken.subProcessInstanceId }
+    : baseToken
+  if (fromToken.subProcessInstanceId) ctx.updateToken(newToken)
   ctx.emit({
     type: 'TokenMoved',
     instanceId: fromToken.instanceId,
@@ -1418,8 +1639,96 @@ function findInclusiveJoinIncoming(
 
 // ─── Definition traversal ────────────────────────────────────────────────────
 
+// ─── Recursive element/flow helpers ──────────────────────────────────────────
+
+/** Search for an element by ID in definition.elements and recursively inside sub-processes. */
+function findElementInTree(elements: BpmnFlowElement[], id: string): BpmnFlowElement | undefined {
+  for (const e of elements) {
+    if (e.id === id) return e
+    if (e.type === 'subProcess') {
+      const found = findElementInTree((e as SubProcessElement).elements, id)
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
+/** Search for a sequence flow by ID across the definition and all nested sub-processes. */
+function findFlowInTree(
+  elements: BpmnFlowElement[],
+  flows: SequenceFlow[],
+  id: string,
+): SequenceFlow | undefined {
+  const direct = flows.find(f => f.id === id)
+  if (direct) return direct
+  for (const e of elements) {
+    if (e.type === 'subProcess') {
+      const sp = e as SubProcessElement
+      const found = findFlowInTree(sp.elements, sp.sequenceFlows, id)
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
+/** Return all flows with sourceRef === elementId, searching nested sub-processes. */
+function findFlowsBySource(
+  elements: BpmnFlowElement[],
+  flows: SequenceFlow[],
+  elementId: string,
+): SequenceFlow[] {
+  const direct = flows.filter(f => f.sourceRef === elementId)
+  if (direct.length > 0) return direct
+  for (const e of elements) {
+    if (e.type === 'subProcess') {
+      const sp = e as SubProcessElement
+      const found = findFlowsBySource(sp.elements, sp.sequenceFlows, elementId)
+      if (found.length > 0) return found
+    }
+  }
+  return []
+}
+
+/** Return all flows with targetRef === elementId, searching nested sub-processes. */
+function findFlowsByTarget(
+  elements: BpmnFlowElement[],
+  flows: SequenceFlow[],
+  elementId: string,
+): SequenceFlow[] {
+  const direct = flows.filter(f => f.targetRef === elementId)
+  if (direct.length > 0) return direct
+  for (const e of elements) {
+    if (e.type === 'subProcess') {
+      const sp = e as SubProcessElement
+      const found = findFlowsByTarget(sp.elements, sp.sequenceFlows, elementId)
+      if (found.length > 0) return found
+    }
+  }
+  return []
+}
+
+/** Return all boundary events attached to taskElementId, searching nested sub-processes. */
+function findBoundariesFor(definition: ProcessDefinition, taskElementId: string): BoundaryEventElement[] {
+  return findBoundariesInTree(definition.elements, taskElementId)
+}
+
+function findBoundariesInTree(elements: BpmnFlowElement[], taskElementId: string): BoundaryEventElement[] {
+  const direct = elements.filter(
+    (e): e is BoundaryEventElement =>
+      e.type === 'boundaryEvent' && (e as BoundaryEventElement).attachedToRef === taskElementId,
+  )
+  if (direct.length > 0) return direct
+  for (const e of elements) {
+    if (e.type === 'subProcess') {
+      const found = findBoundariesInTree((e as SubProcessElement).elements, taskElementId)
+      if (found.length > 0) return found
+    }
+  }
+  return []
+}
+
 function getElement(definition: ProcessDefinition, id: string): BpmnFlowElement {
-  const element = definition.elements.find(e => e.id === id)
+  const element = findElementInTree(definition.elements, id)
   if (!element) {
     throw new DefinitionError(`Element "${id}" not found in definition "${definition.id}"`)
   }
@@ -1427,7 +1736,7 @@ function getElement(definition: ProcessDefinition, id: string): BpmnFlowElement 
 }
 
 function getFlow(definition: ProcessDefinition, id: string): SequenceFlow {
-  const flow = definition.sequenceFlows.find(f => f.id === id)
+  const flow = findFlowInTree(definition.elements, definition.sequenceFlows, id)
   if (!flow) {
     throw new DefinitionError(`Sequence flow "${id}" not found in definition "${definition.id}"`)
   }
@@ -1435,11 +1744,11 @@ function getFlow(definition: ProcessDefinition, id: string): SequenceFlow {
 }
 
 function getOutgoingFlows(definition: ProcessDefinition, elementId: string): SequenceFlow[] {
-  return definition.sequenceFlows.filter(f => f.sourceRef === elementId)
+  return findFlowsBySource(definition.elements, definition.sequenceFlows, elementId)
 }
 
 function getIncomingFlows(definition: ProcessDefinition, elementId: string): SequenceFlow[] {
-  return definition.sequenceFlows.filter(f => f.targetRef === elementId)
+  return findFlowsByTarget(definition.elements, definition.sequenceFlows, elementId)
 }
 
 // ─── Execution context ────────────────────────────────────────────────────────
