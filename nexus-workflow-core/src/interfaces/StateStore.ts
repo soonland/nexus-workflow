@@ -79,6 +79,7 @@ export type StoreOperation =
   | { op: 'saveTimer'; timer: ScheduledTimer }
   | { op: 'deleteTimer'; id: string }
   | { op: 'saveCompensationRecord'; record: CompensationRecord }
+  | { op: 'deleteCompensationRecord'; instanceId: string; tokenId: string }
 
 // ─── State Store Interface ────────────────────────────────────────────────────
 
@@ -132,6 +133,7 @@ export interface StateStore {
 
   // Compensation
   saveCompensationRecord(record: CompensationRecord): Promise<void>
+  deleteCompensationRecord(instanceId: string, tokenId: string): Promise<void>
   listCompensationRecords(instanceId: string): Promise<CompensationRecord[]>
 
   // Atomic batch

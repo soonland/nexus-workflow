@@ -195,7 +195,11 @@ function handleCompleteTask(
     }
 
     // Check if this is a compensation handler completing
-    if (parentToken && parentToken.elementType === 'intermediateThrowEvent') {
+    if (
+      parentToken &&
+      parentToken.elementType === 'intermediateThrowEvent' &&
+      (element as { isForCompensation?: boolean }).isForCompensation === true
+    ) {
       handleCompensationHandlerCompletion(ctx, token, parentToken, element, definition)
       runLoop(ctx, definition)
       return

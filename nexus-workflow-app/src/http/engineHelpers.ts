@@ -140,6 +140,20 @@ export function computeStoreOps(
     }
   }
 
+  // Compensation record diffs
+  const oldCompKeys = new Set((oldState?.compensationRecords ?? []).map(r => r.tokenId))
+  const newCompKeys = new Set(newState.compensationRecords.map(r => r.tokenId))
+  for (const r of newState.compensationRecords) {
+    if (!oldCompKeys.has(r.tokenId)) {
+      ops.push({ op: 'saveCompensationRecord', record: r })
+    }
+  }
+  for (const r of (oldState?.compensationRecords ?? [])) {
+    if (!newCompKeys.has(r.tokenId)) {
+      ops.push({ op: 'deleteCompensationRecord', instanceId: r.instanceId, tokenId: r.tokenId })
+    }
+  }
+
   return ops
 }
 

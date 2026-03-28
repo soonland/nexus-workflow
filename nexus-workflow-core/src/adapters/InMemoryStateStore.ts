@@ -272,6 +272,11 @@ export class InMemoryStateStore implements StateStore {
     this.compensationRecords.set(record.instanceId, [...existing, { ...record }])
   }
 
+  async deleteCompensationRecord(instanceId: string, tokenId: string): Promise<void> {
+    const existing = this.compensationRecords.get(instanceId) ?? []
+    this.compensationRecords.set(instanceId, existing.filter(r => r.tokenId !== tokenId))
+  }
+
   async listCompensationRecords(instanceId: string): Promise<CompensationRecord[]> {
     return [...(this.compensationRecords.get(instanceId) ?? [])]
   }
@@ -296,6 +301,7 @@ export class InMemoryStateStore implements StateStore {
         case 'saveTimer':               await this.saveTimer(op.timer); break
         case 'deleteTimer':             await this.deleteTimer(op.id); break
         case 'saveCompensationRecord':  await this.saveCompensationRecord(op.record); break
+        case 'deleteCompensationRecord': await this.deleteCompensationRecord(op.instanceId, op.tokenId); break
       }
     }
   }

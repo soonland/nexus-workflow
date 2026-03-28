@@ -809,10 +809,27 @@ export class PostgresStateStore implements StateStore {
   // ─── Compensation Records ──────────────────────────────────────────────────
 
   async saveCompensationRecord(record: CompensationRecord): Promise<void> {
-    await this.sql`
+    await this.saveCompensationRecordWith(this.sql, record)
+  }
+
+  private async saveCompensationRecordWith(db: AnySql, record: CompensationRecord): Promise<void> {
+    const sql = db as postgres.Sql
+    await sql`
       INSERT INTO compensation_records (instance_id, activity_id, token_id, handler_id, completed_at)
       VALUES (${record.instanceId}, ${record.activityId}, ${record.tokenId}, ${record.handlerId}, ${record.completedAt})
       ON CONFLICT DO NOTHING
+    `
+  }
+
+  async deleteCompensationRecord(instanceId: string, tokenId: string): Promise<void> {
+    await this.deleteCompensationRecordWith(this.sql, instanceId, tokenId)
+  }
+
+  private async deleteCompensationRecordWith(db: AnySql, instanceId: string, tokenId: string): Promise<void> {
+    const sql = db as postgres.Sql
+    await sql`
+      DELETE FROM compensation_records
+      WHERE instance_id = ${instanceId} AND token_id = ${tokenId}
     `
   }
 
@@ -887,7 +904,10 @@ export class PostgresStateStore implements StateStore {
         await this.deleteTimerWith(tx, op.id)
         break
       case 'saveCompensationRecord':
-        await this.saveCompensationRecord(op.record)
+        await this.saveCompensationRecordWith(tx, op.record)
+        break
+      case 'deleteCompensationRecord':
+        await this.deleteCompensationRecordWith(tx, op.instanceId, op.tokenId)
         break
       default: {
         const _exhaustive: never = op
