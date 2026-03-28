@@ -39,10 +39,6 @@ function waitingAt(state: EngineState, elementId: string) {
   return state.tokens.find(t => t.elementId === elementId && t.status === 'waiting')
 }
 
-function eventsOf(state: EngineState, definition: ReturnType<typeof buildDefinition>, command: Parameters<typeof execute>[1]) {
-  return execute(definition, command, state, opts).events
-}
-
 // ─── Scenario 1: Compensate-all — handlers run in reverse completion order ────
 
 /**

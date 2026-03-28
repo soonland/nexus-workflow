@@ -126,7 +126,8 @@ export class TimerCoordinator {
       const scope = await this.store.getScope(id)
       if (scope) scopes.push(scope)
     }
-    return { instance, tokens, scopes, gatewayJoinStates }
+    const compensationRecords = await this.store.listCompensationRecords(instanceId)
+    return { instance, tokens, scopes, gatewayJoinStates, compensationRecords }
   }
 }
 

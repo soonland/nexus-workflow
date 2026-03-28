@@ -54,7 +54,8 @@ export async function loadEngineState(store: StateStore, instanceId: string): Pr
     const scope = await store.getScope(id)
     if (scope) scopes.push(scope)
   }
-  return { instance, tokens, scopes, gatewayJoinStates }
+  const compensationRecords = await store.listCompensationRecords(instanceId)
+  return { instance, tokens, scopes, gatewayJoinStates, compensationRecords }
 }
 
 // ─── Store Operations ─────────────────────────────────────────────────────────
