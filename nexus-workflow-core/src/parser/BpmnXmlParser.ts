@@ -15,6 +15,7 @@ import type {
   ManualTaskElement,
   CallActivityElement,
   GatewayElement,
+  SubProcessElement,
   EventDefinition,
   MultiInstanceLoopCharacteristics,
 } from '../model/types.js'
@@ -41,10 +42,11 @@ const ARRAY_ELEMENTS = new Set([
   'intermediateCatchEvent', 'intermediateThrowEvent', 'boundaryEvent',
   'serviceTask', 'userTask', 'scriptTask', 'manualTask', 'callActivity',
   'exclusiveGateway', 'parallelGateway', 'inclusiveGateway', 'eventBasedGateway',
-  'subProcess',
+  'subProcess', 'transaction',
   'incoming', 'outgoing',
   'timerEventDefinition', 'messageEventDefinition', 'signalEventDefinition',
   'errorEventDefinition', 'terminateEventDefinition', 'compensateEventDefinition',
+  'cancelEventDefinition',
   'conditionExpression',
 ])
 
@@ -156,6 +158,8 @@ function parseElements(
   addAll('parallelGateway',        parseGateway('parallelGateway'))
   addAll('inclusiveGateway',       parseGateway('inclusiveGateway'))
   addAll('eventBasedGateway',      parseGateway('eventBasedGateway'))
+  addAll('subProcess',             (raw, f) => parseSubProcess(raw, f, false))
+  addAll('transaction',            (raw, f) => parseSubProcess(raw, f, true))
 
   return elements
 }
@@ -269,6 +273,9 @@ function parseEventDefinition(raw: Record<string, unknown>): EventDefinition {
     const activityRef = compDef['@_activityRef'] as string | undefined
     return { type: 'compensation', ...(activityRef ? { compensationActivityRef: activityRef } : {}) }
   }
+  if (hasKey(raw, 'cancelEventDefinition')) {
+    return { type: 'cancel' }
+  }
   return { type: 'none' }
 }
 
@@ -381,6 +388,24 @@ function parseCallActivity(
     ...baseElement(raw, flows),
     type: 'callActivity',
     calledElement: String(raw['@_calledElement'] ?? ''),
+  }
+}
+
+function parseSubProcess(
+  raw: Record<string, unknown>,
+  flows: SequenceFlow[],
+  isTransaction: boolean,
+): SubProcessElement {
+  const innerFlows = ((raw['sequenceFlow'] ?? []) as Record<string, unknown>[]).map(parseSequenceFlow)
+  const innerElements = parseElements(raw, innerFlows)
+  const startEventId = innerElements.find(e => e.type === 'startEvent')?.id ?? ''
+  return {
+    ...baseElement(raw, flows),
+    type: 'subProcess',
+    ...(isTransaction ? { isTransaction: true } : {}),
+    elements: innerElements,
+    sequenceFlows: innerFlows,
+    startEventId,
   }
 }
 

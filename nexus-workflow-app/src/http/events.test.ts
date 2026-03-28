@@ -1,8 +1,14 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Hono } from 'hono'
 import { parseBpmn, InMemoryStateStore, InMemoryEventBus, execute } from 'nexus-workflow-core'
+import * as coreModule from 'nexus-workflow-core'
 import { createEventsRouter } from './events.js'
 import { computeStoreOps } from './engineHelpers.js'
+
+vi.mock('nexus-workflow-core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('nexus-workflow-core')>()
+  return { ...actual, execute: vi.fn(actual.execute) }
+})
 
 // ─── BPMN Fixtures ────────────────────────────────────────────────────────────
 
@@ -181,6 +187,17 @@ describe('events HTTP API', () => {
       const body = await res.json() as { error: string }
       expect(body.error).toBe('VALIDATION_ERROR')
     })
+
+    it('returns 422 when execute throws RuntimeError', async () => {
+      await seedAndStart(store, MESSAGE_BPMN)
+
+      vi.mocked(coreModule.execute).mockImplementationOnce(() => { throw new coreModule.RuntimeError('forced') })
+
+      const res = await post(app, '/messages', { messageName: 'OrderShipped' })
+      expect(res.status).toBe(422)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('RUNTIME_ERROR')
+    })
   })
 
   // ─── Signals ────────────────────────────────────────────────────────────────
@@ -256,6 +273,17 @@ describe('events HTTP API', () => {
       expect(res.status).toBe(400)
       const body = await res.json() as { error: string }
       expect(body.error).toBe('VALIDATION_ERROR')
+    })
+
+    it('skips the subscription when execute throws and continues with remaining', async () => {
+      await seedAndStart(store, SIGNAL_BPMN)
+
+      vi.mocked(coreModule.execute).mockImplementationOnce(() => { throw new Error('unexpected engine error') })
+
+      const res = await post(app, '/signals', { signalName: 'EmergencyStop' })
+      expect(res.status).toBe(200)
+      const body = await res.json() as { delivered: number }
+      expect(body.delivered).toBe(0)
     })
 
     it('skips instances where execution throws (RuntimeError) and continues with others', async () => {

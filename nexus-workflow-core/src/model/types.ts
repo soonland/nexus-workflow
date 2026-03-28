@@ -201,6 +201,7 @@ export type EventDefinitionType =
   | 'error'
   | 'terminate'
   | 'compensation'
+  | 'cancel'
   | 'escalation'
   | 'conditional'
   | 'link'
@@ -328,6 +329,7 @@ export interface GatewayElement extends BpmnElement {
 
 export interface SubProcessElement extends BpmnElement {
   type: 'subProcess'
+  isTransaction?: boolean
   elements: BpmnFlowElement[]
   sequenceFlows: SequenceFlow[]
   startEventId: string

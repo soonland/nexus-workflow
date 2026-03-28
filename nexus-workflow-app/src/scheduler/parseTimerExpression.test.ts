@@ -71,5 +71,9 @@ describe('parseTimerExpression', () => {
     it('throws for an empty string', () => {
       expect(() => parseTimerExpression('', BASE)).toThrow()
     })
+
+    it('throws for a string that starts with 4 digits but is not a valid date', () => {
+      expect(() => parseTimerExpression('2025-invalid-date', BASE)).toThrow()
+    })
   })
 })

@@ -1,7 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Hono } from 'hono'
 import { parseBpmn, InMemoryStateStore, InMemoryEventBus ,type  ProcessDefinition,type  Token,type  ExecutionEvent } from 'nexus-workflow-core'
+import * as coreModule from 'nexus-workflow-core'
 import { createInstancesRouter } from './instances.js'
+
+vi.mock('nexus-workflow-core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('nexus-workflow-core')>()
+  return { ...actual, execute: vi.fn(actual.execute) }
+})
 
 // ─── BPMN Fixtures ────────────────────────────────────────────────────────────
 
@@ -520,6 +526,37 @@ describe('instances HTTP API', () => {
       expect(body.events.includes('ProcessInstanceCompleted')).toBe(true)
     })
 
+    it('400: non-JSON body returns VALIDATION_ERROR', async () => {
+      const { instanceId } = await startUserTaskInstance()
+      const res = await app.fetch(
+        new Request(`http://localhost/instances/${instanceId}/commands`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: 'not-valid-json',
+        }),
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBe('VALIDATION_ERROR')
+    })
+
+    it('422: execute throws RuntimeError returns RUNTIME_ERROR', async () => {
+      const { instanceId, waitingTokenId } = await startUserTaskInstance()
+
+      vi.mocked(coreModule.execute).mockImplementationOnce(() => { throw new coreModule.RuntimeError('forced') })
+
+      const res = await app.fetch(
+        new Request(`http://localhost/instances/${instanceId}/commands`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'CompleteUserTask', tokenId: waitingTokenId, completedBy: 'user-1' }),
+        }),
+      )
+      expect(res.status).toBe(422)
+      const body = await res.json()
+      expect(body.error).toBe('RUNTIME_ERROR')
+    })
+
     it('400: unknown command type returns 400', async () => {
       const { instanceId } = await startUserTaskInstance()
       const res = await app.fetch(
@@ -664,6 +701,20 @@ describe('instances HTTP API', () => {
         }),
       )
       expect(res.status).toBe(404)
+    })
+
+    it('422: execute throws RuntimeError returns RUNTIME_ERROR', async () => {
+      await seedDefinition(store, USER_TASK_BPMN)
+      const { instance } = await startInstance(app, 'usertask-proc')
+
+      vi.mocked(coreModule.execute).mockImplementationOnce(() => { throw new coreModule.RuntimeError('forced') })
+
+      const res = await app.fetch(
+        new Request(`http://localhost/instances/${instance.id}`, { method: 'DELETE' }),
+      )
+      expect(res.status).toBe(422)
+      const body = await res.json()
+      expect(body.error).toBe('RUNTIME_ERROR')
     })
 
     it('200: deleting a completed instance re-emits ProcessInstanceTerminated and returns the instance', async () => {

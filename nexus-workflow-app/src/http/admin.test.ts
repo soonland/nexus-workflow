@@ -1,8 +1,14 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Hono } from 'hono'
 import { parseBpmn, InMemoryStateStore, InMemoryEventBus, execute } from 'nexus-workflow-core'
+import * as coreModule from 'nexus-workflow-core'
 import { createAdminRouter } from './admin.js'
 import { computeStoreOps } from './engineHelpers.js'
+
+vi.mock('nexus-workflow-core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('nexus-workflow-core')>()
+  return { ...actual, execute: vi.fn(actual.execute) }
+})
 
 // ─── BPMN Fixtures ────────────────────────────────────────────────────────────
 
@@ -109,6 +115,19 @@ describe('admin HTTP API', () => {
 
       expect(published).toContain('ProcessInstanceSuspended')
     })
+
+    it('returns 422 when execute throws RuntimeError', async () => {
+      const { instanceId } = await seedAndStart(store, SERVICE_TASK_BPMN)
+
+      vi.mocked(coreModule.execute).mockImplementationOnce(() => { throw new coreModule.RuntimeError('forced') })
+
+      const res = await app.fetch(
+        new Request(`http://localhost/instances/${instanceId}/suspend`, { method: 'POST' }),
+      )
+      expect(res.status).toBe(422)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('RUNTIME_ERROR')
+    })
   })
 
   // ─── Resume ─────────────────────────────────────────────────────────────────
@@ -161,6 +180,20 @@ describe('admin HTTP API', () => {
       await app.fetch(new Request(`http://localhost/instances/${instanceId}/resume`, { method: 'POST' }))
 
       expect(published).toContain('ProcessInstanceResumed')
+    })
+
+    it('returns 422 when execute throws RuntimeError', async () => {
+      const { instanceId } = await seedAndStart(store, SERVICE_TASK_BPMN)
+      await app.fetch(new Request(`http://localhost/instances/${instanceId}/suspend`, { method: 'POST' }))
+
+      vi.mocked(coreModule.execute).mockImplementationOnce(() => { throw new coreModule.RuntimeError('forced') })
+
+      const res = await app.fetch(
+        new Request(`http://localhost/instances/${instanceId}/resume`, { method: 'POST' }),
+      )
+      expect(res.status).toBe(422)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('RUNTIME_ERROR')
     })
   })
 
@@ -222,6 +255,23 @@ describe('admin HTTP API', () => {
       )
 
       expect(published).toContain('ProcessInstanceRestarted')
+    })
+
+    it('returns 422 when execute throws RuntimeError', async () => {
+      const { instanceId } = await seedAndStart(store, SERVICE_TASK_BPMN)
+      const { definition: def } = parseBpmn(SERVICE_TASK_BPMN)
+      const state = await loadState(store, instanceId)
+      const cancelResult = execute(def!, { type: 'CancelInstance' }, state!)
+      await store.executeTransaction(computeStoreOps(false, state!, cancelResult.newState))
+
+      vi.mocked(coreModule.execute).mockImplementationOnce(() => { throw new coreModule.RuntimeError('forced') })
+
+      const res = await app.fetch(
+        new Request(`http://localhost/instances/${instanceId}/restart`, { method: 'POST' }),
+      )
+      expect(res.status).toBe(422)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('RUNTIME_ERROR')
     })
 
     it('new instance created by restart is stored in the store', async () => {
