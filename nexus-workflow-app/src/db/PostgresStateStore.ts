@@ -17,6 +17,7 @@ import type {
   GatewayJoinState,
   HistoryEntry,
   ScheduledTimer,
+  CompensationRecord,
 } from 'nexus-workflow-core'
 
 // ─── Internal SQL alias ───────────────────────────────────────────────────────
@@ -805,6 +806,49 @@ export class PostgresStateStore implements StateStore {
     return rows.map((r) => reviveScheduledTimer(r.data))
   }
 
+  // ─── Compensation Records ──────────────────────────────────────────────────
+
+  async saveCompensationRecord(record: CompensationRecord): Promise<void> {
+    await this.saveCompensationRecordWith(this.sql, record)
+  }
+
+  private async saveCompensationRecordWith(db: AnySql, record: CompensationRecord): Promise<void> {
+    const sql = db as postgres.Sql
+    await sql`
+      INSERT INTO compensation_records (instance_id, activity_id, token_id, handler_id, completed_at)
+      VALUES (${record.instanceId}, ${record.activityId}, ${record.tokenId}, ${record.handlerId}, ${record.completedAt})
+      ON CONFLICT DO NOTHING
+    `
+  }
+
+  async deleteCompensationRecord(instanceId: string, tokenId: string): Promise<void> {
+    await this.deleteCompensationRecordWith(this.sql, instanceId, tokenId)
+  }
+
+  private async deleteCompensationRecordWith(db: AnySql, instanceId: string, tokenId: string): Promise<void> {
+    const sql = db as postgres.Sql
+    await sql`
+      DELETE FROM compensation_records
+      WHERE instance_id = ${instanceId} AND token_id = ${tokenId}
+    `
+  }
+
+  async listCompensationRecords(instanceId: string): Promise<CompensationRecord[]> {
+    const rows = await this.sql<{ instance_id: string; activity_id: string; token_id: string; handler_id: string; completed_at: string }[]>`
+      SELECT instance_id, activity_id, token_id, handler_id, completed_at
+      FROM compensation_records
+      WHERE instance_id = ${instanceId}
+      ORDER BY completed_at ASC
+    `
+    return rows.map(r => ({
+      instanceId: r.instance_id,
+      activityId: r.activity_id,
+      tokenId: r.token_id,
+      handlerId: r.handler_id,
+      completedAt: new Date(r.completed_at),
+    }))
+  }
+
   // ─── Atomic Transaction ────────────────────────────────────────────────────
 
   async executeTransaction(ops: StoreOperation[]): Promise<void> {
@@ -858,6 +902,12 @@ export class PostgresStateStore implements StateStore {
         break
       case 'deleteTimer':
         await this.deleteTimerWith(tx, op.id)
+        break
+      case 'saveCompensationRecord':
+        await this.saveCompensationRecordWith(tx, op.record)
+        break
+      case 'deleteCompensationRecord':
+        await this.deleteCompensationRecordWith(tx, op.instanceId, op.tokenId)
         break
       default: {
         const _exhaustive: never = op

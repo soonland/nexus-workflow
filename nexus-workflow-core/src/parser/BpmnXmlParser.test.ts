@@ -641,3 +641,74 @@ describe('BpmnXmlParser — multiInstanceLoopCharacteristics', () => {
     expect(task.loopCharacteristics).toBeUndefined()
   })
 })
+
+// ─── Compensation parsing ──────────────────────────────────────────────────────
+
+describe('compensation element parsing', () => {
+  const compensationBpmn = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://test">
+  <process id="comp_proc" isExecutable="true">
+    <startEvent id="start_1"><outgoing>f1</outgoing></startEvent>
+    <serviceTask id="task_1"><incoming>f1</incoming><outgoing>f2</outgoing></serviceTask>
+    <serviceTask id="handler_1" isForCompensation="true"></serviceTask>
+    <userTask id="handler_user" isForCompensation="true"></userTask>
+    <intermediateThrowEvent id="throw_comp_all">
+      <incoming>f2</incoming><outgoing>f3</outgoing>
+      <compensateEventDefinition/>
+    </intermediateThrowEvent>
+    <intermediateThrowEvent id="throw_comp_targeted">
+      <compensateEventDefinition activityRef="task_1"/>
+    </intermediateThrowEvent>
+    <boundaryEvent id="boundary_comp" attachedToRef="task_1" cancelActivity="false">
+      <compensateEventDefinition activityRef="handler_1"/>
+    </boundaryEvent>
+    <endEvent id="end_1"><incoming>f3</incoming></endEvent>
+    <sequenceFlow id="f1" sourceRef="start_1" targetRef="task_1"/>
+    <sequenceFlow id="f2" sourceRef="task_1" targetRef="throw_comp_all"/>
+    <sequenceFlow id="f3" sourceRef="throw_comp_all" targetRef="end_1"/>
+  </process>
+</definitions>`
+
+  it('parses intermediateThrowEvent with compensation (no activityRef)', () => {
+    const { definition, errors } = parseBpmn(compensationBpmn)
+    expect(errors).toHaveLength(0)
+    const throwAll = definition!.elements.find(e => e.id === 'throw_comp_all') as any
+    expect(throwAll.type).toBe('intermediateThrowEvent')
+    expect(throwAll.eventDefinition.type).toBe('compensation')
+    expect(throwAll.eventDefinition.compensationActivityRef).toBeUndefined()
+  })
+
+  it('parses intermediateThrowEvent with compensationActivityRef', () => {
+    const { definition } = parseBpmn(compensationBpmn)
+    const throwTargeted = definition!.elements.find(e => e.id === 'throw_comp_targeted') as any
+    expect(throwTargeted.eventDefinition.type).toBe('compensation')
+    expect(throwTargeted.eventDefinition.compensationActivityRef).toBe('task_1')
+  })
+
+  it('parses compensation boundary event and forces cancelActivity: false', () => {
+    const { definition } = parseBpmn(compensationBpmn)
+    const boundary = definition!.elements.find(e => e.id === 'boundary_comp') as any
+    expect(boundary.eventDefinition.type).toBe('compensation')
+    expect(boundary.eventDefinition.compensationActivityRef).toBe('handler_1')
+    expect(boundary.cancelActivity).toBe(false)
+  })
+
+  it('parses isForCompensation on service task', () => {
+    const { definition } = parseBpmn(compensationBpmn)
+    const handler = definition!.elements.find(e => e.id === 'handler_1') as any
+    expect(handler.isForCompensation).toBe(true)
+  })
+
+  it('parses isForCompensation on user task', () => {
+    const { definition } = parseBpmn(compensationBpmn)
+    const handler = definition!.elements.find(e => e.id === 'handler_user') as any
+    expect(handler.isForCompensation).toBe(true)
+  })
+
+  it('normal service task has no isForCompensation property', () => {
+    const { definition } = parseBpmn(compensationBpmn)
+    const task = definition!.elements.find(e => e.id === 'task_1') as any
+    expect(task.isForCompensation).toBeUndefined()
+  })
+})

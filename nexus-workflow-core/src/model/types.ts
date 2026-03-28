@@ -148,6 +148,16 @@ export interface UserTaskRecord {
   completedAt?: Date
 }
 
+// ─── Compensation ─────────────────────────────────────────────────────────────
+
+export interface CompensationRecord {
+  instanceId: string
+  activityId: string
+  tokenId: string
+  handlerId: string
+  completedAt: Date
+}
+
 // ─── Scheduled Timer ──────────────────────────────────────────────────────────
 
 export interface ScheduledTimer {
@@ -203,6 +213,8 @@ export interface EventDefinition {
   signalName?: string
   errorCode?: string
   linkName?: string
+  /** For compensation events: the ID of the activity whose handler should be triggered */
+  compensationActivityRef?: string
 }
 
 export interface SequenceFlow {
@@ -264,6 +276,8 @@ export interface ServiceTaskElement extends BpmnElement {
   outputMappings?: VariableMapping[]
   retryConfig?: RetryConfig
   loopCharacteristics?: MultiInstanceLoopCharacteristics
+  /** Marks this task as a compensation handler — not in normal flow */
+  isForCompensation?: boolean
 }
 
 export interface UserTaskElement extends BpmnElement {
@@ -274,6 +288,8 @@ export interface UserTaskElement extends BpmnElement {
   priority?: number
   formKey?: string
   loopCharacteristics?: MultiInstanceLoopCharacteristics
+  /** Marks this task as a compensation handler — not in normal flow */
+  isForCompensation?: boolean
 }
 
 export interface ScriptTaskElement extends BpmnElement {
@@ -281,11 +297,15 @@ export interface ScriptTaskElement extends BpmnElement {
   scriptLanguage: string
   script: string
   loopCharacteristics?: MultiInstanceLoopCharacteristics
+  /** Marks this task as a compensation handler — not in normal flow */
+  isForCompensation?: boolean
 }
 
 export interface ManualTaskElement extends BpmnElement {
   type: 'manualTask'
   loopCharacteristics?: MultiInstanceLoopCharacteristics
+  /** Marks this task as a compensation handler — not in normal flow */
+  isForCompensation?: boolean
 }
 
 export interface CallActivityElement extends BpmnElement {

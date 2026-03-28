@@ -26,8 +26,10 @@ import type {
   ManualTaskElement,
   EndEventElement,
   IntermediateCatchEventElement,
+  IntermediateThrowEventElement,
   BoundaryEventElement,
   MultiInstanceLoopCharacteristics,
+  CompensationRecord,
 } from '../model/types.js'
 import type { ExecutionEvent } from '../interfaces/EventBus.js'
 
@@ -38,6 +40,7 @@ export interface EngineState {
   tokens: Token[]
   scopes: VariableScope[]
   gatewayJoinStates: GatewayJoinState[]
+  compensationRecords: CompensationRecord[]
 }
 
 export type EngineCommand =
@@ -190,12 +193,26 @@ function handleCompleteTask(
       runLoop(ctx, definition)
       return
     }
+
+    // Check if this is a compensation handler completing
+    if (
+      parentToken &&
+      parentToken.elementType === 'intermediateThrowEvent' &&
+      (element as { isForCompensation?: boolean }).isForCompensation === true
+    ) {
+      handleCompensationHandlerCompletion(ctx, token, parentToken, element, definition)
+      runLoop(ctx, definition)
+      return
+    }
   }
 
   ctx.emit({ type: 'ServiceTaskCompleted', instanceId: ctx.requireInstance().id, tokenId, elementId: token.elementId, durationMs: 0 })
 
   // Cancel any waiting boundary tokens attached to this task
   cancelBoundaryTokensFor(ctx, token.elementId)
+
+  // Record compensation if a compensation boundary event is attached to this task
+  recordCompensationIfNeeded(ctx, token, element, definition)
 
   // Advance through outgoing flows
   advanceToken(ctx, token, element, definition)
@@ -368,6 +385,9 @@ function processToken(ctx: ExecutionContext, token: Token, definition: ProcessDe
     case 'intermediateCatchEvent':
       handleIntermediateCatchEvent(ctx, token, element as IntermediateCatchEventElement)
       break
+    case 'intermediateThrowEvent':
+      handleIntermediateThrowEvent(ctx, token, element as IntermediateThrowEventElement, definition)
+      break
     case 'boundaryEvent':
       handleBoundaryEventWait(ctx, token, element as BoundaryEventElement, definition)
       break
@@ -471,6 +491,86 @@ function handleIntermediateCatchEvent(
   } else {
     throw new RuntimeError(`Unsupported intermediateCatchEvent definition type: "${type}"`)
   }
+}
+
+function handleIntermediateThrowEvent(
+  ctx: ExecutionContext,
+  token: Token,
+  element: IntermediateThrowEventElement,
+  definition: ProcessDefinition,
+): void {
+  if (element.eventDefinition.type === 'compensation') {
+    handleCompensationThrow(ctx, token, element, definition)
+  } else {
+    // All other intermediate throw events are pass-through
+    advanceToken(ctx, token, element, definition)
+  }
+}
+
+function handleCompensationThrow(
+  ctx: ExecutionContext,
+  token: Token,
+  element: IntermediateThrowEventElement,
+  definition: ProcessDefinition,
+): void {
+  const instanceId = ctx.requireInstance().id
+  const { compensationActivityRef } = element.eventDefinition
+
+  // Find records to compensate: targeted or all, in reverse completion order
+  let records: CompensationRecord[]
+  if (compensationActivityRef) {
+    records = ctx.consumeCompensationRecords(compensationActivityRef)
+  } else {
+    records = ctx.consumeAllCompensationRecords()
+  }
+
+  if (records.length === 0) {
+    // No handlers to run — pass straight through
+    ctx.emit({
+      type: 'CompensationTriggered',
+      instanceId,
+      tokenId: token.id,
+      elementId: element.id,
+      ...(compensationActivityRef ? { targetActivityId: compensationActivityRef } : {}),
+      handlersStarted: [],
+    })
+    advanceToken(ctx, token, element, definition)
+    return
+  }
+
+  // Suspend throw token while handlers run
+  suspendToken(ctx, token, 'external')
+
+  const handlerIds: string[] = []
+
+  // Spawn handler tokens in reverse completion order (last completed → first compensated)
+  for (const record of records) {
+    const handlerElement = definition.elements.find(e => e.id === record.handlerId)
+    if (!handlerElement) continue
+
+    handlerIds.push(record.handlerId)
+    const handlerToken = ctx.createToken(instanceId, record.handlerId, handlerElement.type, token.scopeId)
+    const tagged: Token = { ...handlerToken, parentTokenId: token.id }
+    ctx.updateToken(tagged)
+    ctx.emit({
+      type: 'TokenMoved',
+      instanceId,
+      tokenId: tagged.id,
+      fromElementId: element.id,
+      toElementId: record.handlerId,
+      toElementType: handlerElement.type,
+    })
+    ctx.enqueuePending(tagged)
+  }
+
+  ctx.emit({
+    type: 'CompensationTriggered',
+    instanceId,
+    tokenId: token.id,
+    elementId: element.id,
+    ...(compensationActivityRef ? { targetActivityId: compensationActivityRef } : {}),
+    handlersStarted: handlerIds,
+  })
 }
 
 function handleBoundaryEventWait(
@@ -581,7 +681,8 @@ function handleBroadcastSignal(
   runLoop(ctx, definition)
 }
 
-/** Spawn waiting tokens for all boundary events attached to the given task element. */
+/** Spawn waiting tokens for all boundary events attached to the given task element.
+ *  Compensation boundary events are passive — they are NOT spawned; they register via CompensationRecord. */
 function spawnBoundaryTokens(
   ctx: ExecutionContext,
   hostToken: Token,
@@ -590,7 +691,9 @@ function spawnBoundaryTokens(
 ): void {
   const boundaries = definition.elements.filter(
     (e): e is BoundaryEventElement =>
-      e.type === 'boundaryEvent' && (e as BoundaryEventElement).attachedToRef === taskElementId,
+      e.type === 'boundaryEvent' &&
+      (e as BoundaryEventElement).attachedToRef === taskElementId &&
+      (e as BoundaryEventElement).eventDefinition.type !== 'compensation',
   )
   for (const boundary of boundaries) {
     const bToken = ctx.createToken(hostToken.instanceId, boundary.id, 'boundaryEvent', hostToken.scopeId)
@@ -863,6 +966,72 @@ function cancelEbgSiblings(ctx: ExecutionContext, winnerToken: Token): void {
     ctx.updateToken({ ...t, status: 'cancelled', updatedAt: now })
     ctx.emit({ type: 'TokenCancelled', instanceId: t.instanceId, tokenId: t.id, elementId: t.elementId })
   }
+}
+
+// ─── Compensation ─────────────────────────────────────────────────────────────
+
+/**
+ * After a task completes normally, check if a compensation boundary event is attached.
+ * If so, record a CompensationRecord for later triggering.
+ */
+function recordCompensationIfNeeded(
+  ctx: ExecutionContext,
+  token: Token,
+  element: BpmnFlowElement,
+  definition: ProcessDefinition,
+): void {
+  const compBoundary = definition.elements.find(
+    (e): e is BoundaryEventElement =>
+      e.type === 'boundaryEvent' &&
+      (e as BoundaryEventElement).attachedToRef === element.id &&
+      (e as BoundaryEventElement).eventDefinition.type === 'compensation',
+  ) as BoundaryEventElement | undefined
+
+  if (!compBoundary) return
+
+  const handlerId = compBoundary.eventDefinition.compensationActivityRef
+  if (!handlerId) return
+
+  ctx.addCompensationRecord({
+    instanceId: ctx.requireInstance().id,
+    activityId: element.id,
+    tokenId: token.id,
+    handlerId,
+    completedAt: ctx.now(),
+  })
+}
+
+/**
+ * Called when a compensation handler task token completes.
+ * If all sibling handler tokens for the same throw event are done, resume the throw token.
+ */
+function handleCompensationHandlerCompletion(
+  ctx: ExecutionContext,
+  handlerToken: Token,
+  throwToken: Token,
+  _handlerElement: BpmnFlowElement,
+  definition: ProcessDefinition,
+): void {
+  // Mark handler token completed
+  ctx.updateToken({ ...handlerToken, status: 'completed', updatedAt: ctx.now() })
+
+  // Check if all sibling handler tokens are done
+  const siblings = ctx.getAllTokens().filter(t => t.parentTokenId === throwToken.id)
+  const allDone = siblings.every(t => t.status === 'completed' || t.status === 'cancelled')
+
+  if (!allDone) return
+
+  // All handlers complete — emit CompensationCompleted and advance the throw token
+  ctx.emit({
+    type: 'CompensationCompleted',
+    instanceId: ctx.requireInstance().id,
+    tokenId: throwToken.id,
+    elementId: throwToken.elementId,
+  })
+
+  // Resume the suspended throw token and advance it
+  const throwElement = getElement(definition, throwToken.elementId)
+  advanceToken(ctx, throwToken, throwElement, definition)
 }
 
 // ─── Multi-instance ───────────────────────────────────────────────────────────
@@ -1281,6 +1450,7 @@ class ExecutionContext {
   private tokenMap: Map<string, Token>
   private scopeMap: Map<string, VariableScope>
   private joinStateMap: Map<string, GatewayJoinState>
+  private compensationList: CompensationRecord[]
   private readonly _events: ExecutionEvent[] = []
   private pendingQueue: Token[] = []
   private readonly _generateId: () => string
@@ -1299,10 +1469,12 @@ class ExecutionContext {
       this.joinStateMap = new Map(
         state.gatewayJoinStates.map(js => [`${js.gatewayId}`, { ...js }]),
       )
+      this.compensationList = [...(state.compensationRecords ?? [])]
     } else {
       this.tokenMap = new Map()
       this.scopeMap = new Map()
       this.joinStateMap = new Map()
+      this.compensationList = []
     }
   }
 
@@ -1392,6 +1564,32 @@ class ExecutionContext {
     this.joinStateMap.delete(gatewayId)
   }
 
+  // ── Compensation records ────────────────────────────────────────────────────
+
+  addCompensationRecord(record: CompensationRecord): void {
+    this.compensationList.push(record)
+  }
+
+  /**
+   * Consume and return records for a specific activity, in reverse completion order.
+   * Records are removed so they cannot be re-triggered.
+   */
+  consumeCompensationRecords(activityId: string): CompensationRecord[] {
+    const matching = this.compensationList.filter(r => r.activityId === activityId)
+    this.compensationList = this.compensationList.filter(r => r.activityId !== activityId)
+    return matching.sort((a, b) => b.completedAt.getTime() - a.completedAt.getTime())
+  }
+
+  /**
+   * Consume and return all records in reverse completion order.
+   * Records are removed so they cannot be re-triggered.
+   */
+  consumeAllCompensationRecords(): CompensationRecord[] {
+    const all = [...this.compensationList]
+    this.compensationList = []
+    return all.sort((a, b) => b.completedAt.getTime() - a.completedAt.getTime())
+  }
+
   // ── Result ─────────────────────────────────────────────────────────────────
 
   toResult(): EngineResult {
@@ -1401,6 +1599,7 @@ class ExecutionContext {
         tokens: [...this.tokenMap.values()],
         scopes: [...this.scopeMap.values()],
         gatewayJoinStates: [...this.joinStateMap.values()],
+        compensationRecords: [...this.compensationList],
       },
       events: [...this._events],
     }

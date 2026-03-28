@@ -54,7 +54,8 @@ export async function loadEngineState(store: StateStore, instanceId: string): Pr
     const scope = await store.getScope(id)
     if (scope) scopes.push(scope)
   }
-  return { instance, tokens, scopes, gatewayJoinStates }
+  const compensationRecords = await store.listCompensationRecords(instanceId)
+  return { instance, tokens, scopes, gatewayJoinStates, compensationRecords }
 }
 
 // ─── Store Operations ─────────────────────────────────────────────────────────
@@ -136,6 +137,20 @@ export function computeStoreOps(
     const newToken = newTokenMap.get(oldToken.id)
     if (!newToken || newToken.status !== 'waiting') {
       ops.push({ op: 'deleteSubscription', id: `sub-${oldToken.id}` })
+    }
+  }
+
+  // Compensation record diffs
+  const oldCompKeys = new Set((oldState?.compensationRecords ?? []).map(r => r.tokenId))
+  const newCompKeys = new Set(newState.compensationRecords.map(r => r.tokenId))
+  for (const r of newState.compensationRecords) {
+    if (!oldCompKeys.has(r.tokenId)) {
+      ops.push({ op: 'saveCompensationRecord', record: r })
+    }
+  }
+  for (const r of (oldState?.compensationRecords ?? [])) {
+    if (!newCompKeys.has(r.tokenId)) {
+      ops.push({ op: 'deleteCompensationRecord', instanceId: r.instanceId, tokenId: r.tokenId })
     }
   }
 

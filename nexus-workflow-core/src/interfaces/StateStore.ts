@@ -11,6 +11,7 @@ import type {
   HistoryEntry,
   InstanceStatus,
   ScheduledTimer,
+  CompensationRecord,
 } from '../model/types.js'
 
 // ─── Query Types ──────────────────────────────────────────────────────────────
@@ -77,6 +78,8 @@ export type StoreOperation =
   | { op: 'appendHistory'; entry: HistoryEntry }
   | { op: 'saveTimer'; timer: ScheduledTimer }
   | { op: 'deleteTimer'; id: string }
+  | { op: 'saveCompensationRecord'; record: CompensationRecord }
+  | { op: 'deleteCompensationRecord'; instanceId: string; tokenId: string }
 
 // ─── State Store Interface ────────────────────────────────────────────────────
 
@@ -127,6 +130,11 @@ export interface StateStore {
   saveTimer(timer: ScheduledTimer): Promise<void>
   deleteTimer(id: string): Promise<void>
   getDueTimers(before: Date): Promise<ScheduledTimer[]>
+
+  // Compensation
+  saveCompensationRecord(record: CompensationRecord): Promise<void>
+  deleteCompensationRecord(instanceId: string, tokenId: string): Promise<void>
+  listCompensationRecords(instanceId: string): Promise<CompensationRecord[]>
 
   // Atomic batch
   executeTransaction(ops: StoreOperation[]): Promise<void>
