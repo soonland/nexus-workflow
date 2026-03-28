@@ -31,6 +31,8 @@ export type ExecutionEvent =
   | { type: 'EventBasedGatewayActivated'; instanceId: string; tokenId: string; elementId: string; branches: string[] }
   | { type: 'MultiInstanceStarted'; instanceId: string; tokenId: string; elementId: string; count: number; isSequential: boolean }
   | { type: 'MultiInstanceCompleted'; instanceId: string; tokenId: string; elementId: string; iterationsRan: number }
+  | { type: 'CompensationTriggered'; instanceId: string; tokenId: string; elementId: string; targetActivityId?: string; handlersStarted: string[] }
+  | { type: 'CompensationCompleted'; instanceId: string; tokenId: string; elementId: string }
 
 export type ExecutionEventType = ExecutionEvent['type']
 

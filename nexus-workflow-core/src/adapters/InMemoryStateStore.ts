@@ -8,6 +8,7 @@ import type {
   GatewayJoinState,
   HistoryEntry,
   ScheduledTimer,
+  CompensationRecord,
 } from '../model/types.js'
 import type {
   StateStore,
@@ -35,6 +36,7 @@ export class InMemoryStateStore implements StateStore {
   private gatewayStates = new Map<string, GatewayJoinState>()
   private history = new Map<string, HistoryEntry[]>()
   private timers = new Map<string, ScheduledTimer>()
+  private compensationRecords = new Map<string, CompensationRecord[]>()
 
   private definitionKey(id: string, version: number): string {
     return `${id}@${version}`
@@ -263,6 +265,17 @@ export class InMemoryStateStore implements StateStore {
     return [...this.timers.values()].filter(t => t.fireAt <= before)
   }
 
+  // ─── Compensation ─────────────────────────────────────────────────────────────
+
+  async saveCompensationRecord(record: CompensationRecord): Promise<void> {
+    const existing = this.compensationRecords.get(record.instanceId) ?? []
+    this.compensationRecords.set(record.instanceId, [...existing, { ...record }])
+  }
+
+  async listCompensationRecords(instanceId: string): Promise<CompensationRecord[]> {
+    return [...(this.compensationRecords.get(instanceId) ?? [])]
+  }
+
   // ─── Transaction (in-memory: serial, no rollback needed) ─────────────────────
 
   async executeTransaction(ops: StoreOperation[]): Promise<void> {
@@ -280,8 +293,9 @@ export class InMemoryStateStore implements StateStore {
         case 'saveGatewayState':  await this.saveGatewayState(op.state); break
         case 'deleteGatewayState':await this.deleteGatewayState(op.gatewayId, op.instanceId); break
         case 'appendHistory':     await this.appendHistory(op.entry); break
-        case 'saveTimer':         await this.saveTimer(op.timer); break
-        case 'deleteTimer':       await this.deleteTimer(op.id); break
+        case 'saveTimer':               await this.saveTimer(op.timer); break
+        case 'deleteTimer':             await this.deleteTimer(op.id); break
+        case 'saveCompensationRecord':  await this.saveCompensationRecord(op.record); break
       }
     }
   }
@@ -299,6 +313,7 @@ export class InMemoryStateStore implements StateStore {
     this.gatewayStates.clear()
     this.history.clear()
     this.timers.clear()
+    this.compensationRecords.clear()
   }
 
   /** Snapshot all active instances — useful for assertions */

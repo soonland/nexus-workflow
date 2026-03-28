@@ -224,13 +224,17 @@ function parseBoundaryEvent(
   raw: Record<string, unknown>,
   flows: SequenceFlow[],
 ): BoundaryEventElement {
-  const cancelActivity = raw['@_cancelActivity'] !== 'false'
+  const eventDefinition = parseEventDefinition(raw)
+  // Compensation boundary events are always non-interrupting per BPMN 2.0 spec
+  const cancelActivity = eventDefinition.type === 'compensation'
+    ? false
+    : raw['@_cancelActivity'] !== 'false'
   return {
     ...baseElement(raw, flows),
     type: 'boundaryEvent',
     attachedToRef: String(raw['@_attachedToRef'] ?? ''),
     cancelActivity,
-    eventDefinition: parseEventDefinition(raw),
+    eventDefinition,
   }
 }
 
@@ -259,6 +263,11 @@ function parseEventDefinition(raw: Record<string, unknown>): EventDefinition {
   }
   if (hasKey(raw, 'terminateEventDefinition')) {
     return { type: 'terminate' }
+  }
+  if (hasKey(raw, 'compensateEventDefinition')) {
+    const compDef = firstOf(raw['compensateEventDefinition']) as Record<string, unknown>
+    const activityRef = compDef['@_activityRef'] as string | undefined
+    return { type: 'compensation', ...(activityRef ? { compensationActivityRef: activityRef } : {}) }
   }
   return { type: 'none' }
 }
@@ -300,6 +309,12 @@ function parseMultiInstanceLoopCharacteristics(
   }
 }
 
+function parseIsForCompensation(raw: Record<string, unknown>): boolean | undefined {
+  return raw['@_isForCompensation'] === 'true' || raw['@_isForCompensation'] === true
+    ? true
+    : undefined
+}
+
 function parseServiceTask(
   raw: Record<string, unknown>,
   flows: SequenceFlow[],
@@ -310,16 +325,19 @@ function parseServiceTask(
     (raw['@_type'] as string | undefined) ??
     undefined
   const loopCharacteristics = parseMultiInstanceLoopCharacteristics(raw)
+  const isForCompensation = parseIsForCompensation(raw)
   return {
     ...baseElement(raw, flows),
     type: 'serviceTask',
     ...(taskType !== undefined ? { taskType } : {}),
     ...(loopCharacteristics !== undefined ? { loopCharacteristics } : {}),
+    ...(isForCompensation !== undefined ? { isForCompensation } : {}),
   }
 }
 
 function parseUserTask(raw: Record<string, unknown>, flows: SequenceFlow[]): UserTaskElement {
   const loopCharacteristics = parseMultiInstanceLoopCharacteristics(raw)
+  const isForCompensation = parseIsForCompensation(raw)
   return {
     ...baseElement(raw, flows),
     type: 'userTask',
@@ -327,26 +345,31 @@ function parseUserTask(raw: Record<string, unknown>, flows: SequenceFlow[]): Use
     ...(raw['@_assignee'] !== undefined ? { assignee: String(raw['@_assignee']) } : {}),
     ...(raw['@_formKey'] !== undefined ? { formKey: String(raw['@_formKey']) } : {}),
     ...(loopCharacteristics !== undefined ? { loopCharacteristics } : {}),
+    ...(isForCompensation !== undefined ? { isForCompensation } : {}),
   }
 }
 
 function parseScriptTask(raw: Record<string, unknown>, flows: SequenceFlow[]): ScriptTaskElement {
   const loopCharacteristics = parseMultiInstanceLoopCharacteristics(raw)
+  const isForCompensation = parseIsForCompensation(raw)
   return {
     ...baseElement(raw, flows),
     type: 'scriptTask',
     scriptLanguage: String(raw['@_scriptFormat'] ?? 'javascript'),
     script: extractText(raw['script']) ?? '',
     ...(loopCharacteristics !== undefined ? { loopCharacteristics } : {}),
+    ...(isForCompensation !== undefined ? { isForCompensation } : {}),
   }
 }
 
 function parseManualTask(raw: Record<string, unknown>, flows: SequenceFlow[]): ManualTaskElement {
   const loopCharacteristics = parseMultiInstanceLoopCharacteristics(raw)
+  const isForCompensation = parseIsForCompensation(raw)
   return {
     ...baseElement(raw, flows),
     type: 'manualTask',
     ...(loopCharacteristics !== undefined ? { loopCharacteristics } : {}),
+    ...(isForCompensation !== undefined ? { isForCompensation } : {}),
   }
 }
 
