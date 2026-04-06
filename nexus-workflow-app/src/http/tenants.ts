@@ -55,6 +55,9 @@ export function createTenantsRouter(sql: postgres.Sql, hmacSecret: string, admin
     if (typeof name !== 'string' || name.trim() === '') {
       return c.json({ error: 'VALIDATION_ERROR', message: '"name" must be a non-empty string' }, 400)
     }
+    if (name.length > 255) {
+      return c.json({ error: 'VALIDATION_ERROR', message: '"name" must not exceed 255 characters' }, 400)
+    }
 
     // Validate tenant id format before any DB operations
     if (!VALID_TENANT_ID.test(id)) {
@@ -81,8 +84,13 @@ export function createTenantsRouter(sql: postgres.Sql, hmacSecret: string, admin
     // and a retry would hit 409 CONFLICT with no way to recover via the API.
     try {
       await provisionTenantSchema(id, sql)
-    } catch (_e) {
-      await store.deleteTenant(id)
+    } catch (provisionErr) {
+      console.error(`[tenants] failed to provision schema for tenant '${id}':`, provisionErr)
+      try {
+        await store.deleteTenant(id)
+      } catch (cleanupErr) {
+        console.error(`[tenants] rollback deleteTenant failed for '${id}' — row may be orphaned:`, cleanupErr)
+      }
       return c.json({ error: 'PROVISIONING_FAILED', message: `Failed to provision schema for tenant '${id}'` }, 500)
     }
 
@@ -119,12 +127,15 @@ export function createTenantsRouter(sql: postgres.Sql, hmacSecret: string, admin
     if (typeof name !== 'string' || name.trim() === '') {
       return c.json({ error: 'VALIDATION_ERROR', message: '"name" must be a non-empty string' }, 400)
     }
+    if (name.length > 255) {
+      return c.json({ error: 'VALIDATION_ERROR', message: '"name" must not exceed 255 characters' }, 400)
+    }
 
     const tenant = await store.getTenant(tenantId)
     if (!tenant) return c.json({ error: 'NOT_FOUND', message: `Tenant '${tenantId}' not found` }, 404)
     if (tenant.status !== 'active') return c.json({ error: 'FORBIDDEN', message: `Tenant '${tenantId}' is not active` }, 403)
 
-    const { key, plaintext } = await store.createApiKey(tenantId, name)
+    const { key, plaintext } = await store.createApiKey(tenantId, name.trim())
     return c.json({ key, plaintext }, 201)
   })
 

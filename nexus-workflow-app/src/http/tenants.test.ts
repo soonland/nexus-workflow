@@ -272,6 +272,14 @@ describe('tenants HTTP API', () => {
       expect(body.error).toBe('VALIDATION_ERROR')
     })
 
+    it('should return 400 when name exceeds 255 characters', async () => {
+      const res = await post(app, '/tenants', { id: 'tenant-1', name: 'a'.repeat(256) }, AUTH)
+
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('VALIDATION_ERROR')
+    })
+
     it('should return 400 when body is an array', async () => {
       const res = await app.fetch(
         new Request('http://localhost/tenants', {
@@ -321,6 +329,18 @@ describe('tenants HTTP API', () => {
       const body = await res.json() as { error: string }
       expect(body.error).toBe('PROVISIONING_FAILED')
       expect(mockStore.deleteTenant).toHaveBeenCalledWith('tenant-1')
+    })
+
+    it('should return 500 PROVISIONING_FAILED even when deleteTenant also throws during cleanup', async () => {
+      mockStore.createTenant.mockImplementationOnce(async () => makeTenant())
+      vi.mocked(provisionTenantSchema).mockImplementationOnce(() => Promise.reject(new Error('DDL failed')))
+      mockStore.deleteTenant.mockImplementationOnce(() => Promise.reject(new Error('DB down')))
+
+      const res = await post(app, '/tenants', { id: 'tenant-1', name: 'Acme Corp' }, AUTH)
+
+      expect(res.status).toBe(500)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('PROVISIONING_FAILED')
     })
 
     it('should return 409 when createTenant throws a postgres unique violation (code 23505)', async () => {
@@ -416,7 +436,7 @@ describe('tenants HTTP API', () => {
       const res = await post(app, '/tenants/tenant-1/keys', { name: 'My Key' }, AUTH)
 
       expect(res.status).toBe(201)
-      const body = await res.json() as { key: ApiKey; plaintext: string }
+      const body = await res.json() as { key: ApiKeyPublic; plaintext: string }
       expect(body.key).toMatchObject({ id: 'key-id-1' })
       expect(body.plaintext).toBe(plaintext)
     })
@@ -499,6 +519,23 @@ describe('tenants HTTP API', () => {
       expect(res.status).toBe(400)
       const body = await res.json() as { error: string }
       expect(body.error).toBe('VALIDATION_ERROR')
+    })
+
+    it('should return 400 when name exceeds 255 characters', async () => {
+      const res = await post(app, '/tenants/tenant-1/keys', { name: 'a'.repeat(256) }, AUTH)
+
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('VALIDATION_ERROR')
+    })
+
+    it('should trim the key name before storing', async () => {
+      mockStore.getTenant.mockResolvedValueOnce(makeTenant())
+      mockStore.createApiKey.mockResolvedValueOnce({ key: makeApiKey(), plaintext: 'secret' })
+
+      await post(app, '/tenants/tenant-1/keys', { name: '  Production Key  ' }, AUTH)
+
+      expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'Production Key')
     })
 
     it('should return 400 when body is non-JSON', async () => {
