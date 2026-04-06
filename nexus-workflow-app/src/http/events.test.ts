@@ -79,7 +79,7 @@ describe('events HTTP API', () => {
     store = new InMemoryStateStore()
     eventBus = new InMemoryEventBus()
     app = new Hono()
-    app.route('/', createEventsRouter(store, eventBus))
+    app.route('/', createEventsRouter(() => store, eventBus))
   })
 
   // ─── Messages ───────────────────────────────────────────────────────────────

@@ -2,14 +2,16 @@ import { Hono } from 'hono'
 import { execute, RuntimeError, type StateStore, type UserTaskQuery, type VariableValue, type EventBus } from 'nexus-workflow-core'
 import { loadEngineState, computeStoreOps, buildUserTaskCreationOps, normalizeVariables, unwrapVariables } from './engineHelpers.js'
 import { validationError, listTasksQuerySchema, completeTaskBodySchema, claimTaskBodySchema } from './validation.js'
+import type { AppVariables } from './middleware/auth.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
-export function createTasksRouter(store: StateStore, eventBus: EventBus): Hono {
-  const app = new Hono()
+export function createTasksRouter(storeFactory: (tenantId: string) => StateStore, eventBus: EventBus): Hono<{ Variables: AppVariables }> {
+  const app = new Hono<{ Variables: AppVariables }>()
 
   // GET /tasks — list user tasks
   app.get('/tasks', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const parsed = listTasksQuerySchema.safeParse(c.req.query())
     if (!parsed.success) return c.json(validationError(parsed.error), 400)
     const q = parsed.data
@@ -26,6 +28,7 @@ export function createTasksRouter(store: StateStore, eventBus: EventBus): Hono {
 
   // GET /tasks/:id — get task details + variables in scope
   app.get('/tasks/:id', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const id = c.req.param('id')
 
     const task = await store.getUserTask(id)
@@ -48,6 +51,7 @@ export function createTasksRouter(store: StateStore, eventBus: EventBus): Hono {
 
   // POST /tasks/:id/complete — submit task completion with optional output variables
   app.post('/tasks/:id/complete', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const id = c.req.param('id')
 
     const task = await store.getUserTask(id)
@@ -111,6 +115,7 @@ export function createTasksRouter(store: StateStore, eventBus: EventBus): Hono {
 
   // POST /tasks/:id/claim — assign a task to a user
   app.post('/tasks/:id/claim', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const id = c.req.param('id')
 
     const task = await store.getUserTask(id)
@@ -136,6 +141,7 @@ export function createTasksRouter(store: StateStore, eventBus: EventBus): Hono {
 
   // POST /tasks/:id/release — unassign a task
   app.post('/tasks/:id/release', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const id = c.req.param('id')
 
     const task = await store.getUserTask(id)

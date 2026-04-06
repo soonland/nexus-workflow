@@ -62,7 +62,7 @@ describe('admin HTTP API', () => {
     store = new InMemoryStateStore()
     eventBus = new InMemoryEventBus()
     app = new Hono()
-    app.route('/', createAdminRouter(store, eventBus))
+    app.route('/', createAdminRouter(() => store, eventBus))
   })
 
   // ─── Suspend ────────────────────────────────────────────────────────────────

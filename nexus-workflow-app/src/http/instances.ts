@@ -2,14 +2,16 @@ import { Hono } from 'hono'
 import { execute, RuntimeError, DefinitionError, type StateStore, type EngineCommand, type InstanceQuery, type InstanceStatus, type VariableValue, type EventBus } from 'nexus-workflow-core'
 import { loadEngineState, computeStoreOps, buildUserTaskCreationOps, normalizeVariables, unwrapVariables } from './engineHelpers.js'
 import { validationError, startInstanceBodySchema, listInstancesQuerySchema, instanceStatusSchema, commandBodySchema } from './validation.js'
+import type { AppVariables } from './middleware/auth.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
-export function createInstancesRouter(store: StateStore, eventBus: EventBus): Hono {
-  const app = new Hono()
+export function createInstancesRouter(storeFactory: (tenantId: string) => StateStore, eventBus: EventBus): Hono<{ Variables: AppVariables }> {
+  const app = new Hono<{ Variables: AppVariables }>()
 
   // POST /definitions/:definitionId/instances — start a new instance
   app.post('/definitions/:definitionId/instances', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const definitionId = c.req.param('definitionId')
 
     const definition = await store.getDefinition(definitionId)
@@ -68,6 +70,7 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
 
   // GET /instances — list instances with optional filters
   app.get('/instances', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const parsed = listInstancesQuerySchema.safeParse(c.req.query())
     if (!parsed.success) return c.json(validationError(parsed.error), 400)
     const q = parsed.data
@@ -97,6 +100,7 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
 
   // GET /instances/:id — get instance details
   app.get('/instances/:id', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const id = c.req.param('id')
 
     const instance = await store.getInstance(id)
@@ -110,6 +114,7 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
 
   // POST /instances/:id/commands — send a command to an instance
   app.post('/instances/:id/commands', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const id = c.req.param('id')
 
     let rawBody: unknown
@@ -150,6 +155,7 @@ export function createInstancesRouter(store: StateStore, eventBus: EventBus): Ho
 
   // DELETE /instances/:id — cancel an instance
   app.delete('/instances/:id', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const id = c.req.param('id')
 
     const state = await loadEngineState(store, id)

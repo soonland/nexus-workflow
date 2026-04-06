@@ -2,14 +2,16 @@ import { Hono } from 'hono'
 import { execute, RuntimeError, type StateStore, type VariableValue, type EventBus } from 'nexus-workflow-core'
 import { loadEngineState, computeStoreOps, buildUserTaskCreationOps } from './engineHelpers.js'
 import { validationError, deliverMessageBodySchema, broadcastSignalBodySchema } from './validation.js'
+import type { AppVariables } from './middleware/auth.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
-export function createEventsRouter(store: StateStore, eventBus: EventBus): Hono {
-  const app = new Hono()
+export function createEventsRouter(storeFactory: (tenantId: string) => StateStore, eventBus: EventBus): Hono<{ Variables: AppVariables }> {
+  const app = new Hono<{ Variables: AppVariables }>()
 
   // POST /messages — deliver a message to the subscribed instance
   app.post('/messages', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     let rawBody: unknown
     try {
       rawBody = await c.req.json()
@@ -68,6 +70,7 @@ export function createEventsRouter(store: StateStore, eventBus: EventBus): Hono 
 
   // POST /signals — broadcast a signal to all subscribed instances
   app.post('/signals', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     let rawBody: unknown
     try {
       rawBody = await c.req.json()

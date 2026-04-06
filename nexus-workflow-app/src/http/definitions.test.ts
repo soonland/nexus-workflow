@@ -58,8 +58,13 @@ describe('definitions HTTP API', () => {
   beforeEach(() => {
     store = new InMemoryStateStore()
     inMemoryXmlStore.xmlMap.clear()
+    const combined = Object.assign(store, {
+      saveDefinitionXml: (...args: Parameters<typeof inMemoryXmlStore.saveDefinitionXml>) => inMemoryXmlStore.saveDefinitionXml(...args),
+      getDefinitionXml: (...args: Parameters<typeof inMemoryXmlStore.getDefinitionXml>) => inMemoryXmlStore.getDefinitionXml(...args),
+      deleteDefinition: (...args: Parameters<typeof inMemoryXmlStore.deleteDefinition>) => inMemoryXmlStore.deleteDefinition(...args),
+    })
     app = new Hono()
-    app.route('/definitions', createDefinitionsRouter(store, inMemoryXmlStore))
+    app.route('/definitions', createDefinitionsRouter(() => combined))
   })
 
   // ─── POST /definitions ──────────────────────────────────────────────────────

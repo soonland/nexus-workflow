@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { parseBpmn, DefinitionError, type StateStore } from 'nexus-workflow-core'
 import { validationError, versionQuerySchema } from './validation.js'
+import type { AppVariables } from './middleware/auth.js'
 
 const ONE_MB = 1 * 1024 * 1024
 
@@ -11,8 +12,10 @@ interface XmlStore {
   deleteDefinition(id: string): Promise<void>
 }
 
-export function createDefinitionsRouter(store: StateStore, xmlStore: XmlStore): Hono {
-  const app = new Hono()
+type DefinitionStore = StateStore & XmlStore
+
+export function createDefinitionsRouter(storeFactory: (tenantId: string) => DefinitionStore): Hono<{ Variables: AppVariables }> {
+  const app = new Hono<{ Variables: AppVariables }>()
 
   // POST /definitions — upload BPMN XML, parse, store, return summary
   app.post(
@@ -22,6 +25,7 @@ export function createDefinitionsRouter(store: StateStore, xmlStore: XmlStore): 
       onError: (c) => c.json({ error: 'PAYLOAD_TOO_LARGE', message: 'Request body exceeds 1 MB limit' }, 413),
     }),
     async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const xml = await c.req.text()
 
     let result
@@ -46,7 +50,7 @@ export function createDefinitionsRouter(store: StateStore, xmlStore: XmlStore): 
     }
 
     await store.saveDefinition(result.definition)
-    await xmlStore.saveDefinitionXml(result.definition.id, result.definition.version, xml)
+    await store.saveDefinitionXml(result.definition.id, result.definition.version, xml)
 
     const { id, version, name, deployedAt, isDeployable } = result.definition
     return c.json(
@@ -65,6 +69,7 @@ export function createDefinitionsRouter(store: StateStore, xmlStore: XmlStore): 
   // GET /definitions — list all definitions (summaries)
 
   app.get('/', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const isDeployableParam = c.req.query('isDeployable')
     const filter: { isDeployable?: boolean } = {}
     if (isDeployableParam !== undefined) {
@@ -77,12 +82,13 @@ export function createDefinitionsRouter(store: StateStore, xmlStore: XmlStore): 
 
   // GET /definitions/:id/xml — return raw BPMN XML for a definition
   app.get('/:id/xml', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const id = c.req.param('id')
     const versionParsed = versionQuerySchema.safeParse({ version: c.req.query('version') })
     if (!versionParsed.success) return c.json(validationError(versionParsed.error), 400)
     const version = versionParsed.data.version
 
-    const xml = await xmlStore.getDefinitionXml(id, version)
+    const xml = await store.getDefinitionXml(id, version)
     if (xml === null) {
       return c.json({ error: 'NOT_FOUND', message: `Definition '${id}' not found or has no stored XML` }, 404)
     }
@@ -92,6 +98,7 @@ export function createDefinitionsRouter(store: StateStore, xmlStore: XmlStore): 
 
   // GET /definitions/:id — get latest (or specific version) of a definition
   app.get('/:id', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const id = c.req.param('id')
     const versionParsed = versionQuerySchema.safeParse({ version: c.req.query('version') })
     if (!versionParsed.success) return c.json(validationError(versionParsed.error), 400)
@@ -107,6 +114,7 @@ export function createDefinitionsRouter(store: StateStore, xmlStore: XmlStore): 
 
   // DELETE /definitions/:id — delete all versions of a definition
   app.delete('/:id', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const id = c.req.param('id')
 
     const definition = await store.getDefinition(id)
@@ -128,7 +136,7 @@ export function createDefinitionsRouter(store: StateStore, xmlStore: XmlStore): 
       )
     }
 
-    await xmlStore.deleteDefinition(id)
+    await store.deleteDefinition(id)
     return c.json({ deleted: id })
   })
 

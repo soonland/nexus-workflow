@@ -60,8 +60,8 @@ describe('observability HTTP API', () => {
     eventBus = new InMemoryEventBus()
     eventLog = new InMemoryEventLog()
     app = new Hono()
-    app.route('/', createInstancesRouter(store, eventBus))
-    app.route('/', createObservabilityRouter(store, eventLog))
+    app.route('/', createInstancesRouter(() => store, eventBus))
+    app.route('/', createObservabilityRouter(() => store, eventLog))
   })
 
   // ─── GET /instances/:id/events ────────────────────────────────────────────────
@@ -72,7 +72,7 @@ describe('observability HTTP API', () => {
       // Use a fresh eventLog with no events for this instance
       const freshEventLog = new InMemoryEventLog()
       const freshApp = new Hono()
-      freshApp.route('/', createObservabilityRouter(store, freshEventLog))
+      freshApp.route('/', createObservabilityRouter(() => store, freshEventLog))
 
       const res = await freshApp.fetch(new Request(`http://localhost/instances/${instanceId}/events`))
       expect(res.status).toBe(200)

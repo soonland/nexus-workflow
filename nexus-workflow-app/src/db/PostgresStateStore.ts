@@ -196,8 +196,14 @@ function reviveUserTaskRecord(raw: RawUserTaskRecord): UserTaskRecord {
 export class PostgresStateStore implements StateStore {
   private readonly sql: postgres.Sql
 
-  constructor(connectionString: string) {
-    this.sql = postgres(connectionString)
+  constructor(connectionString: string, tenantId: string) {
+    this.sql = postgres(connectionString, {
+      connection: {
+        // Sets search_path for every connection in this pool so all unqualified
+        // table references resolve to the tenant's schema first, then public.
+        search_path: `tenant_${tenantId}, public`,
+      },
+    })
   }
 
   /** Gracefully close the connection pool. */

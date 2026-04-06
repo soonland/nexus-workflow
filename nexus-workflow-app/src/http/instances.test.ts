@@ -81,7 +81,7 @@ describe('instances HTTP API', () => {
     store = new InMemoryStateStore()
     eventBus = new InMemoryEventBus()
     app = new Hono()
-    app.route('/', createInstancesRouter(store, eventBus))
+    app.route('/', createInstancesRouter(() => store, eventBus))
   })
 
   // ─── POST /definitions/:definitionId/instances ───────────────────────────────
