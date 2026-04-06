@@ -1,14 +1,16 @@
 import { Hono } from 'hono'
 import { execute, RuntimeError, type StateStore, type EventBus } from 'nexus-workflow-core'
 import { loadEngineState, computeStoreOps, buildUserTaskCreationOps } from './engineHelpers.js'
+import type { AppVariables } from './middleware/auth.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
-export function createAdminRouter(store: StateStore, eventBus: EventBus): Hono {
-  const app = new Hono()
+export function createAdminRouter(storeFactory: (tenantId: string) => StateStore, eventBus: EventBus): Hono<{ Variables: AppVariables }> {
+  const app = new Hono<{ Variables: AppVariables }>()
 
   // POST /instances/:id/suspend — suspend an active instance
   app.post('/instances/:id/suspend', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const id = c.req.param('id')
 
     const state = await loadEngineState(store, id)
@@ -44,6 +46,7 @@ export function createAdminRouter(store: StateStore, eventBus: EventBus): Hono {
 
   // POST /instances/:id/resume — resume a suspended instance
   app.post('/instances/:id/resume', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const id = c.req.param('id')
 
     const state = await loadEngineState(store, id)
@@ -79,6 +82,7 @@ export function createAdminRouter(store: StateStore, eventBus: EventBus): Hono {
 
   // POST /instances/:id/restart — restart a terminated instance from scratch
   app.post('/instances/:id/restart', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const id = c.req.param('id')
 
     const state = await loadEngineState(store, id)
@@ -128,6 +132,7 @@ export function createAdminRouter(store: StateStore, eventBus: EventBus): Hono {
 
   // GET /instances/:id/history — execution history for an instance
   app.get('/instances/:id/history', async (c) => {
+    const store = storeFactory(c.get('tenantId'))
     const id = c.req.param('id')
 
     const instance = await store.getInstance(id)

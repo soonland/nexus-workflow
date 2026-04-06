@@ -87,8 +87,8 @@ describe('tasks HTTP API', () => {
     store = new InMemoryStateStore()
     eventBus = new InMemoryEventBus()
     app = new Hono()
-    app.route('/', createInstancesRouter(store, eventBus))
-    app.route('/', createTasksRouter(store, eventBus))
+    app.route('/', createInstancesRouter(() => store, eventBus))
+    app.route('/', createTasksRouter(() => store, eventBus))
   })
 
   // ─── GET /tasks — validation ──────────────────────────────────────────────────

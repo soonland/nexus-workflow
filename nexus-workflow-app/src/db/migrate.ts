@@ -24,6 +24,7 @@ export async function runMigrations(connectionString: string): Promise<void> {
       '005_webhooks.sql',
       '006_compensation_records.sql',
       '007_tenant_registry.sql',
+      '008_tenant_default.sql',
     ]
 
     for (const file of migrations) {
@@ -51,22 +52,23 @@ export async function runMigrations(connectionString: string): Promise<void> {
 export async function resetDatabase(connectionString: string): Promise<void> {
   const sql = postgres(connectionString)
   try {
+    // Drop all tenant schemas (tenant_default plus any provisioned at runtime)
+    const schemas = await sql<{ nspname: string }[]>`
+      SELECT nspname FROM pg_namespace WHERE nspname LIKE 'tenant_%'
+    `
+    for (const { nspname } of schemas) {
+      await sql.unsafe(`DROP SCHEMA IF EXISTS "${nspname}" CASCADE`)
+    }
     await sql`
       DROP TABLE IF EXISTS
         execution_events,
-        scheduled_timers,
-        history_entries,
-        gateway_join_states,
-        event_subscriptions,
-        user_tasks,
-        variable_scopes,
-        tokens,
-        instances,
-        definitions,
+        webhook_registrations,
+        api_keys,
+        tenants,
         schema_migrations
       CASCADE
     `
-    console.log('Database reset: all tables dropped')
+    console.log('Database reset: all tables and tenant schemas dropped')
   } finally {
     await sql.end()
   }
