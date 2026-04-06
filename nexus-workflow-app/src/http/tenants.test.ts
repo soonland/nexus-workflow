@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Hono } from 'hono'
 import type postgres from 'postgres'
-import { TenantStore, type Tenant, type ApiKey } from '../db/TenantStore.js'
+import { TenantStore, type Tenant, type ApiKey, type ApiKeyPublic } from '../db/TenantStore.js'
 import { provisionTenantSchema } from '../db/tenantProvisioner.js'
 import { createTenantsRouter } from './tenants.js'
 
@@ -195,10 +195,10 @@ describe('tenants HTTP API', () => {
       expect(body.tenant).toMatchObject({ id: 'tenant-1', name: 'Acme Corp' })
     })
 
-    it('should call provisionTenantSchema before creating the tenant', async () => {
+    it('should call provisionTenantSchema after creating the tenant', async () => {
       const tenant = makeTenant()
-      vi.mocked(provisionTenantSchema).mockResolvedValueOnce(undefined)
       mockStore.createTenant.mockResolvedValueOnce(tenant)
+      vi.mocked(provisionTenantSchema).mockResolvedValueOnce(undefined)
 
       await post(app, '/tenants', { id: 'tenant-1', name: 'Acme Corp' }, AUTH)
 
@@ -285,11 +285,7 @@ describe('tenants HTTP API', () => {
       expect(body.error).toBe('VALIDATION_ERROR')
     })
 
-    it('should return 400 when provisionTenantSchema throws an Invalid tenantId error', async () => {
-      vi.mocked(provisionTenantSchema).mockRejectedValueOnce(
-        new Error('Invalid tenantId: "bad id". Only alphanumeric characters, hyphens, and underscores are allowed.'),
-      )
-
+    it('should return 400 when id contains invalid characters', async () => {
       const res = await post(app, '/tenants', { id: 'bad id', name: 'Acme Corp' }, AUTH)
 
       expect(res.status).toBe(400)
@@ -306,7 +302,6 @@ describe('tenants HTTP API', () => {
     })
 
     it('should return 409 when createTenant throws a postgres unique violation (code 23505)', async () => {
-      vi.mocked(provisionTenantSchema).mockResolvedValueOnce(undefined)
       const conflict = Object.assign(new Error('duplicate key value'), { code: '23505' })
       mockStore.createTenant.mockRejectedValueOnce(conflict)
 
@@ -318,7 +313,6 @@ describe('tenants HTTP API', () => {
     })
 
     it('should include the tenant id in the 409 conflict message', async () => {
-      vi.mocked(provisionTenantSchema).mockResolvedValueOnce(undefined)
       const conflict = Object.assign(new Error('duplicate key value'), { code: '23505' })
       mockStore.createTenant.mockRejectedValueOnce(conflict)
 
@@ -437,6 +431,24 @@ describe('tenants HTTP API', () => {
       expect(body.error).toBe('NOT_FOUND')
     })
 
+    it('should return 403 when the tenant is suspended', async () => {
+      mockStore.getTenant.mockResolvedValueOnce(makeTenant({ status: 'suspended' }))
+
+      const res = await post(app, '/tenants/tenant-1/keys', { name: 'My Key' }, AUTH)
+
+      expect(res.status).toBe(403)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('FORBIDDEN')
+    })
+
+    it('should not call createApiKey when the tenant is suspended', async () => {
+      mockStore.getTenant.mockResolvedValueOnce(makeTenant({ status: 'suspended' }))
+
+      await post(app, '/tenants/tenant-1/keys', { name: 'My Key' }, AUTH)
+
+      expect(mockStore.createApiKey).not.toHaveBeenCalled()
+    })
+
     it('should return 400 when name is missing', async () => {
       mockStore.getTenant.mockResolvedValueOnce(makeTenant())
 
@@ -489,7 +501,7 @@ describe('tenants HTTP API', () => {
       const res = await get(app, '/tenants/tenant-1/keys', AUTH)
 
       expect(res.status).toBe(200)
-      const body = await res.json() as { keys: ApiKey[] }
+      const body = await res.json() as { keys: ApiKeyPublic[] }
       expect(body.keys).toHaveLength(2)
     })
 
@@ -500,7 +512,7 @@ describe('tenants HTTP API', () => {
       const res = await get(app, '/tenants/tenant-1/keys', AUTH)
 
       expect(res.status).toBe(200)
-      const body = await res.json() as { keys: ApiKey[] }
+      const body = await res.json() as { keys: ApiKeyPublic[] }
       expect(body.keys).toEqual([])
     })
 

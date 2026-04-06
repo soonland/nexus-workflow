@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type postgres from 'postgres'
-import { TenantStore, type Tenant, type ApiKey } from './TenantStore.js'
+import { TenantStore, type Tenant, type ApiKey, type ApiKeyPublic } from './TenantStore.js'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -311,7 +311,11 @@ describe('TenantStore', () => {
     })
 
     it('should return the full array of api keys from sql', async () => {
-      const keys = [makeApiKey({ id: 'k1' }), makeApiKey({ id: 'k2' }), makeApiKey({ id: 'k3' })]
+      const keys: ApiKeyPublic[] = [
+        { id: 'k1', tenantId: 'tenant-1', name: 'Key 1', createdAt: new Date('2024-01-01'), lastUsedAt: null, revokedAt: null },
+        { id: 'k2', tenantId: 'tenant-1', name: 'Key 2', createdAt: new Date('2024-01-02'), lastUsedAt: null, revokedAt: null },
+        { id: 'k3', tenantId: 'tenant-1', name: 'Key 3', createdAt: new Date('2024-01-03'), lastUsedAt: null, revokedAt: null },
+      ]
       ;(sql as ReturnType<typeof vi.fn>).mockResolvedValueOnce(keys)
 
       const result = await store.listApiKeys('tenant-1')
@@ -319,15 +323,15 @@ describe('TenantStore', () => {
       expect(result).toEqual(keys)
     })
 
-    it('should return keys with all expected fields', async () => {
-      const key = makeApiKey({
+    it('should return keys with all expected fields (no keyHash)', async () => {
+      const key: ApiKeyPublic = {
         id: 'key-id-1',
         tenantId: 'tenant-1',
         name: 'Production Key',
-        keyHash: 'b'.repeat(64),
+        createdAt: new Date('2024-01-01'),
         lastUsedAt: new Date('2024-06-01'),
         revokedAt: null,
-      })
+      }
       ;(sql as ReturnType<typeof vi.fn>).mockResolvedValueOnce([key])
 
       const [result] = await store.listApiKeys('tenant-1')
@@ -337,6 +341,7 @@ describe('TenantStore', () => {
         tenantId: 'tenant-1',
         name: 'Production Key',
       })
+      expect(result).not.toHaveProperty('keyHash')
     })
 
     it('should propagate errors thrown by sql', async () => {

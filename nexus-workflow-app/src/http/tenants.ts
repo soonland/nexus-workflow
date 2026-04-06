@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto'
 import { Hono } from 'hono'
 import type postgres from 'postgres'
 import { TenantStore } from '../db/TenantStore.js'
@@ -8,8 +9,16 @@ import { provisionTenantSchema } from '../db/tenantProvisioner.js'
 function checkAdminAuth(authHeader: string | undefined, adminApiKey: string): boolean {
   if (!authHeader) return false
   const [scheme, key] = authHeader.split(' ')
-  return scheme === 'Bearer' && !!key && key === adminApiKey
+  if (scheme !== 'Bearer' || !key) return false
+  try {
+    return timingSafeEqual(Buffer.from(key), Buffer.from(adminApiKey))
+  } catch {
+    // Buffers of different lengths throw — treat as mismatch
+    return false
+  }
 }
+
+const VALID_TENANT_ID = /^[a-zA-Z0-9_-]+$/
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -49,18 +58,20 @@ export function createTenantsRouter(sql: postgres.Sql, hmacSecret: string, admin
       return c.json({ error: 'VALIDATION_ERROR', message: '"name" must be a non-empty string' }, 400)
     }
 
-    // Provision fails fast if id contains invalid characters
-    try {
-      await provisionTenantSchema(id, sql)
-    } catch (e) {
-      if (e instanceof Error && e.message.startsWith('Invalid tenantId')) {
-        return c.json({ error: 'VALIDATION_ERROR', message: e.message }, 400)
-      }
-      throw e
+    // Validate tenant id format before any DB operations
+    if (!VALID_TENANT_ID.test(id)) {
+      return c.json(
+        { error: 'VALIDATION_ERROR', message: `Invalid tenantId: "${id}". Only alphanumeric characters, hyphens, and underscores are allowed.` },
+        400,
+      )
     }
 
+    // Insert the row first — a unique violation (23505) bails out before any DDL runs,
+    // preventing an orphaned schema with no owning tenant row.
     try {
       const tenant = await store.createTenant(id, name)
+      // Row committed — provision the schema (idempotent, safe to retry on failure)
+      await provisionTenantSchema(id, sql)
       return c.json({ tenant }, 201)
     } catch (e) {
       // Unique violation: tenant id already exists
@@ -87,6 +98,7 @@ export function createTenantsRouter(sql: postgres.Sql, hmacSecret: string, admin
 
     const tenant = await store.getTenant(tenantId)
     if (!tenant) return c.json({ error: 'NOT_FOUND', message: `Tenant '${tenantId}' not found` }, 404)
+    if (tenant.status !== 'active') return c.json({ error: 'FORBIDDEN', message: `Tenant '${tenantId}' is not active` }, 403)
 
     let body: unknown
     try {

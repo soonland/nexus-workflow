@@ -20,6 +20,8 @@ export interface ApiKey {
   revokedAt: Date | null
 }
 
+export type ApiKeyPublic = Omit<ApiKey, 'keyHash'>
+
 // ─── TenantStore ──────────────────────────────────────────────────────────────
 
 export class TenantStore {
@@ -82,13 +84,12 @@ export class TenantStore {
     return { key, plaintext }
   }
 
-  async listApiKeys(tenantId: string): Promise<ApiKey[]> {
-    return this.sql<ApiKey[]>`
+  async listApiKeys(tenantId: string): Promise<ApiKeyPublic[]> {
+    return this.sql<ApiKeyPublic[]>`
       SELECT
         id,
         tenant_id AS "tenantId",
         name,
-        key_hash AS "keyHash",
         created_at AS "createdAt",
         last_used_at AS "lastUsedAt",
         revoked_at AS "revokedAt"
