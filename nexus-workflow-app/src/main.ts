@@ -13,6 +13,7 @@ import { createAdminRouter } from './http/admin.js'
 import { createEventsRouter } from './http/events.js'
 import { createObservabilityRouter } from './http/observability.js'
 import { createWebhooksRouter } from './http/webhooks.js'
+import { createTenantsRouter } from './http/tenants.js'
 import { createAuthMiddleware } from './http/middleware/auth.js'
 import { PostgresWebhookStore } from './webhooks/WebhookStore.js'
 import { WebhookDispatcher } from './webhooks/WebhookDispatcher.js'
@@ -87,6 +88,8 @@ await scheduler.start()
 
 const app = new Hono()
 app.use(timeout(config.requestTimeoutMs))
+// /tenants is protected by the admin API key, not the DB-backed tenant key
+app.route('/tenants', createTenantsRouter(authSql, config.apiKeyHmacSecret, config.adminApiKey))
 app.use('*', createAuthMiddleware(authSql, config.apiKeyHmacSecret))
 app.get('/health', (c) => c.json({ status: 'ok' }))
 app.route('/definitions', createDefinitionsRouter(storeFactory))
