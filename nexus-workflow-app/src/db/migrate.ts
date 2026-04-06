@@ -21,6 +21,9 @@ export async function runMigrations(connectionString: string): Promise<void> {
       '002_gateway_join_states_instance_idx.sql',
       '003_execution_events.sql',
       '004_definition_source_xml.sql',
+      '005_webhooks.sql',
+      '006_compensation_records.sql',
+      '007_tenant_registry.sql',
     ]
 
     for (const file of migrations) {

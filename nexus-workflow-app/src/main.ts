@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { timeout } from 'hono/timeout'
+import postgres from 'postgres'
 import { InMemoryEventBus } from 'nexus-workflow-core'
 import { config, assertConfigValid } from './config.js'
 import { PostgresStateStore } from './db/PostgresStateStore.js'
@@ -25,6 +26,7 @@ import { RedisStreamPublisher } from './events/RedisStreamPublisher.js'
 
 assertConfigValid(config)
 
+const authSql = postgres(config.databaseUrl)
 const store = new PostgresStateStore(config.databaseUrl)
 const eventBus = new InMemoryEventBus()
 const eventLog = new PostgresEventLog(config.databaseUrl)
@@ -55,7 +57,7 @@ await scheduler.start()
 
 const app = new Hono()
 app.use(timeout(config.requestTimeoutMs))
-app.use('*', createAuthMiddleware(config.apiKeys))
+app.use('*', createAuthMiddleware(authSql, config.apiKeyHmacSecret))
 app.get('/health', (c) => c.json({ status: 'ok' }))
 app.route('/definitions', createDefinitionsRouter(store, store))
 app.route('/', createInstancesRouter(store, eventBus))
@@ -98,6 +100,7 @@ async function shutdown(signal: string): Promise<void> {
     if (redisPublisher) await redisPublisher.disconnect()
 
     // 4. Close DB pools — postgres.js waits for active queries before closing
+    await authSql.end()
     await webhookStore.end()
     await store.end()
 
