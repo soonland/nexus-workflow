@@ -140,7 +140,7 @@ describe.skipIf(!hasDb)('PostgresStateStore', () => {
   let cleanupSql: ReturnType<typeof postgres>
 
   beforeAll(async () => {
-    store = new PostgresStateStore(TEST_DB_URL)
+    store = new PostgresStateStore(TEST_DB_URL, 'default')
     cleanupSql = postgres(TEST_DB_URL)
     await runMigrations(TEST_DB_URL)
   })
@@ -153,15 +153,15 @@ describe.skipIf(!hasDb)('PostgresStateStore', () => {
   beforeEach(async () => {
     await cleanupSql`
       TRUNCATE
-        definitions,
-        instances,
-        tokens,
-        variable_scopes,
-        user_tasks,
-        event_subscriptions,
-        gateway_join_states,
-        history_entries,
-        scheduled_timers
+        tenant_default.definitions,
+        tenant_default.instances,
+        tenant_default.tokens,
+        tenant_default.variable_scopes,
+        tenant_default.user_tasks,
+        tenant_default.event_subscriptions,
+        tenant_default.gateway_join_states,
+        tenant_default.history_entries,
+        tenant_default.scheduled_timers
       CASCADE
     `
   })
