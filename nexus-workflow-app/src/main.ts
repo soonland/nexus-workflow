@@ -57,7 +57,7 @@ await scheduler.start()
 
 const app = new Hono()
 app.use(timeout(config.requestTimeoutMs))
-app.use('*', createAuthMiddleware(authSql))
+app.use('*', createAuthMiddleware(authSql, config.apiKeyHmacSecret))
 app.get('/health', (c) => c.json({ status: 'ok' }))
 app.route('/definitions', createDefinitionsRouter(store, store))
 app.route('/', createInstancesRouter(store, eventBus))

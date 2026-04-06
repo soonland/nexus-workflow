@@ -11,6 +11,8 @@ export const config = {
   requestTimeoutMs: Number(process.env['REQUEST_TIMEOUT_MS'] ?? 30_000),
   /** Bootstrap API key for initial tenant/key setup (dev and first-run). Never used for runtime auth. */
   adminApiKey: process.env['ADMIN_API_KEY'] ?? '',
+  /** HMAC-SHA256 secret used to hash API keys before storing/comparing. Must be set in production. */
+  apiKeyHmacSecret: process.env['API_KEY_HMAC_SECRET'] ?? '',
 }
 
 /**
@@ -23,5 +25,12 @@ export function assertConfigValid(cfg: typeof config) {
     process.exit(1)
   } else if (!cfg.adminApiKey) {
     console.warn('[config] ADMIN_API_KEY is not set — bootstrap key unavailable.')
+  }
+
+  if (!cfg.apiKeyHmacSecret && cfg.nodeEnv === 'production') {
+    console.error('[config] API_KEY_HMAC_SECRET is required in production. Set it to a secret key (e.g. openssl rand -hex 32). Exiting.')
+    process.exit(1)
+  } else if (!cfg.apiKeyHmacSecret) {
+    console.warn('[config] API_KEY_HMAC_SECRET is not set — API key hashing uses an empty secret (dev only).')
   }
 }

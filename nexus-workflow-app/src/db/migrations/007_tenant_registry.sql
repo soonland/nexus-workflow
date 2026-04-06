@@ -1,11 +1,11 @@
 -- ─── Tenant Registry ─────────────────────────────────────────────────────────
 -- Stores tenants and their associated API keys. Each bearer token is stored as
--- a SHA-256 hash; the raw key is never persisted.
+-- an HMAC-SHA256 hash; the raw key is never persisted.
 
 CREATE TABLE public.tenants (
   id          TEXT PRIMARY KEY,
   name        TEXT NOT NULL,
-  status      TEXT NOT NULL DEFAULT 'active',
+  status      TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended')),
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

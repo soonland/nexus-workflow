@@ -22,9 +22,11 @@ function makeSqlMock(...rowSets: Record<string, unknown>[][]): postgres.Sql {
 // Helper: build a minimal Hono app with the auth middleware mounted globally,
 // a /health route, and a /protected route that echoes the resolved tenantId.
 // ---------------------------------------------------------------------------
+const TEST_HMAC_SECRET = 'test-secret'
+
 function buildApp(sql: postgres.Sql) {
   const app = new Hono<{ Variables: AppVariables }>()
-  app.use('*', createAuthMiddleware(sql))
+  app.use('*', createAuthMiddleware(sql, TEST_HMAC_SECRET))
   app.get('/health', c => c.json({ status: 'ok' }))
   app.get('/protected', c => c.json({ tenantId: c.get('tenantId') }))
   return app
@@ -139,6 +141,23 @@ describe('createAuthMiddleware', () => {
 
       const res = await request(app, '/protected', {
         Authorization: 'Bearer revoked-api-key',
+      })
+
+      expect(res.status).toBe(401)
+      expect(await res.json()).toEqual({ error: 'unauthorized' })
+      expect(res.headers.get('WWW-Authenticate')).toBe('Bearer realm="nexus-workflow"')
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  describe('suspended tenant', () => {
+    it('should return 401 when the tenant is suspended (JOIN filters out the row)', async () => {
+      // The JOIN on t.status = 'active' means a suspended tenant returns no rows
+      const sql = makeSqlMock([])
+      const app = buildApp(sql)
+
+      const res = await request(app, '/protected', {
+        Authorization: 'Bearer valid-key-suspended-tenant',
       })
 
       expect(res.status).toBe(401)
