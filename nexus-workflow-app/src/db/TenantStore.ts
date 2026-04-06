@@ -20,6 +20,7 @@ export interface ApiKey {
   revokedAt: Date | null
 }
 
+/** Public-facing API key shape — `keyHash` is intentionally omitted. */
 export type ApiKeyPublic = Omit<ApiKey, 'keyHash'>
 
 // ─── TenantStore ──────────────────────────────────────────────────────────────

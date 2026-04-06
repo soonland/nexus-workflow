@@ -195,14 +195,21 @@ describe('tenants HTTP API', () => {
       expect(body.tenant).toMatchObject({ id: 'tenant-1', name: 'Acme Corp' })
     })
 
-    it('should call provisionTenantSchema after creating the tenant', async () => {
+    it('should call provisionTenantSchema after creating the tenant row', async () => {
+      const callOrder: string[] = []
       const tenant = makeTenant()
-      mockStore.createTenant.mockResolvedValueOnce(tenant)
-      vi.mocked(provisionTenantSchema).mockResolvedValueOnce(undefined)
+
+      mockStore.createTenant.mockImplementationOnce(async () => {
+        callOrder.push('createTenant')
+        return tenant
+      })
+      vi.mocked(provisionTenantSchema).mockImplementationOnce(async () => {
+        callOrder.push('provisionTenantSchema')
+      })
 
       await post(app, '/tenants', { id: 'tenant-1', name: 'Acme Corp' }, AUTH)
 
-      expect(provisionTenantSchema).toHaveBeenCalledOnce()
+      expect(callOrder).toEqual(['createTenant', 'provisionTenantSchema'])
     })
 
     it('should call createTenant with the provided id and name', async () => {
@@ -285,16 +292,26 @@ describe('tenants HTTP API', () => {
       expect(body.error).toBe('VALIDATION_ERROR')
     })
 
-    it('should return 400 when id contains invalid characters', async () => {
+    it('should return 400 when id contains invalid characters (space)', async () => {
       const res = await post(app, '/tenants', { id: 'bad id', name: 'Acme Corp' }, AUTH)
+
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('VALIDATION_ERROR')
+      expect(provisionTenantSchema).not.toHaveBeenCalled()
+    })
+
+    it('should return 400 when id contains invalid characters (semicolon)', async () => {
+      const res = await post(app, '/tenants', { id: 'abc;drop', name: 'Acme Corp' }, AUTH)
 
       expect(res.status).toBe(400)
       const body = await res.json() as { error: string }
       expect(body.error).toBe('VALIDATION_ERROR')
     })
 
-    it('should rethrow errors from provisionTenantSchema that are not Invalid tenantId errors', async () => {
-      vi.mocked(provisionTenantSchema).mockRejectedValueOnce(new Error('DB connection failed'))
+    it('should rethrow errors from provisionTenantSchema', async () => {
+      mockStore.createTenant.mockImplementationOnce(async () => makeTenant())
+      vi.mocked(provisionTenantSchema).mockImplementationOnce(() => Promise.reject(new Error('DB connection failed')))
 
       await expect(
         post(app, '/tenants', { id: 'tenant-1', name: 'Acme Corp' }, AUTH),
@@ -487,6 +504,24 @@ describe('tenants HTTP API', () => {
       expect(res.status).toBe(400)
       const body = await res.json() as { error: string }
       expect(body.error).toBe('VALIDATION_ERROR')
+    })
+
+    it('should return 403 when tenant is suspended', async () => {
+      mockStore.getTenant.mockResolvedValueOnce(makeTenant({ status: 'suspended' }))
+
+      const res = await post(app, '/tenants/tenant-1/keys', { name: 'My Key' }, AUTH)
+
+      expect(res.status).toBe(403)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('FORBIDDEN')
+    })
+
+    it('should not call createApiKey when tenant is suspended', async () => {
+      mockStore.getTenant.mockResolvedValueOnce(makeTenant({ status: 'suspended' }))
+
+      await post(app, '/tenants/tenant-1/keys', { name: 'My Key' }, AUTH)
+
+      expect(mockStore.createApiKey).not.toHaveBeenCalled()
     })
   })
 
