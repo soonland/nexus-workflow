@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { Hono } from 'hono'
 import type postgres from 'postgres'
 import { TenantStore } from '../db/TenantStore.js'
-import { provisionTenantSchema } from '../db/tenantProvisioner.js'
+import { provisionTenantSchema, VALID_TENANT_ID } from '../db/tenantProvisioner.js'
 
 // ─── Admin auth helper ────────────────────────────────────────────────────────
 
@@ -17,8 +17,6 @@ function checkAdminAuth(authHeader: string | undefined, adminApiKey: string): bo
     return false
   }
 }
-
-const VALID_TENANT_ID = /^[a-zA-Z0-9_-]+$/
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -68,18 +66,27 @@ export function createTenantsRouter(sql: postgres.Sql, hmacSecret: string, admin
 
     // Insert the row first — a unique violation (23505) bails out before any DDL runs,
     // preventing an orphaned schema with no owning tenant row.
+    let tenant
     try {
-      const tenant = await store.createTenant(id, name)
-      // Row committed — provision the schema (idempotent, safe to retry on failure)
-      await provisionTenantSchema(id, sql)
-      return c.json({ tenant }, 201)
+      tenant = await store.createTenant(id, name)
     } catch (e) {
-      // Unique violation: tenant id already exists
-      if (e instanceof Error && 'code' in e && (e as NodeJS.ErrnoException).code === '23505') {
+      if (typeof (e as { code?: unknown }).code === 'string' && (e as { code: string }).code === '23505') {
         return c.json({ error: 'CONFLICT', message: `Tenant '${id}' already exists` }, 409)
       }
       throw e
     }
+
+    // Provision the schema. If DDL fails, delete the committed row so the
+    // caller can retry — otherwise the tenant row would persist without a schema
+    // and a retry would hit 409 CONFLICT with no way to recover via the API.
+    try {
+      await provisionTenantSchema(id, sql)
+    } catch (_e) {
+      await store.deleteTenant(id)
+      return c.json({ error: 'PROVISIONING_FAILED', message: `Failed to provision schema for tenant '${id}'` }, 500)
+    }
+
+    return c.json({ tenant }, 201)
   })
 
   // ─── GET /tenants/:id ─────────────────────────────────────────────────────
@@ -96,10 +103,7 @@ export function createTenantsRouter(sql: postgres.Sql, hmacSecret: string, admin
   app.post('/:id/keys', async (c) => {
     const tenantId = c.req.param('id')
 
-    const tenant = await store.getTenant(tenantId)
-    if (!tenant) return c.json({ error: 'NOT_FOUND', message: `Tenant '${tenantId}' not found` }, 404)
-    if (tenant.status !== 'active') return c.json({ error: 'FORBIDDEN', message: `Tenant '${tenantId}' is not active` }, 403)
-
+    // Validate body first — avoids a DB round-trip for malformed requests
     let body: unknown
     try {
       body = await c.req.json()
@@ -115,6 +119,10 @@ export function createTenantsRouter(sql: postgres.Sql, hmacSecret: string, admin
     if (typeof name !== 'string' || name.trim() === '') {
       return c.json({ error: 'VALIDATION_ERROR', message: '"name" must be a non-empty string' }, 400)
     }
+
+    const tenant = await store.getTenant(tenantId)
+    if (!tenant) return c.json({ error: 'NOT_FOUND', message: `Tenant '${tenantId}' not found` }, 404)
+    if (tenant.status !== 'active') return c.json({ error: 'FORBIDDEN', message: `Tenant '${tenantId}' is not active` }, 403)
 
     const { key, plaintext } = await store.createApiKey(tenantId, name)
     return c.json({ key, plaintext }, 201)

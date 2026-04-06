@@ -53,6 +53,11 @@ export class TenantStore {
     return rows[0] ?? null
   }
 
+  /** Deletes the tenant row. Used to clean up after a failed schema provisioning. */
+  async deleteTenant(id: string): Promise<void> {
+    await this.sql`DELETE FROM public.tenants WHERE id = ${id}`
+  }
+
   // ─── API Keys ──────────────────────────────────────────────────────────────
 
   /**
@@ -62,19 +67,18 @@ export class TenantStore {
   async createApiKey(
     tenantId: string,
     name: string,
-  ): Promise<{ key: ApiKey; plaintext: string }> {
+  ): Promise<{ key: ApiKeyPublic; plaintext: string }> {
     const plaintext = randomBytes(32).toString('hex')
     const keyHash = createHmac('sha256', this.hmacSecret).update(plaintext).digest('hex')
     const id = randomBytes(16).toString('hex')
 
-    const rows = await this.sql<ApiKey[]>`
+    const rows = await this.sql<ApiKeyPublic[]>`
       INSERT INTO public.api_keys (id, tenant_id, name, key_hash)
       VALUES (${id}, ${tenantId}, ${name}, ${keyHash})
       RETURNING
         id,
         tenant_id AS "tenantId",
         name,
-        key_hash AS "keyHash",
         created_at AS "createdAt",
         last_used_at AS "lastUsedAt",
         revoked_at AS "revokedAt"
@@ -85,6 +89,11 @@ export class TenantStore {
     return { key, plaintext }
   }
 
+  /**
+   * Returns all keys for the tenant — including revoked ones — ordered by
+   * creation date. Callers can filter by `revokedAt !== null` if they only
+   * want active keys. Admin visibility into revoked keys is intentional.
+   */
   async listApiKeys(tenantId: string): Promise<ApiKeyPublic[]> {
     return this.sql<ApiKeyPublic[]>`
       SELECT

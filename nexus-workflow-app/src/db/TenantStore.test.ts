@@ -30,6 +30,18 @@ function makeApiKey(overrides: Partial<ApiKey> = {}): ApiKey {
   }
 }
 
+function makeApiKeyPublic(overrides: Partial<ApiKeyPublic> = {}): ApiKeyPublic {
+  return {
+    id: 'key-id-1',
+    tenantId: 'tenant-1',
+    name: 'My API Key',
+    createdAt: new Date('2024-01-01T00:00:00.000Z'),
+    lastUsedAt: null,
+    revokedAt: null,
+    ...overrides,
+  }
+}
+
 // ─── Test Suite ───────────────────────────────────────────────────────────────
 
 describe('TenantStore', () => {
@@ -156,13 +168,12 @@ describe('TenantStore', () => {
       expect(result).toEqual(key)
     })
 
-    it('should not store the plaintext — keyHash must differ from plaintext', async () => {
-      const key = makeApiKey()
-      ;(sql as ReturnType<typeof vi.fn>).mockResolvedValueOnce([key])
+    it('should not expose keyHash in the returned key object', async () => {
+      ;(sql as ReturnType<typeof vi.fn>).mockResolvedValueOnce([makeApiKeyPublic()])
 
-      const { plaintext, key: result } = await store.createApiKey('tenant-1', 'My Key')
+      const { key: result } = await store.createApiKey('tenant-1', 'My Key')
 
-      expect(result.keyHash).not.toBe(plaintext)
+      expect(result).not.toHaveProperty('keyHash')
     })
 
     it('should pass an HMAC-SHA256 hash of the plaintext as keyHash to sql', async () => {

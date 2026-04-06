@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Hono } from 'hono'
 import type postgres from 'postgres'
-import { TenantStore, type Tenant, type ApiKey, type ApiKeyPublic } from '../db/TenantStore.js'
+import { TenantStore, type Tenant, type ApiKeyPublic } from '../db/TenantStore.js'
 import { provisionTenantSchema } from '../db/tenantProvisioner.js'
 import { createTenantsRouter } from './tenants.js'
 
@@ -13,6 +13,7 @@ vi.mock('../db/TenantStore.js', () => ({
 
 vi.mock('../db/tenantProvisioner.js', () => ({
   provisionTenantSchema: vi.fn().mockResolvedValue(undefined),
+  VALID_TENANT_ID: /^[a-zA-Z0-9_-]+$/,
 }))
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -27,12 +28,11 @@ function makeTenant(overrides: Partial<Tenant> = {}): Tenant {
   }
 }
 
-function makeApiKey(overrides: Partial<ApiKey> = {}): ApiKey {
+function makeApiKey(overrides: Partial<ApiKeyPublic> = {}): ApiKeyPublic {
   return {
     id: 'key-id-1',
     tenantId: 'tenant-1',
     name: 'My API Key',
-    keyHash: 'a'.repeat(64),
     createdAt: new Date('2024-01-01T00:00:00.000Z'),
     lastUsedAt: null,
     revokedAt: null,
@@ -96,6 +96,7 @@ describe('tenants HTTP API', () => {
   let mockStore: {
     createTenant: ReturnType<typeof vi.fn>
     getTenant: ReturnType<typeof vi.fn>
+    deleteTenant: ReturnType<typeof vi.fn>
     createApiKey: ReturnType<typeof vi.fn>
     listApiKeys: ReturnType<typeof vi.fn>
     revokeApiKey: ReturnType<typeof vi.fn>
@@ -110,6 +111,7 @@ describe('tenants HTTP API', () => {
     mockStore = {
       createTenant: vi.fn(),
       getTenant: vi.fn(),
+      deleteTenant: vi.fn().mockResolvedValue(undefined),
       createApiKey: vi.fn(),
       listApiKeys: vi.fn(),
       revokeApiKey: vi.fn(),
@@ -309,13 +311,16 @@ describe('tenants HTTP API', () => {
       expect(body.error).toBe('VALIDATION_ERROR')
     })
 
-    it('should rethrow errors from provisionTenantSchema', async () => {
+    it('should return 500 PROVISIONING_FAILED and delete the row when provisionTenantSchema fails', async () => {
       mockStore.createTenant.mockImplementationOnce(async () => makeTenant())
-      vi.mocked(provisionTenantSchema).mockImplementationOnce(() => Promise.reject(new Error('DB connection failed')))
+      vi.mocked(provisionTenantSchema).mockImplementationOnce(() => Promise.reject(new Error('DDL failed')))
 
-      await expect(
-        post(app, '/tenants', { id: 'tenant-1', name: 'Acme Corp' }, AUTH),
-      ).resolves.toMatchObject({ status: 500 })
+      const res = await post(app, '/tenants', { id: 'tenant-1', name: 'Acme Corp' }, AUTH)
+
+      expect(res.status).toBe(500)
+      const body = await res.json() as { error: string }
+      expect(body.error).toBe('PROVISIONING_FAILED')
+      expect(mockStore.deleteTenant).toHaveBeenCalledWith('tenant-1')
     })
 
     it('should return 409 when createTenant throws a postgres unique violation (code 23505)', async () => {

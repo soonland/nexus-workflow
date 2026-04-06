@@ -1,7 +1,7 @@
 import type postgres from 'postgres'
 import { createTenantSchema } from './schema.js'
 
-const VALID_TENANT_ID = /^[a-zA-Z0-9_-]+$/
+export const VALID_TENANT_ID = /^[a-zA-Z0-9_-]+$/
 
 function schemaName(tenantId: string): string {
   if (!VALID_TENANT_ID.test(tenantId)) {
