@@ -30,14 +30,26 @@ const authSql = postgres(config.databaseUrl)
 
 // ─── Per-tenant store factory ─────────────────────────────────────────────────
 // Each tenant gets a dedicated postgres.js pool scoped to their schema via
-// search_path. Stores are cached so we don't create unbounded pools.
+// search_path. Pools are cached and bounded to MAX_TENANT_POOLS entries;
+// the least-recently-used pool is evicted (and drained) when the limit is hit.
+const MAX_TENANT_POOLS = 100
 const storesByTenant = new Map<string, PostgresStateStore>()
 function storeFactory(tenantId: string): PostgresStateStore {
-  let store = storesByTenant.get(tenantId)
-  if (!store) {
-    store = new PostgresStateStore(config.databaseUrl, tenantId)
-    storesByTenant.set(tenantId, store)
+  const existing = storesByTenant.get(tenantId)
+  if (existing) {
+    // Refresh insertion order so this tenant stays "recently used"
+    storesByTenant.delete(tenantId)
+    storesByTenant.set(tenantId, existing)
+    return existing
   }
+  // Evict the oldest (first) entry if the cache is at capacity
+  if (storesByTenant.size >= MAX_TENANT_POOLS) {
+    const [oldestId, oldestStore] = storesByTenant.entries().next().value as [string, PostgresStateStore]
+    storesByTenant.delete(oldestId)
+    void oldestStore.end()
+  }
+  const store = new PostgresStateStore(config.databaseUrl, tenantId)
+  storesByTenant.set(tenantId, store)
   return store
 }
 

@@ -61,7 +61,16 @@ describe('definitions HTTP API', () => {
     const combined = Object.assign(store, {
       saveDefinitionXml: (...args: Parameters<typeof inMemoryXmlStore.saveDefinitionXml>) => inMemoryXmlStore.saveDefinitionXml(...args),
       getDefinitionXml: (...args: Parameters<typeof inMemoryXmlStore.getDefinitionXml>) => inMemoryXmlStore.getDefinitionXml(...args),
-      deleteDefinition: (...args: Parameters<typeof inMemoryXmlStore.deleteDefinition>) => inMemoryXmlStore.deleteDefinition(...args),
+      deleteDefinition: async (id: string) => {
+        // Clear XML store
+        await inMemoryXmlStore.deleteDefinition(id)
+        // Also evict from the state store's definitions map so subsequent
+        // GETs correctly return 404 (InMemoryStateStore.definitions is private)
+        const defs = (store as unknown as { definitions: Map<string, unknown> }).definitions
+        for (const key of defs.keys()) {
+          if (key.startsWith(`${id}@`)) defs.delete(key)
+        }
+      },
     })
     app = new Hono()
     app.route('/definitions', createDefinitionsRouter(() => combined))
