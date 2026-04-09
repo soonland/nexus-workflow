@@ -21,7 +21,7 @@
     "hono": "^4.12.8",
     "ioredis": "^5.10.1",
     "nexus-workflow-core": "file:../nexus-workflow-core",
-    "postgres": "^3.4.5",
+    "postgres": "^3.4.9",
     "zod": "^4.3.6"
   },
   "devDependencies": {
