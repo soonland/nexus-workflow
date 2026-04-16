@@ -27,7 +27,7 @@
     "@mui/icons-material": "^7.3.9",
     "@mui/material": "^7.3.9",
     "@mui/x-date-pickers": "^8.27.2",
-    "@prisma/adapter-pg": "^7.5.0",
+    "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.6.0",
     "@swc/helpers": "^0.5.19",
     "bcryptjs": "^3.0.3",
