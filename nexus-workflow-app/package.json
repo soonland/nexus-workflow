@@ -22,7 +22,7 @@
     "ioredis": "^5.10.1",
     "nexus-workflow-core": "file:../nexus-workflow-core",
     "postgres": "^3.4.9",
-    "zod": "^4.3.6"
+    "zod": "^4.4.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
