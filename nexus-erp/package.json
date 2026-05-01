@@ -26,7 +26,7 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.10",
     "@mui/material": "^7.3.10",
-    "@mui/x-date-pickers": "^8.28.3",
+    "@mui/x-date-pickers": "^8.28.4",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@swc/helpers": "^0.5.21",
@@ -39,10 +39,10 @@
     "ioredis": "^5.10.1",
     "next": "^16.2.4",
     "next-auth": "^5.0.0-beta.25",
-    "next-intl": "^4.9.1",
+    "next-intl": "^4.11.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "zod": "^4.3.6"
+    "zod": "^4.4.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
@@ -61,12 +61,12 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "^2.32.0",
-    "jsdom": "^29.0.2",
+    "jsdom": "^29.1.1",
     "prettier": "^3.8.3",
     "prisma": "^7.8.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.59.0",
+    "typescript-eslint": "^8.59.1",
     "vitest": "^4.0.18",
     "yaml": "^2.8.3"
   }
