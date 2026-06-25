@@ -48,6 +48,9 @@ updates:
     labels:
       - dependencies
       - nexus-erp
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
 
   # GitHub Actions
   - package-ecosystem: github-actions
