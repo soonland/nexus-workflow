@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto'
-import type { EventBus, ExecutionEvent } from 'nexus-workflow-core'
+import type { ExecutionEvent } from 'nexus-workflow-core'
+import type { TenantEventSource } from '../events/TenantEventHub.js'
 import type { WebhookStore } from './WebhookStore.js'
 
 // ─── Options ──────────────────────────────────────────────────────────────────
@@ -15,18 +16,26 @@ export interface WebhookDispatcherOptions {
 
 // ─── WebhookDispatcher ────────────────────────────────────────────────────────
 
+/**
+ * Delivers execution events to the webhooks registered by the tenant that produced them.
+ * A tenant's events are never sent to another tenant's webhooks.
+ */
 export class WebhookDispatcher {
-  private readonly store: WebhookStore
-  private readonly eventBus: EventBus
+  private readonly storeFor: (tenantId: string) => WebhookStore
+  private readonly source: TenantEventSource
   private readonly maxAttempts: number
   private readonly baseRetryDelayMs: number
   private readonly fetch: typeof fetch
   private unsubscribe: (() => void) | null = null
   private stopped = false
 
-  constructor(store: WebhookStore, eventBus: EventBus, options: WebhookDispatcherOptions = {}) {
-    this.store = store
-    this.eventBus = eventBus
+  constructor(
+    storeFor: (tenantId: string) => WebhookStore,
+    source: TenantEventSource,
+    options: WebhookDispatcherOptions = {},
+  ) {
+    this.storeFor = storeFor
+    this.source = source
     this.maxAttempts = options.maxAttempts ?? 3
     this.baseRetryDelayMs = options.baseRetryDelayMs ?? 1000
     this.fetch = options.fetch ?? globalThis.fetch
@@ -34,8 +43,8 @@ export class WebhookDispatcher {
 
   start(): void {
     if (this.unsubscribe) return
-    this.unsubscribe = this.eventBus.subscribe((event) => {
-      void this.dispatch(event)
+    this.unsubscribe = this.source.subscribeAll((tenantId, event) => {
+      void this.dispatch(tenantId, event)
     })
   }
 
@@ -47,12 +56,12 @@ export class WebhookDispatcher {
 
   // ─── Private ──────────────────────────────────────────────────────────────
 
-  private async dispatch(event: ExecutionEvent): Promise<void> {
+  private async dispatch(tenantId: string, event: ExecutionEvent): Promise<void> {
     let registrations
     try {
-      registrations = await this.store.list()
+      registrations = await this.storeFor(tenantId).list()
     } catch (err) {
-      console.error('[webhook] failed to load registrations:', err)
+      console.error(`[webhook] failed to load registrations for tenant '${tenantId}':`, err)
       return
     }
 

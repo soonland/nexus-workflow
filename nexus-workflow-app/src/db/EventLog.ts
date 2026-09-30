@@ -14,6 +14,7 @@ export interface StoredExecutionEvent {
 export interface EventLog {
   append(event: ExecutionEvent): Promise<void>
   getForInstance(instanceId: string): Promise<StoredExecutionEvent[]>
+  end?(): Promise<void>
 }
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -45,11 +46,23 @@ export class InMemoryEventLog implements EventLog {
 
 // ─── PostgresEventLog ─────────────────────────────────────────────────────────
 
+/** Event log for one tenant: reads and writes `tenant_<id>.execution_events`. */
 export class PostgresEventLog implements EventLog {
   private sql: postgres.Sql
 
-  constructor(connectionString: string) {
-    this.sql = postgres(connectionString)
+  constructor(connectionString: string, tenantId: string) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(tenantId)) {
+      throw new Error(`Invalid tenantId: "${tenantId}" — only alphanumeric characters, hyphens, and underscores are allowed`)
+    }
+    this.sql = postgres(connectionString, {
+      // Unqualified table names resolve to the tenant's schema first.
+      connection: { search_path: `tenant_${tenantId}, public` },
+    })
+  }
+
+  /** Gracefully close the connection pool. */
+  async end(): Promise<void> {
+    await this.sql.end()
   }
 
   async append(event: ExecutionEvent): Promise<void> {

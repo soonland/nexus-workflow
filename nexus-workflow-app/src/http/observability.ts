@@ -5,7 +5,10 @@ import type { AppVariables } from './middleware/auth.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
-export function createObservabilityRouter(storeFactory: (tenantId: string) => StateStore, eventLog: EventLog): Hono<{ Variables: AppVariables }> {
+export function createObservabilityRouter(
+  storeFactory: (tenantId: string) => StateStore,
+  eventLogFor: (tenantId: string) => EventLog,
+): Hono<{ Variables: AppVariables }> {
   const app = new Hono<{ Variables: AppVariables }>()
 
   // GET /instances/:id/events — full audit trail for an instance
@@ -16,7 +19,7 @@ export function createObservabilityRouter(storeFactory: (tenantId: string) => St
     const instance = await store.getInstance(id)
     if (!instance) return c.json({ error: 'NOT_FOUND', message: `Instance '${id}' not found` }, 404)
 
-    const events = await eventLog.getForInstance(id)
+    const events = await eventLogFor(c.get('tenantId')).getForInstance(id)
     return c.json({ events })
   })
 

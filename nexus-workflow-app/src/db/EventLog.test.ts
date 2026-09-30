@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import postgres from 'postgres'
 import type { ExecutionEvent } from 'nexus-workflow-core'
 import { InMemoryEventLog, PostgresEventLog } from './EventLog.js'
+import { runMigrations } from './migrate.js'
+import { provisionTenantSchema, dropTenantSchema } from './tenantProvisioner.js'
 
 // ─── InMemoryEventLog ────────────────────────────────────────────────────────
 
@@ -119,13 +122,14 @@ const DATABASE_URL = process.env['DATABASE_URL'] ?? 'postgres://nexus:nexus@loca
 describe('PostgresEventLog', () => {
   let log: PostgresEventLog
 
-  beforeAll(() => {
-    log = new PostgresEventLog(DATABASE_URL)
+  beforeAll(async () => {
+    await runMigrations(DATABASE_URL)
+    log = new PostgresEventLog(DATABASE_URL, 'default')
   })
 
   afterAll(async () => {
-    // Clean up any test rows written during this suite
-    // The test DB is shared — we prefix instanceIds to isolate
+    // Test rows are written to the shared default tenant; instanceIds are unique per test.
+    await log.end()
   })
 
   it('append stores an event and getForInstance retrieves it', async () => {
@@ -211,5 +215,49 @@ describe('PostgresEventLog', () => {
     expect(resultsB).toHaveLength(1)
     expect(resultsA[0]!.instanceId).toBe(idA)
     expect(resultsB[0]!.instanceId).toBe(idB)
+  })
+})
+
+// ─── PostgresEventLog — tenant isolation ─────────────────────────────────────
+
+describe('PostgresEventLog tenant isolation', () => {
+  const tenantA = 'evtlog_iso_a'
+  const tenantB = 'evtlog_iso_b'
+  let admin: postgres.Sql
+  let logA: PostgresEventLog
+  let logB: PostgresEventLog
+
+  beforeAll(async () => {
+    await runMigrations(DATABASE_URL)
+    admin = postgres(DATABASE_URL)
+    await provisionTenantSchema(tenantA, admin)
+    await provisionTenantSchema(tenantB, admin)
+    logA = new PostgresEventLog(DATABASE_URL, tenantA)
+    logB = new PostgresEventLog(DATABASE_URL, tenantB)
+  })
+
+  afterAll(async () => {
+    await logA.end()
+    await logB.end()
+    await dropTenantSchema(tenantA, admin)
+    await dropTenantSchema(tenantB, admin)
+    await admin.end()
+  })
+
+  it("stores events in the tenant's own schema and does not show them to other tenants", async () => {
+    const instanceId = `iso-${crypto.randomUUID()}`
+    await logA.append({ type: 'ProcessInstanceStarted', instanceId, definitionId: 'd', definitionVersion: 1 })
+
+    expect(await logA.getForInstance(instanceId)).toHaveLength(1)
+    expect(await logB.getForInstance(instanceId)).toEqual([])
+
+    const [inA] = await admin`SELECT count(*)::int AS n FROM ${admin(`tenant_${tenantA}`)}.execution_events WHERE instance_id = ${instanceId}`
+    const [inB] = await admin`SELECT count(*)::int AS n FROM ${admin(`tenant_${tenantB}`)}.execution_events WHERE instance_id = ${instanceId}`
+    expect(inA!.n).toBe(1)
+    expect(inB!.n).toBe(0)
+  })
+
+  it('rejects an invalid tenant id', () => {
+    expect(() => new PostgresEventLog(DATABASE_URL, 'bad tenant!')).toThrow(/Invalid tenantId/)
   })
 })

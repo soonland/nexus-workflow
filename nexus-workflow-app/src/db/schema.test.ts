@@ -14,6 +14,14 @@ beforeEach(() => {
 // ─── createTenantSchema ───────────────────────────────────────────────────────
 
 describe('createTenantSchema', () => {
+  it('should create execution_events and webhook_registrations inside the tenant schema', async () => {
+    const sql = makeSqlMock()
+    await createTenantSchema(sql, 'myschema')
+    const [ddl] = (sql.unsafe as ReturnType<typeof vi.fn>).mock.calls[0] as [string]
+    expect(ddl).toContain('CREATE TABLE IF NOT EXISTS "myschema".execution_events')
+    expect(ddl).toContain('CREATE TABLE IF NOT EXISTS "myschema".webhook_registrations')
+  })
+
   it('should call sql.unsafe exactly once', async () => {
     const sql = makeSqlMock()
     await createTenantSchema(sql, 'myschema')

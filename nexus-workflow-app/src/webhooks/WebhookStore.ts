@@ -55,11 +55,18 @@ export class InMemoryWebhookStore implements WebhookStore {
 
 // ─── PostgresWebhookStore ─────────────────────────────────────────────────────
 
+/** Webhook registrations for one tenant: `tenant_<id>.webhook_registrations`. */
 export class PostgresWebhookStore implements WebhookStore {
   private readonly sql: postgres.Sql
 
-  constructor(connectionString: string) {
-    this.sql = postgres(connectionString)
+  constructor(connectionString: string, tenantId: string) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(tenantId)) {
+      throw new Error(`Invalid tenantId: "${tenantId}" — only alphanumeric characters, hyphens, and underscores are allowed`)
+    }
+    this.sql = postgres(connectionString, {
+      // Unqualified table names resolve to the tenant's schema first.
+      connection: { search_path: `tenant_${tenantId}, public` },
+    })
   }
 
   async save(input: CreateWebhookInput): Promise<WebhookRegistration> {
