@@ -7,6 +7,25 @@ const CONSUMER = 'erp-worker'
 
 type WorkflowEvent = { type: string; instanceId?: string; restartedFromId?: string }
 
+// The workflow engine tags every stream entry with the tenant that produced it. The ERP is
+// one tenant among many, so it only acts on its own events.
+const TENANT_ID = process.env.WORKFLOW_TENANT_ID ?? 'nexus-erp'
+
+/**
+ * Reads the event out of a stream entry's fields. Returns null when the entry has no data, is
+ * not tagged with a tenant, or belongs to another tenant: the ERP only acts on events that are
+ * explicitly its own. Throws if the data is not valid JSON.
+ */
+export function parseStreamEntry(fields: string[], tenantId: string): WorkflowEvent | null {
+  const tenantIdx = fields.indexOf('tenantId')
+  if (tenantIdx === -1 || fields[tenantIdx + 1] !== tenantId) return null
+
+  const dataIdx = fields.indexOf('data')
+  if (dataIdx === -1) return null
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  return JSON.parse(fields[dataIdx + 1]!) as WorkflowEvent
+}
+
 async function ensureGroup(redis: Redis): Promise<void> {
   try {
     await redis.xgroup('CREATE', STREAM_KEY, GROUP, '0', 'MKSTREAM')
@@ -43,15 +62,11 @@ async function processPending(redis: Redis): Promise<void> {
 
   for (const [, entries] of results) {
     for (const [id, fields] of entries) {
-      const dataIdx = fields.indexOf('data')
-      if (dataIdx !== -1) {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          const event = JSON.parse(fields[dataIdx + 1]!) as WorkflowEvent
-          await handleEvent(event)
-        } catch (err) {
-          console.error('[redisConsumer] failed to process pending event:', err)
-        }
+      try {
+        const event = parseStreamEntry(fields, TENANT_ID)
+        if (event) await handleEvent(event)
+      } catch (err) {
+        console.error('[redisConsumer] failed to process pending event:', err)
       }
       await redis.xack(STREAM_KEY, GROUP, id)
     }
@@ -80,15 +95,11 @@ export async function startRedisConsumer(redisUrl: string): Promise<void> {
 
         for (const [, entries] of results) {
           for (const [id, fields] of entries) {
-            const dataIdx = fields.indexOf('data')
-            if (dataIdx !== -1) {
-              try {
-                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                const event = JSON.parse(fields[dataIdx + 1]!) as WorkflowEvent
-                await handleEvent(event)
-              } catch (err) {
-                console.error('[redisConsumer] failed to handle event:', err)
-              }
+            try {
+              const event = parseStreamEntry(fields, TENANT_ID)
+              if (event) await handleEvent(event)
+            } catch (err) {
+              console.error('[redisConsumer] failed to handle event:', err)
             }
             await redis.xack(STREAM_KEY, GROUP, id)
           }

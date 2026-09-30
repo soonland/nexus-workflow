@@ -113,24 +113,27 @@ DATABASE_URL=postgresql://nexus:nexus@localhost:5433/nexus_erp
 NEXTAUTH_SECRET=any-random-string
 NEXTAUTH_URL=http://localhost:3001
 WORKFLOW_API_URL=http://localhost:3000
-WORKFLOW_API_KEY=...            # see "Creating an API key" below
+WORKFLOW_API_KEY=...            # see "The ERP's workflow tenant and API key" below
+WORKFLOW_TENANT_ID=nexus-erp
 REDIS_URL=redis://localhost:6379
 ```
 
-### Creating an API key
+### The ERP's workflow tenant and API key
 
-`nexus-workflow-app` requires `Authorization: Bearer <key>` on every request; the ERP sends `WORKFLOW_API_KEY`. Start the workflow app with an admin key and an HMAC secret, then create a key for the `default` tenant (background workers use this tenant):
+`nexus-workflow-app` is multi-tenant: every request needs `Authorization: Bearer <key>`, and the key decides which tenant's data you see. `nexus-erp` is just one tenant of the engine, called `nexus-erp`, with its own key in `WORKFLOW_API_KEY`. `pnpm init` creates both.
+
+To create or replace them by hand (the database must be reachable; the workflow app does not need to be running):
 
 ```bash
-ADMIN_API_KEY=dev-admin-key API_KEY_HMAC_SECRET=dev-hmac-secret pnpm --filter nexus-workflow-app dev
-
-curl -X POST http://localhost:3000/tenants/default/keys \
-  -H "Authorization: Bearer dev-admin-key" -H "Content-Type: application/json" \
-  -d '{"name":"nexus-erp dev"}'
-# → {"key": {...}, "plaintext": "<copy this into WORKFLOW_API_KEY>"}
+pnpm --filter nexus-workflow-app tenant:provision nexus-erp --name "Nexus ERP" \
+  --write-env ../nexus-erp/.env.local        # writes WORKFLOW_API_KEY there
 ```
 
-The plaintext key is shown only once. Keys are hashed with `API_KEY_HMAC_SECRET`, so keep that value stable. With the ephemeral dev database you need to recreate the key whenever the containers are recreated.
+Notes:
+- The key is shown only once (only its hash is stored). Without `--write-env` the command prints it instead.
+- Keys are hashed with `API_KEY_HMAC_SECRET`; run the command and the workflow app with the same value (unset in dev is fine, as long as both agree).
+- Run it again to issue an additional key; the tenant and its data are kept. The docker dev database is ephemeral, so recreate the key when the containers are recreated.
+- `WORKFLOW_TENANT_ID` (default `nexus-erp`) tells the ERP's Redis consumer which tenant's events to act on.
 
 ### Install, migrate & seed
 
