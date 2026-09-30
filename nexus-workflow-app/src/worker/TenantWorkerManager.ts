@@ -108,6 +108,14 @@ export class TenantWorkerManager {
     await Promise.all([...this.running.keys()].map(tenantId => this.stopTenant(tenantId)))
   }
 
+  /**
+   * Stop one tenant's workers now (e.g. because it was suspended or is about to be deleted),
+   * instead of waiting for the next sync. Does nothing if the tenant has no workers running.
+   */
+  async remove(tenantId: string): Promise<void> {
+    await this.stopTenant(tenantId)
+  }
+
   private async stopTenant(tenantId: string): Promise<void> {
     const starting = this.running.get(tenantId)
     this.running.delete(tenantId)

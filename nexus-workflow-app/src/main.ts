@@ -88,7 +88,14 @@ await tenantWorkers.start()
 const app = new Hono<{ Variables: AppVariables }>()
 app.use(timeout(config.requestTimeoutMs))
 // /tenants is protected by the admin API key, not the DB-backed tenant key
-app.route('/tenants', createTenantsRouter(authSql, config.apiKeyHmacSecret, config.adminApiKey))
+app.route('/tenants', createTenantsRouter(authSql, config.apiKeyHmacSecret, config.adminApiKey, {
+  // A suspended or deleted tenant must not keep background workers or connection pools alive
+  // (a deleted tenant's schema is dropped right after this returns).
+  onTenantDeactivating: async (tenantId) => {
+    await tenantWorkers.remove(tenantId)
+    await Promise.all([stores.evict(tenantId), eventLogs.evict(tenantId), webhookStores.evict(tenantId)])
+  },
+}))
 app.use('*', createAuthMiddleware(authSql, config.apiKeyHmacSecret))
 // Workers must be running before the tenant's first event is published (they subscribe to
 // in-process events), so start them here rather than waiting for the next registry sync.

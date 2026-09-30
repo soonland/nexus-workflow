@@ -28,6 +28,14 @@ export class TenantResourceCache<T extends { end?(): Promise<void> }> {
     return created
   }
 
+  /** Close and forget one tenant's resource (e.g. when the tenant is suspended or deleted). */
+  async evict(tenantId: string): Promise<void> {
+    const resource = this.entries.get(tenantId)
+    if (!resource) return
+    this.entries.delete(tenantId)
+    await resource.end?.()
+  }
+
   /** Close every cached resource (used on shutdown). */
   async endAll(): Promise<void> {
     for (const resource of this.entries.values()) {

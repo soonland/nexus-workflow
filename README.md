@@ -135,6 +135,18 @@ Notes:
 - Run it again to issue an additional key; the tenant and its data are kept. The docker dev database is ephemeral, so recreate the key when the containers are recreated.
 - `WORKFLOW_TENANT_ID` (default `nexus-erp`) tells the ERP's Redis consumer which tenant's events to act on.
 
+### Managing tenants (admin API)
+
+The `/tenants` endpoints are for the platform operator and take `Authorization: Bearer $ADMIN_API_KEY` (set `ADMIN_API_KEY` when starting the workflow app). Tenant API keys cannot use them.
+
+| Request | Effect |
+|---|---|
+| `GET /tenants` | List tenants with status and number of active keys |
+| `POST /tenants` `{id, name}` | Create a tenant and provision its schema |
+| `PATCH /tenants/:id` `{status?, name?}` | Suspend (`"suspended"`), reactivate (`"active"`) or rename. Suspending rejects the tenant's keys and stops its background workers. A tenant that is being deleted cannot be changed (409) |
+| `DELETE /tenants/:id` | Permanently delete the tenant, its schema and all its data and keys. The tenant is first marked `deleting` (keys rejected, no reactivation), then its workers stop, its schema is dropped and its rows are removed. The `default` tenant is protected (409). If a step fails you get a 500 and the tenant stays `deleting`; run the `DELETE` again (every step can be repeated) |
+| `POST/GET /tenants/:id/keys`, `DELETE /tenants/:id/keys/:keyId` | Create (plaintext shown once), list and revoke keys |
+
 ### Install, migrate & seed
 
 ```bash
