@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "db:reset": "tsx src/db/reset-cli.ts",
+    "tenant:provision": "tsx src/db/provision-tenant-cli.ts",
     "build": "tsc",
     "start": "node dist/main.js",
     "lint": "eslint .",
