@@ -25,6 +25,7 @@ import CancelRoundedIcon from '@mui/icons-material/CancelRounded'
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
+import { workflowFetch } from '@/lib/workflow'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -289,8 +290,8 @@ const DashboardPage = async () => {
   let pendingTaskCount = 0
   if (isManager) {
     try {
-      const res = await fetch(
-        `${process.env.WORKFLOW_API_URL ?? 'http://localhost:3000'}/tasks?assignee=${session.user.id}&status=open&pageSize=1`,
+      const res = await workflowFetch(
+        `/tasks?assignee=${session.user.id}&status=open&pageSize=1`,
         { cache: 'no-store' },
       )
       if (res.ok) {
@@ -303,10 +304,7 @@ const DashboardPage = async () => {
   let workflowCounts = { running: 0, suspended: 0, completed: 0, terminated: 0 }
   if (isManager) {
     try {
-      const res = await fetch(
-        `${process.env.WORKFLOW_API_URL ?? 'http://localhost:3000'}/admin/instances/summary`,
-        { cache: 'no-store' },
-      )
+      const res = await workflowFetch('/admin/instances/summary', { cache: 'no-store' })
       if (res.ok) workflowCounts = await res.json()
     } catch { /* degrade gracefully */ }
   }
