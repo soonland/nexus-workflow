@@ -1,0 +1,16 @@
+packages:
+  - nexus-workflow-core
+  - nexus-workflow-app
+  - nexus-erp
+
+# Dependencies allowed to run install scripts
+allowBuilds:
+  '@parcel/watcher': true
+  '@prisma/engines': true
+  '@swc/core': true
+  esbuild: true
+  prisma: true
+  unrs-resolver: true
+
+# Ignore versions published less than 3 days ago (matches the CI freshness guard)
+minimumReleaseAge: 4320

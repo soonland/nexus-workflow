@@ -66,7 +66,7 @@ Guarded by `author_association == 'OWNER'` — only the repo owner can invoke it
 - Skip hooks (`--no-verify`) or bypass linting.
 
 ### Code quality gates
-- Run `npm run lint` in every affected project before committing.
+- Run `pnpm lint` in every affected project before committing.
 - If tests exist for the changed project, run them and do not commit if they fail.
 - Follow the project-specific `CLAUDE.md` conventions for the package being modified.
 

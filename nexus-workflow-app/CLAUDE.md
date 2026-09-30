@@ -5,12 +5,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev           # start dev server with hot reload (tsx watch)
-npm run build         # compile to dist/
-npm start             # run compiled output
-npm run typecheck     # type-check without emitting
-npm test              # run all tests once
-npm run test:watch    # run tests in watch mode
+pnpm dev           # start dev server with hot reload (tsx watch)
+pnpm build         # compile to dist/
+pnpm start             # run compiled output
+pnpm typecheck     # type-check without emitting
+pnpm test              # run all tests once
+pnpm test:watch    # run tests in watch mode
 ```
 
 Run a single test file:

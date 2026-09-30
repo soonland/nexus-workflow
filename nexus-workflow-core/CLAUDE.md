@@ -5,11 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm test                  # run all tests once
-npm run test:watch        # run tests in watch mode
-npm run test:coverage     # run tests with coverage report
-npm run typecheck         # type-check without emitting
-npm run build             # compile to dist/
+pnpm test                  # run all tests once
+pnpm test:watch        # run tests in watch mode
+pnpm test:coverage     # run tests with coverage report
+pnpm typecheck         # type-check without emitting
+pnpm build             # compile to dist/
 ```
 
 Run a single test file:

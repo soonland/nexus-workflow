@@ -1,11 +1,13 @@
+import path from 'node:path'
 import type { NextConfig } from 'next'
 import createNextIntlPlugin from 'next-intl/plugin'
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
 
 const nextConfig: NextConfig = {
+  // pnpm workspace: dependencies live in the repo-root store, so the root must include it
   turbopack: {
-    root: __dirname,
+    root: path.join(__dirname, '..'),
   },
 }
 

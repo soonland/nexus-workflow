@@ -1,6 +1,7 @@
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
-import importPlugin from 'eslint-plugin-import'
+import { importX } from 'eslint-plugin-import-x'
+import { createTypeScriptImportResolver } from 'eslint-import-resolver-typescript'
 import vitestPlugin from '@vitest/eslint-plugin'
 import prettierConfig from 'eslint-config-prettier'
 import {
@@ -20,21 +21,21 @@ export default tseslint.config(
   {
     files: ['**/*.ts'],
     plugins: {
-      import: importPlugin,
+      'import-x': importX,
     },
     rules: {
       ...SHARED_RULES,
       'no-restricted-imports': ['error', { patterns: APP_IMPORT_RESTRICTIONS }],
-      'import/no-duplicates': ['error', { 'prefer-inline': true }],
-      'import/order': [
+      'import-x/no-duplicates': ['error', { 'prefer-inline': true }],
+      'import-x/order': [
         'warn',
         { groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'] },
       ],
     },
     settings: {
-      'import/resolver': {
-        typescript: { project: './tsconfig.json' },
-      },
+      'import-x/resolver-next': [
+        createTypeScriptImportResolver({ project: './tsconfig.json' }),
+      ],
     },
   },
 
