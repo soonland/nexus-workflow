@@ -116,6 +116,20 @@ describe('TenantWorkerManager', () => {
     await manager.stop()
   })
 
+  it('remove() stops one tenant immediately and leaves the others running', async () => {
+    active = ['default', 'acme']
+    const manager = makeManager()
+    await manager.start()
+    log.length = 0
+
+    await manager.remove('acme')
+
+    expect(log).toEqual(['stop:acme'])
+    expect(manager.activeTenants()).toEqual(['default'])
+    await manager.remove('never-started') // no-op
+    await manager.stop()
+  })
+
   it('polls the registry on an interval', async () => {
     vi.useFakeTimers()
     const manager = makeManager(1_000)

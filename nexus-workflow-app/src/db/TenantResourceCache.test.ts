@@ -28,6 +28,20 @@ describe('TenantResourceCache', () => {
     expect(a.end).not.toHaveBeenCalled()
   })
 
+  it('evict closes and forgets one tenant, and a later get creates a fresh resource', async () => {
+    const create = vi.fn(makeResource)
+    const cache = new TenantResourceCache(create)
+    const a = cache.get('a')
+    const b = cache.get('b')
+
+    await cache.evict('a')
+
+    expect(a.end).toHaveBeenCalledOnce()
+    expect(b.end).not.toHaveBeenCalled()
+    expect(cache.get('a')).not.toBe(a)
+    await cache.evict('unknown') // no-op
+  })
+
   it('endAll closes every resource and empties the cache', async () => {
     const create = vi.fn(makeResource)
     const cache = new TenantResourceCache(create)

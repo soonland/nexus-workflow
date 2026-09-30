@@ -20,6 +20,11 @@ export interface ApiKey {
   revokedAt: Date | null
 }
 
+/** A tenant with the number of API keys that are still usable (not revoked). */
+export interface TenantSummary extends Tenant {
+  activeKeyCount: number
+}
+
 /** Public-facing API key shape — `keyHash` is intentionally omitted. */
 export type ApiKeyPublic = Omit<ApiKey, 'keyHash'>
 
@@ -51,6 +56,45 @@ export class TenantStore {
       WHERE id = ${id}
     `
     return rows[0] ?? null
+  }
+
+  /** All tenants, oldest first, with their number of active (non-revoked) keys. */
+  async listTenants(): Promise<TenantSummary[]> {
+    return this.sql<TenantSummary[]>`
+      SELECT
+        t.id,
+        t.name,
+        t.status,
+        t.created_at AS "createdAt",
+        (SELECT count(*)::int FROM public.api_keys k WHERE k.tenant_id = t.id AND k.revoked_at IS NULL) AS "activeKeyCount"
+      FROM public.tenants t
+      ORDER BY t.created_at ASC, t.id ASC
+    `
+  }
+
+  /** Updates the given fields (name and/or status). Returns the tenant, or null if it does not exist. */
+  async updateTenant(id: string, changes: { name?: string; status?: Tenant['status'] }): Promise<Tenant | null> {
+    const rows = await this.sql<Tenant[]>`
+      UPDATE public.tenants
+      SET name = COALESCE(${changes.name ?? null}, name),
+          status = COALESCE(${changes.status ?? null}, status)
+      WHERE id = ${id}
+      RETURNING id, name, status, created_at AS "createdAt"
+    `
+    return rows[0] ?? null
+  }
+
+  /**
+   * Deletes the tenant row and every key it ever had (api_keys references tenants).
+   * Returns false if the tenant does not exist. The tenant's schema is not touched here.
+   */
+  async deleteTenantAndKeys(id: string): Promise<boolean> {
+    return this.sql.begin(async (txRaw) => {
+      const tx = txRaw as unknown as postgres.Sql
+      await tx`DELETE FROM public.api_keys WHERE tenant_id = ${id}`
+      const rows = await tx`DELETE FROM public.tenants WHERE id = ${id} RETURNING id`
+      return rows.length > 0
+    })
   }
 
   /** Deletes the tenant row. Used to clean up after a failed schema provisioning. */
