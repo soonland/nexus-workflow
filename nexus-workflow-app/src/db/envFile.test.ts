@@ -2,7 +2,7 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync }
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { upsertEnvVar, writeEnvVarToFile } from './envFile.js'
+import { isValidEnvVarName, upsertEnvVar, writeEnvVarToFile } from './envFile.js'
 
 describe('upsertEnvVar', () => {
   it('appends the variable when it is not present', () => {
@@ -35,6 +35,22 @@ describe('upsertEnvVar', () => {
   })
 })
 
+describe('isValidEnvVarName', () => {
+  it.each(['KEY', 'WORKFLOW_API_KEY', '_private', 'a1'])('accepts %s', (name) => {
+    expect(isValidEnvVarName(name)).toBe(true)
+  })
+
+  it.each(['', '1KEY', 'KEY=1', 'KEY\nOTHER', 'A B', 'KEY-NAME', 'KEY"'])('rejects %j', (name) => {
+    expect(isValidEnvVarName(name)).toBe(false)
+  })
+})
+
+describe('upsertEnvVar name validation', () => {
+  it('throws instead of writing a name that would corrupt the file', () => {
+    expect(() => upsertEnvVar('A=1\n', 'KEY=x\nEVIL', 'v')).toThrow(/Invalid environment variable name/)
+  })
+})
+
 describe('writeEnvVarToFile', () => {
   let dir: string
   beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'envfile-')) })
@@ -60,5 +76,14 @@ describe('writeEnvVarToFile', () => {
 
     expect(readFileSync(path, 'utf8')).toBe('A=1\nKEY="secret"\n')
     expect(mode(path)).toBe(0o600)
+  })
+
+  it('leaves the file untouched when the name is invalid', () => {
+    const path = join(dir, '.env.local')
+    writeFileSync(path, 'A=1\n')
+
+    expect(() => writeEnvVarToFile(path, 'BAD NAME', 'secret')).toThrow(/Invalid environment variable name/)
+
+    expect(readFileSync(path, 'utf8')).toBe('A=1\n')
   })
 })

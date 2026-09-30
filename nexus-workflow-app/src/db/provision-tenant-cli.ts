@@ -4,7 +4,7 @@ import postgres from 'postgres'
 import { config } from '../config.js'
 import { runMigrations } from './migrate.js'
 import { provisionTenantWithKey } from './provisionTenant.js'
-import { writeEnvVarToFile } from './envFile.js'
+import { isValidEnvVarName, writeEnvVarToFile } from './envFile.js'
 
 const USAGE = `Usage: pnpm tenant:provision <tenantId> [options]
 
@@ -15,8 +15,8 @@ with the same values the server uses.
 Options:
   --name <name>       Display name for a new tenant (default: the tenant id)
   --key-name <name>   Label for the API key (default: "provisioned key")
-  --env-file <path>   Write the key into this dotenv file instead of printing it
-  --env-var <NAME>    Variable to set in --env-file (default: WORKFLOW_API_KEY)
+  --write-env <path>  Write the key into this dotenv file instead of printing it
+  --env-var <NAME>    Variable to set in --write-env (default: WORKFLOW_API_KEY)
 `
 
 const { values, positionals } = parseArgs({
@@ -24,7 +24,7 @@ const { values, positionals } = parseArgs({
   options: {
     name: { type: 'string' },
     'key-name': { type: 'string' },
-    'env-file': { type: 'string' },
+    'write-env': { type: 'string' },
     'env-var': { type: 'string', default: 'WORKFLOW_API_KEY' },
     help: { type: 'boolean', short: 'h' },
   },
@@ -34,6 +34,12 @@ const [tenantId] = positionals
 if (values.help || !tenantId || positionals.length > 1) {
   console.log(USAGE)
   process.exit(values.help ? 0 : 1)
+}
+
+// Validate before anything is created: a key issued and then not saved is lost for good.
+if (values['write-env'] && !isValidEnvVarName(values['env-var'])) {
+  console.error(`Invalid --env-var: ${JSON.stringify(values['env-var'])} (letters, digits and underscores only)`)
+  process.exit(1)
 }
 
 // The tenants table must exist; migrations are idempotent.
@@ -49,7 +55,7 @@ try {
 
   console.log(result.tenantCreated ? `Created tenant '${tenantId}'.` : `Tenant '${tenantId}' already exists.`)
 
-  const envFile = values['env-file']
+  const envFile = values['write-env']
   if (envFile) {
     const path = resolve(envFile)
     const envVar = values['env-var']

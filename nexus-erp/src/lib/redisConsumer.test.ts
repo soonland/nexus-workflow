@@ -14,9 +14,9 @@ describe('parseStreamEntry', () => {
     expect(parseStreamEntry(fields, 'nexus-erp')).toBeNull()
   })
 
-  it('accepts entries without a tenantId (written before events were tagged)', () => {
+  it('ignores entries without a tenantId rather than assuming they are ours', () => {
     const fields = ['type', event.type, 'data', JSON.stringify(event)]
-    expect(parseStreamEntry(fields, 'nexus-erp')).toEqual(event)
+    expect(parseStreamEntry(fields, 'nexus-erp')).toBeNull()
   })
 
   it('returns null for an entry without data', () => {

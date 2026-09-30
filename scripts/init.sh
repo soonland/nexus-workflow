@@ -75,7 +75,7 @@ section "nexus-erp — workflow tenant"
   # (The workflow app must run with the same API_KEY_HMAC_SECRET, if you set one.)
   info "Provisioning tenant 'nexus-erp' and writing WORKFLOW_API_KEY to nexus-erp/.env.local"
   pnpm exec tsx src/db/provision-tenant-cli.ts nexus-erp --name "Nexus ERP" \
-    --key-name "nexus-erp" --env-file "$ROOT/nexus-erp/.env.local"
+    --key-name "nexus-erp" --write-env "$ROOT/nexus-erp/.env.local"
 )
 
 # ── 5. nexus-erp — migrate + seed ─────────────────────────────────────────────

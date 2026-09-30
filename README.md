@@ -126,11 +126,11 @@ To create or replace them by hand (the database must be reachable; the workflow 
 
 ```bash
 pnpm --filter nexus-workflow-app tenant:provision nexus-erp --name "Nexus ERP" \
-  --env-file ../nexus-erp/.env.local        # writes WORKFLOW_API_KEY there
+  --write-env ../nexus-erp/.env.local        # writes WORKFLOW_API_KEY there
 ```
 
 Notes:
-- The key is shown only once (only its hash is stored). Without `--env-file` the command prints it instead.
+- The key is shown only once (only its hash is stored). Without `--write-env` the command prints it instead.
 - Keys are hashed with `API_KEY_HMAC_SECRET`; run the command and the workflow app with the same value (unset in dev is fine, as long as both agree).
 - Run it again to issue an additional key; the tenant and its data are kept. The docker dev database is ephemeral, so recreate the key when the containers are recreated.
 - `WORKFLOW_TENANT_ID` (default `nexus-erp`) tells the ERP's Redis consumer which tenant's events to act on.

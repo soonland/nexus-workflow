@@ -12,13 +12,13 @@ type WorkflowEvent = { type: string; instanceId?: string; restartedFromId?: stri
 const TENANT_ID = process.env.WORKFLOW_TENANT_ID ?? 'nexus-erp'
 
 /**
- * Reads the event out of a stream entry's fields. Returns null when the entry has no data or
- * belongs to another tenant. Entries without a tenantId (written before events were tagged)
- * are accepted. Throws if the data is not valid JSON.
+ * Reads the event out of a stream entry's fields. Returns null when the entry has no data, is
+ * not tagged with a tenant, or belongs to another tenant: the ERP only acts on events that are
+ * explicitly its own. Throws if the data is not valid JSON.
  */
 export function parseStreamEntry(fields: string[], tenantId: string): WorkflowEvent | null {
   const tenantIdx = fields.indexOf('tenantId')
-  if (tenantIdx !== -1 && fields[tenantIdx + 1] !== tenantId) return null
+  if (tenantIdx === -1 || fields[tenantIdx + 1] !== tenantId) return null
 
   const dataIdx = fields.indexOf('data')
   if (dataIdx === -1) return null
