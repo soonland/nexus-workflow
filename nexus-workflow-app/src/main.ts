@@ -13,15 +13,14 @@ import { createEventsRouter } from './http/events.js'
 import { createObservabilityRouter } from './http/observability.js'
 import { createWebhooksRouter } from './http/webhooks.js'
 import { createTenantsRouter } from './http/tenants.js'
-import { createAuthMiddleware } from './http/middleware/auth.js'
+import { createAuthMiddleware, type AppVariables } from './http/middleware/auth.js'
 import { PostgresWebhookStore } from './webhooks/WebhookStore.js'
 import { WebhookDispatcher } from './webhooks/WebhookDispatcher.js'
 import { PostgresEventLog } from './db/EventLog.js'
-import { TaskWorker } from './worker/TaskWorker.js'
 import { HttpCallHandler } from './worker/handlers/HttpCallHandler.js'
 import { LogHandler } from './worker/handlers/LogHandler.js'
-import { PostgresScheduler } from './scheduler/PostgresScheduler.js'
-import { TimerCoordinator } from './scheduler/TimerCoordinator.js'
+import { TenantWorkerManager } from './worker/TenantWorkerManager.js'
+import { createTenantWorkers } from './worker/createTenantWorkers.js'
 import { RedisStreamPublisher } from './events/RedisStreamPublisher.js'
 import { TenantEventHub } from './events/TenantEventHub.js'
 import { TenantResourceCache } from './db/TenantResourceCache.js'
@@ -41,11 +40,6 @@ const webhookStores = new TenantResourceCache((tenantId) => new PostgresWebhookS
 const storeFactory = (tenantId: string) => stores.get(tenantId)
 const eventLogFor = (tenantId: string) => eventLogs.get(tenantId)
 const webhookStoreFor = (tenantId: string) => webhookStores.get(tenantId)
-
-// Background workers (TaskWorker, TimerCoordinator) use the default tenant.
-// Multi-tenant worker support (routing tasks to the correct tenant store) is
-// a known limitation — deferred to a later phase.
-const defaultStore = storeFactory('default')
 
 // Every event is tagged with the tenant that produced it, so the audit log, webhooks and
 // Redis stream can route it to the right place. Routers get a per-tenant bus.
@@ -69,21 +63,40 @@ if (config.redisUrl) {
 const webhookDispatcher = new WebhookDispatcher(webhookStoreFor, eventHub)
 webhookDispatcher.start()
 
-const worker = new TaskWorker(defaultStore, eventBusFor('default'))
-worker.register(new HttpCallHandler())
-worker.register(new LogHandler())
-worker.start()
+// ─── Per-tenant background workers ────────────────────────────────────────────
+// Each active tenant gets its own service-task worker and timer scheduler, bound to that
+// tenant's schema and events. Workers for tenants that already have persisted work start
+// here; every authenticated request also calls ensure() (see below) so a brand-new tenant
+// has workers running before its first event is published.
+const tenantWorkers = new TenantWorkerManager({
+  listActiveTenantIds: async () => {
+    const rows = await authSql<{ id: string }[]>`
+      SELECT t.id FROM public.tenants t
+      WHERE t.status = 'active'
+        AND EXISTS (SELECT 1 FROM pg_namespace n WHERE n.nspname = 'tenant_' || t.id)
+    `
+    return rows.map(r => r.id)
+  },
+  createWorkers: (tenantId) => createTenantWorkers(tenantId, {
+    databaseUrl: config.databaseUrl,
+    eventBusFor,
+    handlers: [new HttpCallHandler(), new LogHandler()],
+  }),
+})
+await tenantWorkers.start()
 
-const scheduler = new PostgresScheduler(defaultStore, { pollIntervalMs: 5_000 })
-const timerCoordinator = new TimerCoordinator(defaultStore, eventBusFor('default'), scheduler)
-timerCoordinator.start()
-await scheduler.start()
-
-const app = new Hono()
+const app = new Hono<{ Variables: AppVariables }>()
 app.use(timeout(config.requestTimeoutMs))
 // /tenants is protected by the admin API key, not the DB-backed tenant key
 app.route('/tenants', createTenantsRouter(authSql, config.apiKeyHmacSecret, config.adminApiKey))
 app.use('*', createAuthMiddleware(authSql, config.apiKeyHmacSecret))
+// Workers must be running before the tenant's first event is published (they subscribe to
+// in-process events), so start them here rather than waiting for the next registry sync.
+app.use('*', async (c, next) => {
+  const tenantId = c.get('tenantId')
+  if (tenantId) await tenantWorkers.ensure(tenantId)
+  return next()
+})
 app.get('/health', (c) => c.json({ status: 'ok' }))
 app.route('/definitions', createDefinitionsRouter(storeFactory))
 app.route('/', createInstancesRouter(storeFactory, eventBusFor))
@@ -118,9 +131,7 @@ async function shutdown(signal: string): Promise<void> {
 
     // 2. Stop background workers — unsubscribes from events; in-flight tasks settle independently
     webhookDispatcher.stop()
-    worker.stop()
-    timerCoordinator.stop()
-    await scheduler.stop()
+    await tenantWorkers.stop()
 
     // 3. Disconnect Redis
     if (redisPublisher) await redisPublisher.disconnect()

@@ -104,6 +104,24 @@ describe('PostgresScheduler', () => {
       expect(fired[0]!.id).toBe('timer-late')
     })
 
+    it('keeps polling after a poll fails, without an unhandled rejection', async () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const fired: ScheduledTimer[] = []
+      scheduler.onTimerFired(async (t) => { fired.push(t) })
+      await scheduler.start()
+
+      const getDueTimers = vi.spyOn(store, 'getDueTimers').mockRejectedValueOnce(new Error('connection lost'))
+      await vi.advanceTimersByTimeAsync(1000) // this tick fails
+
+      expect(errorSpy).toHaveBeenCalled()
+      getDueTimers.mockRestore()
+      await scheduler.schedule(makeTimer({ id: 'timer-after-failure' }))
+      await vi.advanceTimersByTimeAsync(1000) // next tick recovers
+
+      expect(fired.map(t => t.id)).toEqual(['timer-after-failure'])
+      errorSpy.mockRestore()
+    })
+
     it('does not fire a timer that is not yet due', async () => {
       const fired: ScheduledTimer[] = []
       scheduler.onTimerFired(async (t) => { fired.push(t) })
