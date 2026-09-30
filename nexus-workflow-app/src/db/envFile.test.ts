@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest'
-import { upsertEnvVar } from './envFile.js'
+import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { upsertEnvVar, writeEnvVarToFile } from './envFile.js'
 
 describe('upsertEnvVar', () => {
   it('appends the variable when it is not present', () => {
@@ -29,5 +32,33 @@ describe('upsertEnvVar', () => {
 
   it('does not treat a commented-out variable as the setting', () => {
     expect(upsertEnvVar('# KEY=old\n', 'KEY', 'v')).toBe('# KEY=old\nKEY="v"\n')
+  })
+})
+
+describe('writeEnvVarToFile', () => {
+  let dir: string
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'envfile-')) })
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }) })
+
+  const mode = (path: string) => statSync(path).mode & 0o777
+
+  it('creates a missing file readable and writable by the owner only', () => {
+    const path = join(dir, '.env.local')
+
+    writeEnvVarToFile(path, 'KEY', 'secret')
+
+    expect(readFileSync(path, 'utf8')).toBe('KEY="secret"\n')
+    expect(mode(path)).toBe(0o600)
+  })
+
+  it('keeps existing content and tightens the permissions of an existing file', () => {
+    const path = join(dir, '.env.local')
+    writeFileSync(path, 'A=1\n', { mode: 0o644 })
+    chmodSync(path, 0o644)
+
+    writeEnvVarToFile(path, 'KEY', 'secret')
+
+    expect(readFileSync(path, 'utf8')).toBe('A=1\nKEY="secret"\n')
+    expect(mode(path)).toBe(0o600)
   })
 })

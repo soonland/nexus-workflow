@@ -1,11 +1,10 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import postgres from 'postgres'
 import { config } from '../config.js'
 import { runMigrations } from './migrate.js'
 import { provisionTenantWithKey } from './provisionTenant.js'
-import { upsertEnvVar } from './envFile.js'
+import { writeEnvVarToFile } from './envFile.js'
 
 const USAGE = `Usage: pnpm tenant:provision <tenantId> [options]
 
@@ -54,8 +53,7 @@ try {
   if (envFile) {
     const path = resolve(envFile)
     const envVar = values['env-var']
-    const before = existsSync(path) ? readFileSync(path, 'utf8') : ''
-    writeFileSync(path, upsertEnvVar(before, envVar, result.plaintextKey))
+    writeEnvVarToFile(path, envVar, result.plaintextKey)
     // The key itself is deliberately not printed when it goes into a file.
     console.log(`Wrote a new API key to ${envVar} in ${path}`)
   } else {
