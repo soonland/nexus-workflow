@@ -9,7 +9,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY nexus-workflow-core/package.json nexus-workflow-core/
 COPY nexus-workflow-app/package.json nexus-workflow-app/
 COPY nexus-erp/package.json nexus-erp/
-RUN pnpm install --frozen-lockfile --filter nexus-workflow-app...
+COPY nexus-workflow-console/package.json nexus-workflow-console/
+RUN pnpm install --frozen-lockfile --filter nexus-workflow-app... --filter nexus-workflow-console
 
 COPY nexus-workflow-core/src nexus-workflow-core/src
 COPY nexus-workflow-core/tsconfig.json nexus-workflow-core/tsconfig.build.json nexus-workflow-core/
@@ -18,6 +19,11 @@ RUN pnpm --filter nexus-workflow-core build
 COPY nexus-workflow-app/src nexus-workflow-app/src
 COPY nexus-workflow-app/tsconfig.json nexus-workflow-app/
 RUN pnpm --filter nexus-workflow-app build
+
+# The operator console (static files served by the app at /console)
+COPY nexus-workflow-console/index.html nexus-workflow-console/tsconfig.json nexus-workflow-console/vite.config.ts nexus-workflow-console/
+COPY nexus-workflow-console/src nexus-workflow-console/src
+RUN pnpm --filter nexus-workflow-console build
 
 # Self-contained production bundle: app + prod deps, with core copied in
 # (not symlinked), so no monorepo layout is needed at runtime.
@@ -29,9 +35,11 @@ WORKDIR /app
 COPY --from=builder /out/node_modules ./node_modules
 COPY --from=builder /out/package.json ./
 COPY --from=builder /monorepo/nexus-workflow-app/dist ./dist
+COPY --from=builder /monorepo/nexus-workflow-console/dist ./console
 # SQL migration files are not emitted by tsc — copy them alongside the compiled output
 COPY nexus-workflow-app/src/db/migrations ./dist/db/migrations/
 ENV NODE_ENV=production
+ENV CONSOLE_DIR=/app/console
 EXPOSE 3000
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser

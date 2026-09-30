@@ -12,6 +12,7 @@ import { createAdminRouter } from './http/admin.js'
 import { createEventsRouter } from './http/events.js'
 import { createObservabilityRouter } from './http/observability.js'
 import { createWebhooksRouter } from './http/webhooks.js'
+import { mountConsole } from './http/console.js'
 import { createTenantsRouter } from './http/tenants.js'
 import { createAuthMiddleware, type AppVariables } from './http/middleware/auth.js'
 import { PostgresWebhookStore } from './webhooks/WebhookStore.js'
@@ -87,6 +88,13 @@ await tenantWorkers.start()
 
 const app = new Hono<{ Variables: AppVariables }>()
 app.use(timeout(config.requestTimeoutMs))
+// The operator console is a static page; it authenticates its own API calls, so it is mounted
+// before the auth middleware.
+if (mountConsole(app, config.consoleDir)) {
+  console.log(`operator console available at http://localhost:${config.port}/console/`)
+} else {
+  console.log('operator console not built (pnpm --filter nexus-workflow-console build) — /console is not served')
+}
 // /tenants is protected by the admin API key, not the DB-backed tenant key
 app.route('/tenants', createTenantsRouter(authSql, config.apiKeyHmacSecret, config.adminApiKey, {
   // A suspended or deleted tenant must not keep background workers or connection pools alive

@@ -2,6 +2,7 @@ packages:
   - nexus-workflow-core
   - nexus-workflow-app
   - nexus-erp
+  - nexus-workflow-console
 
 # Dependencies allowed to run install scripts
 allowBuilds:
