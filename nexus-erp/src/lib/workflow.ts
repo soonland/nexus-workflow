@@ -1,5 +1,20 @@
 const BASE_URL = process.env.WORKFLOW_API_URL ?? 'http://localhost:3000'
 
+/**
+ * fetch() against the workflow API. Sends `WORKFLOW_API_KEY` as a Bearer token, which the
+ * API requires on every request (it identifies the tenant).
+ */
+export function workflowFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const apiKey = process.env.WORKFLOW_API_KEY
+  return fetch(`${BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      ...(init.headers as Record<string, string> | undefined),
+    },
+  })
+}
+
 export interface WorkflowInstance {
   id: string
   definitionId: string
@@ -29,7 +44,7 @@ export interface TaskListResult {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await workflowFetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -44,7 +59,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function deployDefinition(xml: string): Promise<{ id: string; version: number }> {
-  const res = await fetch(`${BASE_URL}/definitions`, {
+  const res = await workflowFetch('/definitions', {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain' },
     body: xml,
@@ -57,7 +72,7 @@ export async function deployDefinition(xml: string): Promise<{ id: string; versi
 }
 
 export async function getDefinition(id: string): Promise<{ id: string } | null> {
-  const res = await fetch(`${BASE_URL}/definitions/${id}`)
+  const res = await workflowFetch(`/definitions/${id}`)
   if (res.status === 404) return null
   if (!res.ok) throw new Error(`Workflow API error ${res.status}`)
   return res.json() as Promise<{ id: string }>
@@ -69,7 +84,7 @@ export async function deleteDefinition(id: string): Promise<{ deleted: string }>
 
 export async function getDefinitionXml(id: string, version?: number): Promise<string | null> {
   const qs = version !== undefined ? `?version=${version}` : ''
-  const res = await fetch(`${BASE_URL}/definitions/${id}/xml${qs}`, { cache: 'no-store' })
+  const res = await workflowFetch(`/definitions/${id}/xml${qs}`, { cache: 'no-store' })
   if (res.status === 404) return null
   if (!res.ok) throw new Error(`Workflow API error ${res.status}`)
   return res.text()
@@ -149,7 +164,7 @@ export interface FullProcessDefinition extends WorkflowDefinition {
 
 export async function getFullDefinition(id: string, version?: number): Promise<FullProcessDefinition | null> {
   const qs = version !== undefined ? `?version=${version}` : ''
-  const res = await fetch(`${BASE_URL}/definitions/${id}${qs}`, { cache: 'no-store' })
+  const res = await workflowFetch(`/definitions/${id}${qs}`, { cache: 'no-store' })
   if (res.status === 404) return null
   if (!res.ok) throw new Error(`Workflow API error ${res.status}`)
   return res.json() as Promise<FullProcessDefinition>
@@ -196,7 +211,7 @@ export async function listInstances(params?: {
 }
 
 export async function getInstance(id: string): Promise<{ instance: WorkflowInstance; tokens: WorkflowToken[]; variables: Record<string, unknown> } | null> {
-  const res = await fetch(`${BASE_URL}/instances/${id}`, { cache: 'no-store' })
+  const res = await workflowFetch(`/instances/${id}`, { cache: 'no-store' })
   if (res.status === 404) return null
   if (!res.ok) throw new Error(`Workflow API error ${res.status}`)
   return res.json()

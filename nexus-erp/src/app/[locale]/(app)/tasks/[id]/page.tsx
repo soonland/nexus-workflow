@@ -14,6 +14,7 @@ import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/db/client'
 import { auth } from '@/auth'
+import { workflowFetch } from '@/lib/workflow'
 import TaskDecisionForm from './TaskDecisionForm'
 import ProfileUpdateCard from './ProfileUpdateCard'
 import ExpenseTaskCard from './ExpenseTaskCard'
@@ -47,8 +48,7 @@ const TaskDetailPage = async ({ params }: { params: Promise<{ id: string }> }) =
   const { id } = await params
   const t = await getTranslations('tasks')
 
-  const BASE = process.env.WORKFLOW_API_URL ?? 'http://localhost:3000'
-  const res = await fetch(`${BASE}/tasks/${id}`, { cache: 'no-store' })
+  const res = await workflowFetch(`/tasks/${id}`, { cache: 'no-store' })
   if (res.status === 404) notFound()
   if (!res.ok) throw new Error('Failed to load task')
 

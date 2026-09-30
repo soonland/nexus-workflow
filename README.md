@@ -113,8 +113,24 @@ DATABASE_URL=postgresql://nexus:nexus@localhost:5433/nexus_erp
 NEXTAUTH_SECRET=any-random-string
 NEXTAUTH_URL=http://localhost:3001
 WORKFLOW_API_URL=http://localhost:3000
+WORKFLOW_API_KEY=...            # see "Creating an API key" below
 REDIS_URL=redis://localhost:6379
 ```
+
+### Creating an API key
+
+`nexus-workflow-app` requires `Authorization: Bearer <key>` on every request; the ERP sends `WORKFLOW_API_KEY`. Start the workflow app with an admin key and an HMAC secret, then create a key for the `default` tenant (background workers use this tenant):
+
+```bash
+ADMIN_API_KEY=dev-admin-key API_KEY_HMAC_SECRET=dev-hmac-secret pnpm --filter nexus-workflow-app dev
+
+curl -X POST http://localhost:3000/tenants/default/keys \
+  -H "Authorization: Bearer dev-admin-key" -H "Content-Type: application/json" \
+  -d '{"name":"nexus-erp dev"}'
+# → {"key": {...}, "plaintext": "<copy this into WORKFLOW_API_KEY>"}
+```
+
+The plaintext key is shown only once. Keys are hashed with `API_KEY_HMAC_SECRET`, so keep that value stable. With the ephemeral dev database you need to recreate the key whenever the containers are recreated.
 
 ### Install, migrate & seed
 
