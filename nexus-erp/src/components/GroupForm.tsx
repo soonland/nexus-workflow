@@ -158,7 +158,9 @@ const GroupForm = ({
           <Stack spacing={3} divider={<Divider />}>
             {/* Details section */}
             <Box>
-              <Typography variant="overline" color="text.secondary">Details</Typography>
+              <Typography variant="overline" sx={{
+                color: 'text.secondary'
+              }}>Details</Typography>
               <Stack spacing={1.5} sx={{ mt: 1.5 }}>
                 <TextField
                   label="Group Name"
@@ -181,7 +183,13 @@ const GroupForm = ({
 
                 {/* Group type toggle */}
                 <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: 'text.secondary',
+                      display: 'block',
+                      mb: 1
+                    }}>
                     Group Type
                   </Typography>
                   <ToggleButtonGroup
@@ -204,7 +212,13 @@ const GroupForm = ({
                     </Tooltip>
                   </ToggleButtonGroup>
                   {groupType === 'default' && (
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: 'text.secondary',
+                        display: 'block',
+                        mt: 0.75
+                      }}>
                       All users inherit this group's permissions — no membership needed.
                     </Typography>
                   )}
@@ -216,8 +230,15 @@ const GroupForm = ({
             <Box>
               {allPermissions.length === 0 ? (
                 <>
-                  <Typography variant="overline" color="text.secondary">Permissions</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>No permissions defined.</Typography>
+                  <Typography variant="overline" sx={{
+                    color: 'text.secondary'
+                  }}>Permissions</Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: 'text.secondary',
+                      mt: 1
+                    }}>No permissions defined.</Typography>
                 </>
               ) : (
                 <PermissionMatrix
@@ -231,7 +252,9 @@ const GroupForm = ({
             {/* Members section — hidden for default groups */}
             {groupType === 'security' && (
               <Box>
-                <Typography variant="overline" color="text.secondary">Members</Typography>
+                <Typography variant="overline" sx={{
+                  color: 'text.secondary'
+                }}>Members</Typography>
                 <Box sx={{ mt: 1.5 }}>
                   <Autocomplete
                     multiple
@@ -240,12 +263,12 @@ const GroupForm = ({
                     onChange={(_, newValue) => setMembers(newValue)}
                     getOptionLabel={(u) => `${u.fullName} (${u.email})`}
                     isOptionEqualToValue={(option, value) => option.userId === value.userId}
-                    renderTags={(value, getTagProps) =>
+                    renderValue={(value, getItemProps) =>
                       value.map((option, index) => (
                         <Chip
                           label={option.fullName}
                           size="small"
-                          {...getTagProps({ index })}
+                          {...getItemProps({ index })}
                           key={option.userId}
                         />
                       ))
@@ -266,7 +289,9 @@ const GroupForm = ({
 
             {/* Actions */}
             <Box>
-              <Stack direction="row" spacing={1.5} justifyContent="flex-end">
+              <Stack direction="row" spacing={1.5} sx={{
+                justifyContent: 'flex-end'
+              }}>
                 <Button component={NextLink} href="/groups" variant="text">
                   Cancel
                 </Button>

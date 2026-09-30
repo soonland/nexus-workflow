@@ -300,7 +300,9 @@ const MessagesClient = ({
       >
         {/* Header */}
         <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="subtitle1" fontWeight={700}>{t('title')}</Typography>
+          <Typography variant="subtitle1" sx={{
+            fontWeight: 700
+          }}>{t('title')}</Typography>
           <IconButton size="small" onClick={() => setComposing(true)} aria-label={t('newConversation')}>
             <AddRoundedIcon fontSize="small" />
           </IconButton>
@@ -325,21 +327,29 @@ const MessagesClient = ({
                   size="small"
                   placeholder={t('searchRecipient')}
                   autoFocus
-                  InputProps={{
-                    ...params.InputProps,
-                    endAdornment: (
-                      <>
-                        {searchLoading && <CircularProgress size={14} />}
-                        {params.InputProps.endAdornment}
-                      </>
-                    ),
+                  slotProps={{
+                    ...params.slotProps,
+
+                    input: {
+                      ...params.slotProps.input,
+                      endAdornment: (
+                        <>
+                          {searchLoading && <CircularProgress size={14} />}
+                          {params.slotProps.input.endAdornment}
+                        </>
+                      ),
+                    }
                   }}
                 />
               )}
               renderOption={({ key, ...props }, option) => (
                 <Box component="li" key={key} {...props} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start !important' }}>
-                  <Typography variant="body2" fontWeight={500}>{option.name}</Typography>
-                  <Typography variant="caption" color="text.secondary">{option.email}</Typography>
+                  <Typography variant="body2" sx={{
+                    fontWeight: 500
+                  }}>{option.name}</Typography>
+                  <Typography variant="caption" sx={{
+                    color: 'text.secondary'
+                  }}>{option.email}</Typography>
                 </Box>
               )}
               noOptionsText={searchLoading ? '' : t('searchRecipient')}
@@ -364,7 +374,13 @@ const MessagesClient = ({
             </Box>
           )}
           {!loadingConvs && conversations.length === 0 && (
-            <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: 'text.secondary',
+                p: 2,
+                textAlign: 'center'
+              }}>
               {t('noConversations')}
             </Typography>
           )}
@@ -392,11 +408,23 @@ const MessagesClient = ({
                     </Badge>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                        <Typography variant="body2" fontWeight={conv.hasUnread ? 700 : 500} noWrap sx={{ flex: 1 }}>
+                        <Typography
+                          variant="body2"
+                          noWrap
+                          sx={{
+                            fontWeight: conv.hasUnread ? 700 : 500,
+                            flex: 1
+                          }}>
                           {recipientName}
                         </Typography>
                         {conv.lastMessage && (
-                          <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0, ml: 1 }}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: 'text.secondary',
+                              flexShrink: 0,
+                              ml: 1
+                            }}>
                             {formatTime(conv.lastMessage.createdAt)}
                           </Typography>
                         )}
@@ -406,7 +434,9 @@ const MessagesClient = ({
                           variant="caption"
                           color={conv.hasUnread ? 'text.primary' : 'text.secondary'}
                           noWrap
-                          fontWeight={conv.hasUnread ? 600 : 400}
+                          sx={{
+                            fontWeight: conv.hasUnread ? 600 : 400
+                          }}
                         >
                           {conv.lastMessage.senderId === userId ? `${t('you')}: ` : ''}{conv.lastMessage.body}
                         </Typography>
@@ -435,7 +465,9 @@ const MessagesClient = ({
       >
         {!activeConvId ? (
           <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 2 }}>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: 'text.secondary'
+            }}>
               {conversations.length === 0 ? t('noConversations') : t('noMessages')}
             </Typography>
             <Button variant="outlined" size="small" startIcon={<AddRoundedIcon />} onClick={() => setComposing(true)}>
@@ -450,7 +482,9 @@ const MessagesClient = ({
                 {getInitials(activeConv?.recipient?.name ?? '?')}
               </Avatar>
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="subtitle2" fontWeight={700} noWrap>
+                <Typography variant="subtitle2" noWrap sx={{
+                  fontWeight: 700
+                }}>
                   {activeConv?.recipient?.name ?? t('unknownUser')}
                 </Typography>
                 {activeConv?.timesheet && (
@@ -494,7 +528,13 @@ const MessagesClient = ({
                   )}
 
                   {thread.messages.length === 0 && (
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 4 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: 'text.secondary',
+                        textAlign: 'center',
+                        mt: 4
+                      }}>
                       {t('noMessages')}
                     </Typography>
                   )}
@@ -533,13 +573,24 @@ const MessagesClient = ({
                           </Box>
                         </Box>
                         <Box sx={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start', mt: 0.25, mr: isMe ? 0.5 : 0, ml: isMe ? 0 : 4.5 }}>
-                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: 'text.disabled',
+                              fontSize: '0.65rem'
+                            }}>
                             {formatTime(msg.createdAt)}
                           </Typography>
                         </Box>
                         {showSeen && (
                           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mr: 0.5 }}>
-                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', fontStyle: 'italic' }}>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: 'text.secondary',
+                                fontSize: '0.65rem',
+                                fontStyle: 'italic'
+                              }}>
                               {t('seen')}
                             </Typography>
                           </Box>

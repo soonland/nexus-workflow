@@ -30,7 +30,13 @@ const TOKEN_STATUS_COLORS: Record<string, 'default' | 'success' | 'warning' | 'e
 const DetailRow = ({ label, children }: { label: string; children: React.ReactNode }) => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+      <Typography
+        variant="caption"
+        sx={{
+          color: 'text.secondary',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em'
+        }}>
         {label}
       </Typography>
       {children}
@@ -79,23 +85,37 @@ const InstanceDetailPage = async ({ params }: { params: Promise<{ id: string }> 
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Stack spacing={2.5} divider={<Divider />}>
                   <DetailRow label={t('detail.fields.instanceId')}>
-                    <Typography variant="body2" fontWeight={500} sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{id}</Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 500,
+                        fontFamily: 'monospace',
+                        fontSize: '0.8rem'
+                      }}>{id}</Typography>
                   </DetailRow>
                   <DetailRow label={t('detail.fields.definition')}>
-                    <Typography variant="body2" fontWeight={500}>{instance.definitionId}</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>{instance.definitionId}</Typography>
                   </DetailRow>
                   <DetailRow label={t('detail.fields.version')}>
-                    <Typography variant="body2" fontWeight={500}>v{instance.definitionVersion}</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>v{instance.definitionVersion}</Typography>
                   </DetailRow>
                 </Stack>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Stack spacing={2.5} divider={<Divider />}>
                   <DetailRow label={t('detail.fields.started')}>
-                    <Typography variant="body2" fontWeight={500}>{new Date(instance.startedAt).toLocaleString()}</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>{new Date(instance.startedAt).toLocaleString()}</Typography>
                   </DetailRow>
                   <DetailRow label={t('detail.fields.completed')}>
-                    <Typography variant="body2" fontWeight={500}>{instance.completedAt ? new Date(instance.completedAt).toLocaleString() : '—'}</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>{instance.completedAt ? new Date(instance.completedAt).toLocaleString() : '—'}</Typography>
                   </DetailRow>
                   <DetailRow label={t('detail.fields.status')}>
                     <Box><Chip label={instance.status} size="small" color={STATUS_COLORS[instance.status] ?? 'default'} /></Box>
@@ -126,8 +146,12 @@ const InstanceDetailPage = async ({ params }: { params: Promise<{ id: string }> 
                 {tokens.map((token) => (
                   <TableRow key={token.id}>
                     <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{token.id.slice(0, 8)}…</TableCell>
-                    <TableCell><Typography variant="body2" fontWeight={500}>{token.elementId}</Typography></TableCell>
-                    <TableCell><Typography variant="body2" color="text.secondary">{token.elementType}</Typography></TableCell>
+                    <TableCell><Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>{token.elementId}</Typography></TableCell>
+                    <TableCell><Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>{token.elementType}</Typography></TableCell>
                     <TableCell>
                       <Chip label={token.status} size="small" color={TOKEN_STATUS_COLORS[token.status] ?? 'default'} />
                     </TableCell>
@@ -148,7 +172,9 @@ const InstanceDetailPage = async ({ params }: { params: Promise<{ id: string }> 
           <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
             <Typography variant="h5" sx={{ mb: 2 }}>{t('detail.variables')}</Typography>
             {variableEntries.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">{t('detail.noVariables')}</Typography>
+              <Typography variant="body2" sx={{
+                color: 'text.secondary'
+              }}>{t('detail.noVariables')}</Typography>
             ) : (
               <Table size="small">
                 <TableHead>
@@ -184,7 +210,9 @@ const InstanceDetailPage = async ({ params }: { params: Promise<{ id: string }> 
           </CardContent>
           {events.length === 0 ? (
             <CardContent sx={{ pt: 0, pb: 3 }}>
-              <Typography variant="body2" color="text.secondary">{t('detail.noEvents')}</Typography>
+              <Typography variant="body2" sx={{
+                color: 'text.secondary'
+              }}>{t('detail.noEvents')}</Typography>
             </CardContent>
           ) : (
             <Table size="small">
@@ -199,7 +227,9 @@ const InstanceDetailPage = async ({ params }: { params: Promise<{ id: string }> 
                 {events.map((ev) => (
                   <TableRow key={ev.id}>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: 'text.secondary'
+                      }}>
                         {new Date(ev.occurredAt).toLocaleTimeString()}
                       </Typography>
                     </TableCell>

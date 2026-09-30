@@ -26,7 +26,13 @@ interface DetailRowProps {
 const DetailRow = ({ label, children }: DetailRowProps) => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+      <Typography
+        variant="caption"
+        sx={{
+          color: 'text.secondary',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em'
+        }}>
         {label}
       </Typography>
       {children}
@@ -94,7 +100,9 @@ const TaskDetailPage = async ({ params }: { params: Promise<{ id: string }> }) =
             <Typography variant="h5" sx={{ mb: 1 }}>{task.name}</Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
               <Chip label={task.status} size="small" color="warning" />
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: 'text.secondary'
+              }}>
                 Created {new Date(task.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
               </Typography>
             </Box>
@@ -121,15 +129,21 @@ const TaskDetailPage = async ({ params }: { params: Promise<{ id: string }> }) =
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <Stack spacing={2.5} divider={<Divider />}>
                     <DetailRow label={t('detail.fields.employee')}>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2" sx={{
+                        fontWeight: 500
+                      }}>
                         {timesheet.employee.fullName}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: 'text.secondary'
+                      }}>
                         {timesheet.employee.user.email}
                       </Typography>
                     </DetailRow>
                     <DetailRow label={t('detail.fields.weekStart')}>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2" sx={{
+                        fontWeight: 500
+                      }}>
                         {timesheet.weekStart.toISOString().split('T')[0]}
                       </Typography>
                     </DetailRow>
@@ -138,12 +152,16 @@ const TaskDetailPage = async ({ params }: { params: Promise<{ id: string }> }) =
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <Stack spacing={2.5} divider={<Divider />}>
                     <DetailRow label={t('detail.fields.totalHours')}>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2" sx={{
+                        fontWeight: 500
+                      }}>
                         {timesheet.entries.reduce((s, e) => s + Number(e.hours), 0)}h
                       </Typography>
                     </DetailRow>
                     <DetailRow label={t('detail.fields.entries')}>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2" sx={{
+                        fontWeight: 500
+                      }}>
                         {timesheet.entries.length} line{timesheet.entries.length !== 1 ? 's' : ''}
                       </Typography>
                     </DetailRow>

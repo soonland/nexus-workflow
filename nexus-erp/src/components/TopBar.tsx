@@ -221,8 +221,15 @@ const TopBar = ({ email, employeeId, role, signOutAction, userId, unreadMessages
             onClose={() => setAnchor(null)}
           >
             <Box sx={{ px: 2, py: 1.5 }}>
-              <Typography fontWeight={600} noWrap variant="body2">{email}</Typography>
-              <Typography color="text.secondary" sx={{ textTransform: 'capitalize' }} variant="caption">{role}</Typography>
+              <Typography noWrap variant="body2" sx={{
+                fontWeight: 600
+              }}>{email}</Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'text.secondary',
+                  textTransform: 'capitalize'
+                }}>{role}</Typography>
             </Box>
             <Divider />
 
@@ -242,7 +249,9 @@ const TopBar = ({ email, employeeId, role, signOutAction, userId, unreadMessages
             <Box sx={{ px: 2, pt: 1, pb: 0.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
                 <PaletteRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                <Typography color="text.secondary" variant="caption">{t('theme')}</Typography>
+                <Typography variant="caption" sx={{
+                  color: 'text.secondary'
+                }}>{t('theme')}</Typography>
               </Box>
               {THEMES.map((t) => (
                 <MenuItem

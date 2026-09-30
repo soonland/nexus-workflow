@@ -11,7 +11,7 @@ import { alpha, styled, useTheme } from '@mui/material/styles'
 import ExpandLessRoundedIcon from '@mui/icons-material/ExpandLessRounded'
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded'
 import { DateCalendar } from '@mui/x-date-pickers/DateCalendar'
-import { PickersDay, type PickersDayProps } from '@mui/x-date-pickers/PickersDay'
+import { PickerDay, pickerDayClasses, type PickerDayProps } from '@mui/x-date-pickers/PickerDay'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -85,13 +85,13 @@ interface DayEntry {
   textColor: string
 }
 
-interface TimesheetDayProps extends PickersDayProps {
+interface TimesheetDayProps extends PickerDayProps {
   dayData?: DayEntry[]
 }
 
 const CELL_HEIGHT = 80
 
-const TileDay = styled(PickersDay, {
+const TileDay = styled(PickerDay, {
   shouldForwardProp: (prop) => prop !== 'dayData',
 })<TimesheetDayProps>(({ theme, outsideCurrentMonth }) => ({
   width: '100%',
@@ -112,7 +112,7 @@ const TileDay = styled(PickersDay, {
     borderColor: theme.palette.primary.main,
     '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.25) },
   },
-  '&.MuiPickersDay-today': {
+  [`&.${pickerDayClasses.today}`]: {
     border: `2px solid ${theme.palette.primary.main}`,
   },
 })) as React.ComponentType<TimesheetDayProps>
@@ -124,7 +124,6 @@ const TimesheetDay = ({ dayData, day, outsideCurrentMonth, ...props }: Timesheet
       {...props}
       day={day}
       outsideCurrentMonth={outsideCurrentMonth}
-      disableMargin
       dayData={dayData}
     >
       {/* Day number — must be explicit because passing children replaces PickersDay's default */}
@@ -327,7 +326,12 @@ const TimesheetCalendar = () => {
               '&:hover': { opacity: 0.75 },
             }}
           >
-            <Typography variant="subtitle2" fontWeight={600} color="text.primary">{t('calendar.monthlySummary')}</Typography>
+            <Typography
+              variant="subtitle2"
+              sx={{
+                fontWeight: 600,
+                color: 'text.primary'
+              }}>{t('calendar.monthlySummary')}</Typography>
             {summaryOpen ? <ExpandLessRoundedIcon fontSize="small" /> : <ExpandMoreRoundedIcon fontSize="small" />}
           </Box>
           <Collapse in={summaryOpen}>
@@ -348,15 +352,35 @@ const TimesheetCalendar = () => {
                   {row.projectCode && (
                     <Chip label={row.projectCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', height: 20, flexShrink: 0, alignSelf: 'center' }} />
                   )}
-                  <Typography variant="body2" color="text.secondary" sx={{ flex: 1, alignSelf: 'center' }}>{row.description || '—'}</Typography>
-                  <Typography variant="body2" fontWeight={600} color="text.primary" sx={{ fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: 'text.secondary',
+                      flex: 1,
+                      alignSelf: 'center'
+                    }}>{row.description || '—'}</Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 600,
+                      color: 'text.primary',
+                      fontVariantNumeric: 'tabular-nums',
+                      flexShrink: 0
+                    }}>
                     {row.hours % 1 === 0 ? row.hours : row.hours.toFixed(1)}h
                   </Typography>
                 </Box>
               ))}
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1, bgcolor: 'action.hover', borderTop: '2px solid', borderColor: 'divider' }}>
-                <Typography variant="body2" fontWeight={600} color="text.secondary">{t('calendar.total')}</Typography>
-                <Typography variant="body2" fontWeight={700} color="primary">
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontWeight: 600,
+                    color: 'text.secondary'
+                  }}>{t('calendar.total')}</Typography>
+                <Typography variant="body2" color="primary" sx={{
+                  fontWeight: 700
+                }}>
                   {monthlyTotal % 1 === 0 ? monthlyTotal : monthlyTotal.toFixed(1)}h
                 </Typography>
               </Box>

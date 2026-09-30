@@ -290,7 +290,9 @@ const ExpenseDetailView = ({ report, isOwner, title }: Props) => {
         {/* Rejection banner */}
         {isRejected && (
           <Alert severity="error" sx={{ mb: 3 }}>
-            <Typography variant="body2" fontWeight={600}>
+            <Typography variant="body2" sx={{
+              fontWeight: 600
+            }}>
               {t('rejectionReason')}
             </Typography>
             <Typography variant="body2">
@@ -480,7 +482,9 @@ const ExpenseDetailView = ({ report, isOwner, title }: Props) => {
                       <Typography variant="body2">{format.number(item.amount, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{
+                        color: 'text.secondary'
+                      }}>
                         {item.description ?? '—'}
                       </Typography>
                     </TableCell>
@@ -489,12 +493,16 @@ const ExpenseDetailView = ({ report, isOwner, title }: Props) => {
                 <TableRow>
                   <TableCell colSpan={2} />
                   <TableCell align="right">
-                    <Typography variant="body2" fontWeight={600}>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 600
+                    }}>
                       {format.number(total, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{
+                      color: 'text.secondary'
+                    }}>
                       {t('fields.total')}
                     </Typography>
                   </TableCell>
@@ -509,7 +517,9 @@ const ExpenseDetailView = ({ report, isOwner, title }: Props) => {
         <Paper variant="outlined" sx={{ borderRadius: 2, p: 3 }}>
           <SectionLabel>{t('sections.auditTrail')}</SectionLabel>
           {report.auditLogs.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: 'text.secondary'
+            }}>
               {t('noAuditEntries')}
             </Typography>
           ) : (
@@ -523,14 +533,23 @@ const ExpenseDetailView = ({ report, isOwner, title }: Props) => {
                     sx={{ flexShrink: 0, mt: 0.25 }}
                   />
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body2" fontWeight={500}>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>
                       {entry.actorName}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{
+                      color: 'text.secondary'
+                    }}>
                       {format.dateTime(new Date(entry.createdAt), { day: 'numeric', month: 'short', year: 'numeric' })}{' '}{format.dateTime(new Date(entry.createdAt), { hour: '2-digit', minute: '2-digit' })}
                     </Typography>
                     {typeof (entry.after as Record<string, unknown> | null)?.status === 'string' && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: 'text.secondary',
+                          display: 'block'
+                        }}>
                         {(entry.after as Record<string, string>).status}
                       </Typography>
                     )}

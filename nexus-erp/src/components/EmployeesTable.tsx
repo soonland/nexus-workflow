@@ -70,11 +70,20 @@ function formatDate(iso: string) {
 const DetailRow = ({ label, value }: { label: string; value: React.ReactNode }) => {
   return (
     <Box>
-      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>
+      <Typography
+        variant="caption"
+        sx={{
+          color: 'text.secondary',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          display: 'block'
+        }}>
         {label}
       </Typography>
       {typeof value === 'string'
-        ? <Typography variant="body2" fontWeight={500}>{value || '—'}</Typography>
+        ? <Typography variant="body2" sx={{
+        fontWeight: 500
+      }}>{value || '—'}</Typography>
         : value}
     </Box>
   )
@@ -116,8 +125,12 @@ const ProfileDialogContent = ({ employeeId }: { employeeId: string }) => {
           {getInitials(data.fullName)}
         </Avatar>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="h6" fontWeight={700}>{data.fullName}</Typography>
-          <Typography variant="body2" color="text.secondary">{data.user.email}</Typography>
+          <Typography variant="h6" sx={{
+            fontWeight: 700
+          }}>{data.fullName}</Typography>
+          <Typography variant="body2" sx={{
+            color: 'text.secondary'
+          }}>{data.user.email}</Typography>
         </Box>
         <Chip label={data.user.role} size="small" color={data.user.role === 'manager' ? 'primary' : 'default'} />
       </Box>
@@ -126,13 +139,21 @@ const ProfileDialogContent = ({ employeeId }: { employeeId: string }) => {
 
       {/* Employment */}
       <Box>
-        <Typography variant="overline" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>Employment</Typography>
+        <Typography
+          variant="overline"
+          sx={{
+            color: 'text.secondary',
+            mb: 1.5,
+            display: 'block'
+          }}>Employment</Typography>
         <Grid container spacing={2}>
           <Grid size={{ xs: 6 }}>
             <DetailRow label="Department" value={
               data.department
                 ? <Chip label={data.department.name} size="small" variant="outlined" />
-                : <Typography variant="body2" fontWeight={500}>—</Typography>
+                : <Typography variant="body2" sx={{
+                fontWeight: 500
+              }}>—</Typography>
             } />
           </Grid>
           <Grid size={{ xs: 6 }}>
@@ -158,11 +179,21 @@ const ProfileDialogContent = ({ employeeId }: { employeeId: string }) => {
 
       {/* Groups */}
       <Box>
-        <Typography variant="overline" color="text.secondary" sx={{ mb: 1, display: 'block' }}>Groups</Typography>
+        <Typography
+          variant="overline"
+          sx={{
+            color: 'text.secondary',
+            mb: 1,
+            display: 'block'
+          }}>Groups</Typography>
         {data.groups.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">Not a member of any group.</Typography>
+          <Typography variant="body2" sx={{
+            color: 'text.secondary'
+          }}>Not a member of any group.</Typography>
         ) : (
-          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+          <Stack direction="row" spacing={0.5} useFlexGap sx={{
+            flexWrap: 'wrap'
+          }}>
             {data.groups.map((g) => (
               <Chip key={g.id} label={g.name} size="small" component={NextLink} href={`/groups/${g.id}`} clickable />
             ))}
@@ -174,14 +205,28 @@ const ProfileDialogContent = ({ employeeId }: { employeeId: string }) => {
 
       {/* Effective permissions */}
       <Box>
-        <Typography variant="overline" color="text.secondary" sx={{ mb: 1, display: 'block' }}>Effective Permissions</Typography>
+        <Typography
+          variant="overline"
+          sx={{
+            color: 'text.secondary',
+            mb: 1,
+            display: 'block'
+          }}>Effective Permissions</Typography>
         {data.effectivePermissions.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">No permissions granted.</Typography>
+          <Typography variant="body2" sx={{
+            color: 'text.secondary'
+          }}>No permissions granted.</Typography>
         ) : (
           <Stack spacing={1}>
             {data.effectivePermissions.map((p) => (
               <Box key={p.key} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                <Typography variant="body2" fontWeight={500} sx={{ flex: 1, minWidth: 0 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontWeight: 500,
+                    flex: 1,
+                    minWidth: 0
+                  }}>
                   {p.label || p.key}
                 </Typography>
                 {p.direct && (
@@ -237,17 +282,25 @@ const EmployeesTable = ({ employees }: { employees: EmployeeRow[] }) => {
                     <Avatar sx={{ width: 32, height: 32, fontSize: '0.75rem', bgcolor: 'primary.light', color: 'primary.dark' }}>
                       {getInitials(emp.fullName)}
                     </Avatar>
-                    <Typography variant="body2" fontWeight={500}>{emp.fullName}</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>{emp.fullName}</Typography>
                   </Box>
                 </TableCell>
                 <TableCell>
-                  <Typography variant="body2" color="text.secondary">{emp.user.email}</Typography>
+                  <Typography variant="body2" sx={{
+                    color: 'text.secondary'
+                  }}>{emp.user.email}</Typography>
                 </TableCell>
                 <TableCell>
-                  <Typography variant="body2" color="text.secondary">{emp.department?.name ?? '—'}</Typography>
+                  <Typography variant="body2" sx={{
+                    color: 'text.secondary'
+                  }}>{emp.department?.name ?? '—'}</Typography>
                 </TableCell>
                 <TableCell>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: 'text.secondary'
+                  }}>
                     {emp.hireDate.toISOString().split('T')[0]}
                   </Typography>
                 </TableCell>
@@ -255,7 +308,9 @@ const EmployeesTable = ({ employees }: { employees: EmployeeRow[] }) => {
                   <Chip label={emp.user.role} size="small" color={emp.user.role === 'manager' ? 'primary' : 'default'} />
                 </TableCell>
                 <TableCell align="right">
-                  <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                  <Stack direction="row" spacing={0.5} sx={{
+                    justifyContent: 'flex-end'
+                  }}>
                     <Button size="small" variant="text" onClick={() => setSelectedId(emp.id)}>
                       Preview
                     </Button>
@@ -278,7 +333,9 @@ const EmployeesTable = ({ employees }: { employees: EmployeeRow[] }) => {
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
           <Typography variant="h6" component="span">Employee Profile</Typography>
-          <Stack direction="row" spacing={0.5} alignItems="center">
+          <Stack direction="row" spacing={0.5} sx={{
+            alignItems: 'center'
+          }}>
             {selected && (
               <Tooltip title="Open full profile">
                 <IconButton size="small" component={NextLink} href={`/employees/${selected.id}`}>

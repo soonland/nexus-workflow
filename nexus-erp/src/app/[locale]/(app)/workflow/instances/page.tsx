@@ -63,7 +63,9 @@ const WorkflowInstancesPage = async ({
 
       {/* Status filter */}
       <Box sx={{ mb: 3 }}>
-        <Stack direction="row" spacing={1} flexWrap="wrap">
+        <Stack direction="row" spacing={1} sx={{
+          flexWrap: 'wrap'
+        }}>
           {STATUS_OPTIONS.map((opt) => (
             <Button
               key={opt.value}
@@ -81,9 +83,16 @@ const WorkflowInstancesPage = async ({
 
       <Card>
         {instances.length === 0 ? (
-          <Stack alignItems="center" spacing={2} sx={{ py: 8 }}>
+          <Stack
+            spacing={2}
+            sx={{
+              alignItems: 'center',
+              py: 8
+            }}>
             <AccountTreeRoundedIcon sx={{ fontSize: 56, color: 'text.disabled' }} />
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" sx={{
+              color: 'text.secondary'
+            }}>
               {t('noInstances')}
             </Typography>
           </Stack>
@@ -118,10 +127,14 @@ const WorkflowInstancesPage = async ({
                     </Button>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={500}>{inst.definitionId}</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>{inst.definitionId}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">v{inst.definitionVersion}</Typography>
+                    <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>v{inst.definitionVersion}</Typography>
                   </TableCell>
                   <TableCell>
                     <Chip
@@ -131,17 +144,23 @@ const WorkflowInstancesPage = async ({
                     />
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>
                       {new Date(inst.startedAt).toLocaleString()}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>
                       {inst.completedAt ? new Date(inst.completedAt).toLocaleString() : '—'}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Stack direction="row" spacing={1} sx={{
+                      justifyContent: 'flex-end'
+                    }}>
                       <InstanceActions instanceId={inst.id} status={inst.status} />
                       <Button
                        

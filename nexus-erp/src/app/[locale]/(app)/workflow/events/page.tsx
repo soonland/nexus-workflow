@@ -86,9 +86,16 @@ const EventLogPage = () => {
       </Card>
 
       {events === null && (
-        <Stack alignItems="center" spacing={2} sx={{ py: 8 }}>
+        <Stack
+          spacing={2}
+          sx={{
+            alignItems: 'center',
+            py: 8
+          }}>
           <TimelineRoundedIcon sx={{ fontSize: 56, color: 'text.disabled' }} />
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" sx={{
+            color: 'text.secondary'
+          }}>
             {t('placeholder')}
           </Typography>
         </Stack>
@@ -103,7 +110,9 @@ const EventLogPage = () => {
           </CardContent>
           {events.length === 0 ? (
             <CardContent>
-              <Typography variant="body2" color="text.secondary">{t('noEvents')}</Typography>
+              <Typography variant="body2" sx={{
+                color: 'text.secondary'
+              }}>{t('noEvents')}</Typography>
             </CardContent>
           ) : (
             <Table size="small">
@@ -120,7 +129,9 @@ const EventLogPage = () => {
                   <TableRow key={ev.id}>
                     <TableCell sx={{ color: 'text.disabled', fontSize: '0.75rem' }}>{i + 1}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: 'text.secondary'
+                      }}>
                         {new Date(ev.occurredAt).toLocaleTimeString()}
                       </Typography>
                     </TableCell>

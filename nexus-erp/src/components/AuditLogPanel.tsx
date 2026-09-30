@@ -113,7 +113,9 @@ const AuditLogPanel = ({ entityType, entityId }: Props) => {
         )}
         {!loading && !error && data && (
           data.entries.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: 'text.secondary'
+            }}>
               {t('history.empty')}
             </Typography>
           ) : (
@@ -127,8 +129,12 @@ const AuditLogPanel = ({ entityType, entityId }: Props) => {
                     sx={{ flexShrink: 0, mt: 0.25 }}
                   />
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body2" fontWeight={500}>{entry.actorName}</Typography>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>{entry.actorName}</Typography>
+                    <Typography variant="caption" sx={{
+                      color: 'text.secondary'
+                    }}>
                       {formatDateTime(entry.createdAt)}
                       {' · '}
                       {summariseDiff(entry.before, entry.after)}
@@ -138,7 +144,9 @@ const AuditLogPanel = ({ entityType, entityId }: Props) => {
               ))}
 
               {data.totalPages > 1 && (
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{
+                  color: 'text.secondary'
+                }}>
                   {t('pagination.page', { page: data.page, total: data.totalPages })}
                 </Typography>
               )}

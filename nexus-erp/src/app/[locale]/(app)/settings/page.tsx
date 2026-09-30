@@ -17,10 +17,17 @@ const SettingsPage = async () => {
       <Typography gutterBottom variant="h5">Settings</Typography>
 
       <Paper sx={{ p: 3 }} variant="outlined">
-        <Typography gutterBottom fontWeight={600} variant="subtitle1">
+        <Typography gutterBottom variant="subtitle1" sx={{
+          fontWeight: 600
+        }}>
           Language
         </Typography>
-        <Typography color="text.secondary" sx={{ mb: 2 }} variant="body2">
+        <Typography
+          variant="body2"
+          sx={{
+            color: 'text.secondary',
+            mb: 2
+          }}>
           Choose the language used throughout the interface.
         </Typography>
         <Divider sx={{ mb: 2 }} />

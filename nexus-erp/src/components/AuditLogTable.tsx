@@ -186,7 +186,14 @@ const AuditLogTable = () => {
     <Stack spacing={2}>
       {/* Filter bar */}
       <Card sx={{ p: 2 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={2}
+          useFlexGap
+          sx={{
+            flexWrap: 'wrap',
+            alignItems: 'center'
+          }}>
           {/* Entity type multi-select */}
           <FormControl size="small" sx={{ minWidth: 160 }}>
             <InputLabel>{t('filters.entityType')}</InputLabel>
@@ -283,7 +290,13 @@ const AuditLogTable = () => {
                 {data?.entries.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6}>
-                      <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: 'text.secondary',
+                          py: 2,
+                          textAlign: 'center'
+                        }}>
                         {t('emptyState')}
                       </Typography>
                     </TableCell>
@@ -315,7 +328,15 @@ const AuditLogTable = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: 'text.secondary',
+                            maxWidth: 300,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
                           {summariseDiff(entry.before, entry.after)}
                         </Typography>
                       </TableCell>
@@ -328,7 +349,9 @@ const AuditLogTable = () => {
             {/* Pagination */}
             {data && data.totalPages > 1 && (
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1, p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: 'text.secondary'
+                }}>
                   {t('pagination.page', { page: data.page, total: data.totalPages })}
                 </Typography>
                 <Button size="small" variant="outlined" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
@@ -347,18 +370,34 @@ const AuditLogTable = () => {
       {selectedEntry && diff && (
           <Dialog open onClose={() => setSelectedEntry(null)} maxWidth="sm" fullWidth>
             <DialogTitle>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{
+                  alignItems: 'center',
+                  mb: 0.5
+                }}>
                 <Chip
                   label={t(`actions.${selectedEntry.action}`)}
                   size="small"
                   color={ACTION_COLORS[selectedEntry.action] ?? 'default'}
                 />
-                <Typography variant="subtitle1" fontWeight={600}>{selectedEntry.entityType}</Typography>
+                <Typography variant="subtitle1" sx={{
+                  fontWeight: 600
+                }}>{selectedEntry.entityType}</Typography>
               </Stack>
-              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', display: 'block' }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'text.secondary',
+                  fontFamily: 'monospace',
+                  display: 'block'
+                }}>
                 {selectedEntry.entityId}
               </Typography>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: 'text.secondary'
+              }}>
                 {formatDateTime(selectedEntry.createdAt)} · {selectedEntry.actorName}
               </Typography>
             </DialogTitle>
@@ -404,7 +443,13 @@ const AuditLogTable = () => {
 
               {diff.mode === 'update' && (
                 <>
-                  <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: 'text.secondary',
+                      mb: 1,
+                      display: 'block'
+                    }}>
                     {t('detail.changedFields')}
                   </Typography>
                   <Table size="small">
@@ -432,7 +477,9 @@ const AuditLogTable = () => {
                   {diff.unchanged.length > 0 && (
                     <>
                       <Divider sx={{ my: 2 }} />
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: 'text.secondary'
+                      }}>
                         {t('detail.unchangedFields')} {diff.unchanged.join(', ')}
                       </Typography>
                     </>

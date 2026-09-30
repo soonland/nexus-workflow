@@ -346,7 +346,9 @@ const OrganizationForm = ({
           <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
             <Stack spacing={3} divider={<Divider />}>
               <Box>
-                <Typography variant="overline" color="text.secondary">Identity</Typography>
+                <Typography variant="overline" sx={{
+                  color: 'text.secondary'
+                }}>Identity</Typography>
                 <Grid container spacing={2} sx={{ mt: 1.5 }}>
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
@@ -411,7 +413,9 @@ const OrganizationForm = ({
           <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
             <Stack spacing={3} divider={<Divider />}>
               <Box>
-                <Typography variant="overline" color="text.secondary">Contact & Address</Typography>
+                <Typography variant="overline" sx={{
+                  color: 'text.secondary'
+                }}>Contact & Address</Typography>
                 <Grid container spacing={2} sx={{ mt: 1.5 }}>
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
@@ -505,7 +509,9 @@ const OrganizationForm = ({
           <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
             <Stack spacing={3} divider={<Divider />}>
               <Box>
-                <Typography variant="overline" color="text.secondary">Account Owner</Typography>
+                <Typography variant="overline" sx={{
+                  color: 'text.secondary'
+                }}>Account Owner</Typography>
                 <Box sx={{ mt: 1.5 }}>
                   <Autocomplete
                     options={allEmployees}
@@ -535,7 +541,9 @@ const OrganizationForm = ({
         {isManager && mode === 'edit' && (
           <Card>
             <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-              <Typography variant="overline" color="text.secondary">Status Actions</Typography>
+              <Typography variant="overline" sx={{
+                color: 'text.secondary'
+              }}>Status Actions</Typography>
               <Stack direction="row" spacing={1.5} sx={{ mt: 1.5 }}>
                 {status === 'active' && (
                   <Button
@@ -574,8 +582,16 @@ const OrganizationForm = ({
         {isManager && mode === 'edit' && workflowInstanceId && (
           <Card variant="outlined">
             <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-              <Typography variant="overline" color="text.secondary">Pending Status Change Request</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 2 }}>
+              <Typography variant="overline" sx={{
+                color: 'text.secondary'
+              }}>Pending Status Change Request</Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: 'text.secondary',
+                  mt: 1,
+                  mb: 2
+                }}>
                 A status change request is awaiting your approval.
               </Typography>
               <Stack direction="row" spacing={1.5}>
@@ -606,7 +622,9 @@ const OrganizationForm = ({
         {isOwner && !isManager && mode === 'edit' && (
           <Card>
             <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-              <Typography variant="overline" color="text.secondary">Status Change</Typography>
+              <Typography variant="overline" sx={{
+                color: 'text.secondary'
+              }}>Status Change</Typography>
               <Box sx={{ mt: 1.5 }}>
                 {workflowInstanceId ? (
                   <Alert
@@ -645,7 +663,9 @@ const OrganizationForm = ({
         {/* Save / Cancel actions */}
         {!isReadOnly && (
           <Box>
-            <Stack direction="row" spacing={1.5} justifyContent="flex-end">
+            <Stack direction="row" spacing={1.5} sx={{
+              justifyContent: 'flex-end'
+            }}>
               <Button component={NextLink} href="/organizations" variant="text" size="small">
                 Cancel
               </Button>

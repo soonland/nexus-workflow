@@ -252,10 +252,12 @@ const AppSidebar = ({ role, hasEmployee }: AppSidebarProps) => {
                           {!collapsed && (
                             <ListItemText
                               primary={item.label}
-                              primaryTypographyProps={{
-                                variant: 'body2',
-                                fontWeight: active ? 600 : 400,
-                                noWrap: true,
+                              slotProps={{
+                                primary: {
+                                  variant: 'body2',
+                                  noWrap: true,
+                                  sx: { fontWeight: active ? 600 : 400 },
+                                },
                               }}
                             />
                           )}

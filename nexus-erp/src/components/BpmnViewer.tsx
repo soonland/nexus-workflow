@@ -81,12 +81,27 @@ const BpmnViewer = ({ xml }: Props) => {
       }}
     >
       {loading && !error && (
-        <Stack alignItems="center" justifyContent="center" sx={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+        <Stack
+          sx={{
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'absolute',
+            inset: 0,
+            zIndex: 1
+          }}>
           <CircularProgress size={32} />
         </Stack>
       )}
       {error && (
-        <Stack alignItems="center" justifyContent="center" sx={{ position: 'absolute', inset: 0, zIndex: 1, p: 3 }}>
+        <Stack
+          sx={{
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'absolute',
+            inset: 0,
+            zIndex: 1,
+            p: 3
+          }}>
           <Typography variant="body2" color="error" align="center">{error}</Typography>
         </Stack>
       )}

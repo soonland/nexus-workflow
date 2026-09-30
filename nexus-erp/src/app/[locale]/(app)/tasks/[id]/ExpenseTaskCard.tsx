@@ -66,7 +66,9 @@ const ExpenseTaskCard = async ({ report }: { report: Report }) => {
       <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
         <Typography variant="h5" sx={{ mb: 0.5 }}>{t('title')}</Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: 'text.secondary'
+          }}>
             {report.employee.fullName} &middot; {report.employee.user.email}
           </Typography>
           <Chip
@@ -92,7 +94,13 @@ const ExpenseTaskCard = async ({ report }: { report: Report }) => {
                 ...(i > 0 && { borderLeft: '1px solid', borderColor }),
               }}
             >
-              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'text.secondary',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
+                }}>
                 {h}
               </Typography>
             </Grid>
@@ -112,7 +120,9 @@ const ExpenseTaskCard = async ({ report }: { report: Report }) => {
                 </Typography>
               </Grid>
               <Grid size={3} sx={{ ...cellSx, borderLeft: '1px solid', borderColor }}>
-                <Typography variant="body2" fontWeight={500}>
+                <Typography variant="body2" sx={{
+                  fontWeight: 500
+                }}>
                   {formatAmount(item.amount)}
                 </Typography>
               </Grid>
@@ -126,8 +136,15 @@ const ExpenseTaskCard = async ({ report }: { report: Report }) => {
         </Grid>
 
         {/* Footer: total + receipt */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="body1" fontWeight={600}>
+        <Stack
+          direction="row"
+          sx={{
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+          <Typography variant="body1" sx={{
+            fontWeight: 600
+          }}>
             {t('total')}: {formatTotal()}
           </Typography>
           {report.receiptPath && (report.receiptPath.startsWith('/') || report.receiptPath.startsWith('https://')) && (
@@ -144,14 +161,20 @@ const ExpenseTaskCard = async ({ report }: { report: Report }) => {
               {idx > 0 && <Divider sx={{ my: 1.5 }} />}
               <Stack spacing={0.5}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2" fontWeight={500}>
+                  <Typography variant="body2" sx={{
+                    fontWeight: 500
+                  }}>
                     {t(`category.${item.category}`)}
                   </Typography>
-                  <Typography variant="body2" fontWeight={500}>
+                  <Typography variant="body2" sx={{
+                    fontWeight: 500
+                  }}>
                     {formatAmount(item.amount)}
                   </Typography>
                 </Box>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{
+                  color: 'text.secondary'
+                }}>
                   {formatDate(item.date)}
                   {item.description && ` — ${item.description}`}
                 </Typography>

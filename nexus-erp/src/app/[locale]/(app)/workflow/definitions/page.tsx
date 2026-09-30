@@ -46,9 +46,16 @@ const WorkflowDefinitionsPage = async () => {
 
       <Card>
         {definitions.length === 0 ? (
-          <Stack alignItems="center" spacing={2} sx={{ py: 8 }}>
+          <Stack
+            spacing={2}
+            sx={{
+              alignItems: 'center',
+              py: 8
+            }}>
             <SchemaRoundedIcon sx={{ fontSize: 56, color: 'text.disabled' }} />
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" sx={{
+              color: 'text.secondary'
+            }}>
               {t('noDefinitions')}
             </Typography>
           </Stack>
@@ -68,7 +75,12 @@ const WorkflowDefinitionsPage = async () => {
               {definitions.map((def) => (
                 <TableRow key={`${def.id}-v${def.version}`} sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={500} sx={{ fontFamily: 'monospace' }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 500,
+                        fontFamily: 'monospace'
+                      }}>
                       {def.id}
                     </Typography>
                   </TableCell>
@@ -86,12 +98,16 @@ const WorkflowDefinitionsPage = async () => {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>
                       {new Date(def.deployedAt).toLocaleString()}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Stack direction="row" spacing={1} sx={{
+                      justifyContent: 'flex-end'
+                    }}>
                       <DeleteDefinitionButton definitionId={def.id} disabled={inUseIds.has(def.id)} />
                       <Button
                        

@@ -131,26 +131,50 @@ const PermissionMatrix = ({
       {/* ── CRUD section ──────────────────────────────────────────────────── */}
       <Typography
         variant="overline"
-        color="text.secondary"
-        sx={{ display: 'block', mb: 1.5, letterSpacing: '0.08em' }}
-      >
+        sx={{
+          color: 'text.secondary',
+          display: 'block',
+          mb: 1.5,
+          letterSpacing: '0.08em'
+        }}>
         Permissions
       </Typography>
 
       {/* Legend (only shown in three-state mode) */}
       {inheritedSources !== undefined && (
-        <Stack direction="row" gap={2} sx={{ mb: 1.5, pl: 0.5 }}>
+        <Stack
+          direction="row"
+          sx={{
+            gap: 2,
+            mb: 1.5,
+            pl: 0.5
+          }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <HorizontalRuleRoundedIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
-            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem' }}>None</Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'text.disabled',
+                fontSize: '0.7rem'
+              }}>None</Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <CheckBoxIcon sx={{ fontSize: 14, opacity: 0.35, color: 'action.active' }} />
-            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem' }}>Inherited</Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'text.disabled',
+                fontSize: '0.7rem'
+              }}>Inherited</Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <CheckBoxIcon sx={{ fontSize: 14, color: 'primary.main' }} />
-            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem' }}>Direct</Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'text.disabled',
+                fontSize: '0.7rem'
+              }}>Direct</Typography>
           </Box>
         </Stack>
       )}
@@ -198,10 +222,13 @@ const PermissionMatrix = ({
             >
               <Typography
                 variant="caption"
-                fontWeight={600}
-                color="text.secondary"
-                sx={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}
-              >
+                sx={{
+                  fontWeight: 600,
+                  color: 'text.secondary',
+                  fontSize: '0.72rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
+                }}>
                 {ACTION_LABELS[action]}
               </Typography>
             </Box>
@@ -224,7 +251,9 @@ const PermissionMatrix = ({
                   alignItems: 'center',
                 }}
               >
-                <Typography variant="body2" fontWeight={500}>
+                <Typography variant="body2" sx={{
+                  fontWeight: 500
+                }}>
                   {RESOURCE_LABELS[resource]}
                 </Typography>
               </Box>
@@ -264,9 +293,12 @@ const PermissionMatrix = ({
 
       <Typography
         variant="overline"
-        color="text.secondary"
-        sx={{ display: 'block', mb: 1.5, letterSpacing: '0.08em' }}
-      >
+        sx={{
+          color: 'text.secondary',
+          display: 'block',
+          mb: 1.5,
+          letterSpacing: '0.08em'
+        }}>
         Workflow
       </Typography>
 
@@ -332,16 +364,23 @@ const PermissionMatrix = ({
               {/* Label */}
               <Typography
                 variant="body2"
-                sx={{ flex: 1 }}
-                fontWeight={isDirect || isInherited ? 500 : 400}
                 color={isDirect || isInherited ? 'text.primary' : 'text.secondary'}
-              >
+                sx={{
+                  fontWeight: isDirect || isInherited ? 500 : 400,
+                  flex: 1
+                }}>
                 {label}
               </Typography>
 
               {/* Inherited badges (three-state mode only) */}
               {inheritedSources !== undefined && isInherited && (
-                <Stack direction="row" gap={0.5} flexWrap="wrap" justifyContent="flex-end">
+                <Stack
+                  direction="row"
+                  sx={{
+                    gap: 0.5,
+                    flexWrap: 'wrap',
+                    justifyContent: 'flex-end'
+                  }}>
                   {sources.map((src) => (
                     <Chip
                       key={src.id}

@@ -79,7 +79,9 @@ const OrganizationsTable = ({ organizations, isManager }: OrganizationsTableProp
       <Card>
         {organizations.length === 0 ? (
           <Box sx={{ py: 8, textAlign: 'center' }}>
-            <Typography color="text.secondary">No organizations yet. Create one to get started.</Typography>
+            <Typography sx={{
+              color: 'text.secondary'
+            }}>No organizations yet. Create one to get started.</Typography>
           </Box>
         ) : (
           <Table>
@@ -97,15 +99,21 @@ const OrganizationsTable = ({ organizations, isManager }: OrganizationsTableProp
               {organizations.map((org) => (
                 <TableRow key={org.id} sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={500}>{org.name}</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>{org.name}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>
                       {org.legalName ?? '—'}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>
                       {org.industry ?? '—'}
                     </Typography>
                   </TableCell>
@@ -113,7 +121,9 @@ const OrganizationsTable = ({ organizations, isManager }: OrganizationsTableProp
                     <StatusChip status={org.status} />
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>
                       {org.owner?.fullName ?? '—'}
                     </Typography>
                   </TableCell>

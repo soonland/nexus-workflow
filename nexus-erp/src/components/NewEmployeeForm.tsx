@@ -151,7 +151,9 @@ const NewEmployeeForm = ({ managers, departments }: NewEmployeeFormProps) => {
                 size="small"
                 error={!!fieldErrors.fullName}
                 helperText={fieldErrors.fullName}
-                inputProps={{ 'aria-required': true }}
+                slotProps={{
+                  htmlInput: { 'aria-required': true }
+                }}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
@@ -165,7 +167,9 @@ const NewEmployeeForm = ({ managers, departments }: NewEmployeeFormProps) => {
                 size="small"
                 error={!!fieldErrors.email}
                 helperText={fieldErrors.email}
-                inputProps={{ 'aria-required': true }}
+                slotProps={{
+                  htmlInput: { 'aria-required': true }
+                }}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
@@ -179,7 +183,9 @@ const NewEmployeeForm = ({ managers, departments }: NewEmployeeFormProps) => {
                 size="small"
                 error={!!fieldErrors.password}
                 helperText={fieldErrors.password}
-                inputProps={{ 'aria-required': true }}
+                slotProps={{
+                  htmlInput: { 'aria-required': true }
+                }}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
@@ -193,9 +199,10 @@ const NewEmployeeForm = ({ managers, departments }: NewEmployeeFormProps) => {
                 size="small"
                 error={!!fieldErrors.hireDate}
                 helperText={fieldErrors.hireDate}
-                slotProps={{ inputLabel: { shrink: true } }}
-                inputProps={{ 'aria-required': true }}
-              />
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  htmlInput: { 'aria-required': true }
+                }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField

@@ -4,9 +4,13 @@ import Typography from '@mui/material/Typography'
 const SectionLabel = ({ children, sx }: { children: React.ReactNode; sx?: SxProps<Theme> }) => (
   <Typography
     variant="overline"
-    color="text.secondary"
-    sx={{ display: 'block', mb: 2, letterSpacing: '0.08em', ...sx }}
-  >
+    sx={{
+      color: 'text.secondary',
+      display: 'block',
+      mb: 2,
+      letterSpacing: '0.08em',
+      ...sx
+    }}>
     {children}
   </Typography>
 )

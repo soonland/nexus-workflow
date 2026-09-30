@@ -57,13 +57,19 @@ const ReadOnlyField = ({
       <Box>
         <Typography
           variant="caption"
-          color="text.secondary"
-          sx={{ textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 0.25 }}
-        >
+          sx={{
+            color: 'text.secondary',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            display: 'block',
+            mb: 0.25
+          }}>
           {label}
         </Typography>
         {typeof value === 'string' ? (
-          <Typography variant="body2" fontWeight={500}>
+          <Typography variant="body2" sx={{
+            fontWeight: 500
+          }}>
             {value || '—'}
           </Typography>
         ) : (
@@ -187,7 +193,9 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
         >
           <ArrowBackRoundedIcon fontSize="small" />
         </IconButton>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: 'text.secondary'
+        }}>
           {isManager ? t('breadcrumb.employees') : t('breadcrumb.dashboard')}
         </Typography>
       </Box>
@@ -214,7 +222,9 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
 
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 0.5 }}>
-              <Typography variant="h5" fontWeight={700} noWrap>
+              <Typography variant="h5" noWrap sx={{
+                fontWeight: 700
+              }}>
                 {emp.fullName}
               </Typography>
               <Chip
@@ -228,7 +238,9 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
                 <Chip label={t('yourProfile')} size="small" color="secondary" variant="outlined" />
               )}
             </Box>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: 'text.secondary'
+            }}>
               {emp.user.email}
             </Typography>
           </Box>
@@ -313,9 +325,11 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
             <Box sx={{ p: 3 }}>
               <Typography
                 variant="overline"
-                color="text.secondary"
-                sx={{ display: 'block', mb: 2 }}
-              >
+                sx={{
+                  color: 'text.secondary',
+                  display: 'block',
+                  mb: 2
+                }}>
                 {t('sections.employment')}
               </Typography>
               <Grid container spacing={3}>
@@ -366,9 +380,11 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
             <Box sx={{ p: 3 }}>
               <Typography
                 variant="overline"
-                color="text.secondary"
-                sx={{ display: 'block', mb: 2 }}
-              >
+                sx={{
+                  color: 'text.secondary',
+                  display: 'block',
+                  mb: 2
+                }}>
                 {t('sections.contactAddress')}
               </Typography>
               <EmployeeContactForm
@@ -402,12 +418,20 @@ const EmployeeProfilePage = async ({ params }: { params: Promise<{ id: string }>
             <Box sx={{ p: 3 }}>
               <Typography
                 variant="overline"
-                color="text.secondary"
-                sx={{ display: 'block', mb: 2 }}
-              >
+                sx={{
+                  color: 'text.secondary',
+                  display: 'block',
+                  mb: 2
+                }}>
                 {t('sections.preferences')}
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'text.secondary',
+                  display: 'block',
+                  mb: 1.5
+                }}>
                 {t('preferences.language')}
               </Typography>
               <LanguageSelector userId={session.user.id} currentLocale={locale} />

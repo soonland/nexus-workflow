@@ -80,7 +80,9 @@ const RegisterPage = () => {
           <Typography variant="h3" sx={{ fontWeight: 700, color: 'primary.main', mb: 0.5 }}>
             Nexus ERP
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: 'text.secondary'
+          }}>
             {t('subtitle')}
           </Typography>
         </Box>

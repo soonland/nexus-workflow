@@ -24,7 +24,13 @@ import BpmnViewerLoader from '@/components/BpmnViewerLoader'
 const DetailRow = ({ label, children }: { label: string; children: React.ReactNode }) => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+      <Typography
+        variant="caption"
+        sx={{
+          color: 'text.secondary',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em'
+        }}>
         {label}
       </Typography>
       {children}
@@ -91,20 +97,34 @@ const DefinitionDetailPage = async ({
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Stack spacing={2.5} divider={<Divider />}>
                   <DetailRow label={t('detail.fields.definitionId')}>
-                    <Typography variant="body2" fontWeight={500} sx={{ fontFamily: 'monospace' }}>{def.id}</Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 500,
+                        fontFamily: 'monospace'
+                      }}>{def.id}</Typography>
                   </DetailRow>
                   <DetailRow label={t('detail.fields.name')}>
-                    <Typography variant="body2" fontWeight={500}>{def.name ?? '—'}</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>{def.name ?? '—'}</Typography>
                   </DetailRow>
                   <DetailRow label={t('detail.fields.startEvent')}>
-                    <Typography variant="body2" fontWeight={500} sx={{ fontFamily: 'monospace' }}>{def.startEventId}</Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 500,
+                        fontFamily: 'monospace'
+                      }}>{def.startEventId}</Typography>
                   </DetailRow>
                 </Stack>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Stack spacing={2.5} divider={<Divider />}>
                   <DetailRow label={t('detail.fields.version')}>
-                    <Typography variant="body2" fontWeight={500}>v{def.version}</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>v{def.version}</Typography>
                   </DetailRow>
                   <DetailRow label={t('detail.fields.deployable')}>
                     <Box>{def.isDeployable
@@ -113,7 +133,9 @@ const DefinitionDetailPage = async ({
                     }</Box>
                   </DetailRow>
                   <DetailRow label={t('detail.fields.deployedAt')}>
-                    <Typography variant="body2" fontWeight={500}>{new Date(def.deployedAt).toLocaleString()}</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>{new Date(def.deployedAt).toLocaleString()}</Typography>
                   </DetailRow>
                 </Stack>
               </Grid>
@@ -159,10 +181,14 @@ const DefinitionDetailPage = async ({
                     <Typography variant="body2">{el.name ?? '—'}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">{el.incomingFlows.length}</Typography>
+                    <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>{el.incomingFlows.length}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">{el.outgoingFlows.length}</Typography>
+                    <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>{el.outgoingFlows.length}</Typography>
                   </TableCell>
                 </TableRow>
               ))}
@@ -196,13 +222,17 @@ const DefinitionDetailPage = async ({
                   <TableCell>
                     {flow.conditionExpression
                       ? <code style={{ fontSize: '0.75rem', background: 'rgba(0,0,0,0.06)', padding: '2px 6px', borderRadius: 4 }}>{flow.conditionExpression}</code>
-                      : <Typography variant="body2" color="text.secondary">—</Typography>
+                      : <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>—</Typography>
                     }
                   </TableCell>
                   <TableCell>
                     {flow.isDefault
                       ? <CheckCircleRoundedIcon fontSize="small" color="success" />
-                      : <Typography variant="body2" color="text.secondary">—</Typography>
+                      : <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>—</Typography>
                     }
                   </TableCell>
                 </TableRow>
