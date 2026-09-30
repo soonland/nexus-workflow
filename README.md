@@ -7,6 +7,7 @@ A BPMN 2.0 workflow engine monorepo with three projects:
 | `nexus-workflow-core` | Pure TypeScript engine library — no I/O | — |
 | `nexus-workflow-app` | HTTP API, PostgreSQL persistence, task worker | 3000 |
 | `nexus-erp` | Next.js ERP front-end consuming the workflow engine | 3001 |
+| `nexus-workflow-console` | Operator console (React): manage tenants and API keys | served at `/console` on 3000 (dev: 3002) |
 
 ---
 
@@ -134,6 +135,23 @@ Notes:
 - Keys are hashed with `API_KEY_HMAC_SECRET`; run the command and the workflow app with the same value (unset in dev is fine, as long as both agree).
 - Run it again to issue an additional key; the tenant and its data are kept. The docker dev database is ephemeral, so recreate the key when the containers are recreated.
 - `WORKFLOW_TENANT_ID` (default `nexus-erp`) tells the ERP's Redis consumer which tenant's events to act on.
+
+### Operator console
+
+A small web UI for the admin API below: list, create, suspend, reactivate and delete tenants, and create or revoke their API keys (a new key is shown once, with a copy button).
+
+```bash
+# Start the workflow app with an admin key
+ADMIN_API_KEY=dev-admin-key pnpm --filter nexus-workflow-app dev
+
+# Development (hot reload): http://localhost:3002/console/
+pnpm --filter nexus-workflow-console dev
+
+# Or build it once and let the workflow app serve it: http://localhost:3000/console/
+pnpm --filter nexus-workflow-console build
+```
+
+Sign in with the same `ADMIN_API_KEY`. The key stays in that browser tab only (`sessionStorage`). The console page itself is public; every action it takes needs the key. The Docker image builds and serves it at `/console` automatically (set `CONSOLE_DIR` to serve a different build).
 
 ### Managing tenants (admin API)
 

@@ -1,4 +1,11 @@
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 const nodeEnv = process.env['NODE_ENV'] ?? 'development'
+
+// The built operator console (`pnpm --filter nexus-workflow-console build`). The default is the
+// sibling package, which is right both for `tsx src/main.ts` and for the compiled dist/main.js.
+const defaultConsoleDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../nexus-workflow-console/dist')
 
 export const config = {
   port: Number(process.env['PORT'] ?? 3000),
@@ -13,6 +20,8 @@ export const config = {
   adminApiKey: process.env['ADMIN_API_KEY'] ?? '',
   /** HMAC-SHA256 secret used to hash API keys before storing/comparing. Must be set in production. */
   apiKeyHmacSecret: process.env['API_KEY_HMAC_SECRET'] ?? '',
+  /** Directory with the built operator console, served at /console when it exists. */
+  consoleDir: process.env['CONSOLE_DIR'] ?? defaultConsoleDir,
 }
 
 /**
