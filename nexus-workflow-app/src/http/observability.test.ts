@@ -60,8 +60,8 @@ describe('observability HTTP API', () => {
     eventBus = new InMemoryEventBus()
     eventLog = new InMemoryEventLog()
     app = new Hono()
-    app.route('/', createInstancesRouter(() => store, eventBus))
-    app.route('/', createObservabilityRouter(() => store, eventLog))
+    app.route('/', createInstancesRouter(() => store, () => eventBus))
+    app.route('/', createObservabilityRouter(() => store, () => eventLog))
   })
 
   // ─── GET /instances/:id/events ────────────────────────────────────────────────
@@ -72,7 +72,7 @@ describe('observability HTTP API', () => {
       // Use a fresh eventLog with no events for this instance
       const freshEventLog = new InMemoryEventLog()
       const freshApp = new Hono()
-      freshApp.route('/', createObservabilityRouter(() => store, freshEventLog))
+      freshApp.route('/', createObservabilityRouter(() => store, () => freshEventLog))
 
       const res = await freshApp.fetch(new Request(`http://localhost/instances/${instanceId}/events`))
       expect(res.status).toBe(200)
@@ -198,5 +198,29 @@ describe('observability HTTP API', () => {
       expect(typeof body.instances.suspended).toBe('number')
       expect(typeof body.tasks.pending).toBe('number')
     })
+  })
+})
+
+// ─── Tenant isolation ─────────────────────────────────────────────────────────
+
+describe('observability HTTP API — tenant isolation', () => {
+  it("GET /instances/:id/events reads the event log of the authenticated tenant", async () => {
+    const store = new InMemoryStateStore()
+    const eventBus = new InMemoryEventBus()
+    const logs = { acme: new InMemoryEventLog(), globex: new InMemoryEventLog() }
+    const { instanceId } = await seedAndStart(store, eventBus, logs.acme)
+
+    const app = new Hono<{ Variables: { tenantId: string } }>()
+    app.use('*', async (c, next) => {
+      c.set('tenantId', c.req.header('X-Tenant')!)
+      return next()
+    })
+    app.route('/', createObservabilityRouter(() => store, (tenantId) => logs[tenantId as keyof typeof logs]))
+
+    const get = async (tenant: string) =>
+      (await app.fetch(new Request(`http://localhost/instances/${instanceId}/events`, { headers: { 'X-Tenant': tenant } }))).json()
+
+    expect((await get('acme')).events.length).toBeGreaterThan(0)
+    expect((await get('globex')).events).toEqual([])
   })
 })

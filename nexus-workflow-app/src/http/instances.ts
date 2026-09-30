@@ -6,7 +6,7 @@ import type { AppVariables } from './middleware/auth.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
-export function createInstancesRouter(storeFactory: (tenantId: string) => StateStore, eventBus: EventBus): Hono<{ Variables: AppVariables }> {
+export function createInstancesRouter(storeFactory: (tenantId: string) => StateStore, eventBusFor: (tenantId: string) => EventBus): Hono<{ Variables: AppVariables }> {
   const app = new Hono<{ Variables: AppVariables }>()
 
   // POST /definitions/:definitionId/instances — start a new instance
@@ -63,7 +63,7 @@ export function createInstancesRouter(storeFactory: (tenantId: string) => StateS
       ...buildUserTaskCreationOps(result.events, definition, result.newState),
     ]
     await store.executeTransaction(ops)
-    await eventBus.publishMany(result.events)
+    await eventBusFor(c.get('tenantId')).publishMany(result.events)
 
     return c.json({ instance: result.newState.instance, tokens: result.newState.tokens }, 201)
   })
@@ -148,7 +148,7 @@ export function createInstancesRouter(storeFactory: (tenantId: string) => StateS
       ...buildUserTaskCreationOps(result.events, definition, result.newState),
     ]
     await store.executeTransaction(ops)
-    await eventBus.publishMany(result.events)
+    await eventBusFor(c.get('tenantId')).publishMany(result.events)
 
     return c.json({ instance: result.newState.instance, events: result.events.map(ev => ev.type) })
   })
@@ -164,7 +164,7 @@ export function createInstancesRouter(storeFactory: (tenantId: string) => StateS
     if (state.instance.status === 'terminated' || state.instance.status === 'completed') {
       // Re-emit the terminal event so downstream consumers (e.g. Redis stream) can reconcile
       // stale records in case they missed the original event.
-      await eventBus.publish({ type: 'ProcessInstanceTerminated', instanceId: id, reason: 'already terminated' })
+      await eventBusFor(c.get('tenantId')).publish({ type: 'ProcessInstanceTerminated', instanceId: id, reason: 'already terminated' })
       return c.json({ instance: state.instance })
     }
 
@@ -192,7 +192,7 @@ export function createInstancesRouter(storeFactory: (tenantId: string) => StateS
       ...cancelOps,
     ]
     await store.executeTransaction(ops)
-    await eventBus.publishMany(result.events)
+    await eventBusFor(c.get('tenantId')).publishMany(result.events)
 
     return c.json({ instance: result.newState.instance })
   })

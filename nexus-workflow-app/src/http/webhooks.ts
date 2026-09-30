@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import type { WebhookStore } from '../webhooks/WebhookStore.js'
+import type { AppVariables } from './middleware/auth.js'
 import { validationError } from './validation.js'
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -13,8 +14,8 @@ const CreateWebhookSchema = z.object({
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
-export function createWebhooksRouter(store: WebhookStore): Hono {
-  const app = new Hono()
+export function createWebhooksRouter(storeFor: (tenantId: string) => WebhookStore): Hono<{ Variables: AppVariables }> {
+  const app = new Hono<{ Variables: AppVariables }>()
 
   // POST /webhooks — register a new webhook
   app.post('/webhooks', async (c) => {
@@ -28,13 +29,13 @@ export function createWebhooksRouter(store: WebhookStore): Hono {
     const parsed = CreateWebhookSchema.safeParse(body)
     if (!parsed.success) return c.json(validationError(parsed.error), 400)
 
-    const reg = await store.save(parsed.data)
+    const reg = await storeFor(c.get('tenantId')).save(parsed.data)
     return c.json(reg, 201)
   })
 
   // GET /webhooks — list all registered webhooks (secret is omitted from responses)
   app.get('/webhooks', async (c) => {
-    const registrations = await store.list()
+    const registrations = await storeFor(c.get('tenantId')).list()
     const safeRegistrations = registrations.map(({ secret: _s, ...r }) => r)
     return c.json({ webhooks: safeRegistrations })
   })
@@ -42,7 +43,7 @@ export function createWebhooksRouter(store: WebhookStore): Hono {
   // DELETE /webhooks/:id — remove a webhook
   app.delete('/webhooks/:id', async (c) => {
     const id = c.req.param('id')
-    const deleted = await store.delete(id)
+    const deleted = await storeFor(c.get('tenantId')).delete(id)
     if (!deleted) {
       return c.json({ error: 'NOT_FOUND', message: `Webhook '${id}' not found` }, 404)
     }

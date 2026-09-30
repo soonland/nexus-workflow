@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { InMemoryEventBus } from 'nexus-workflow-core'
+import type { EventBus } from 'nexus-workflow-core'
+import { TenantEventHub } from '../events/TenantEventHub.js'
 import { InMemoryWebhookStore } from './WebhookStore.js'
 import { WebhookDispatcher, computeSignature } from './WebhookDispatcher.js'
 
@@ -70,12 +71,14 @@ describe('computeSignature', () => {
 
 describe('WebhookDispatcher', () => {
   let store: InMemoryWebhookStore
-  let eventBus: InMemoryEventBus
+  let hub: TenantEventHub
+  let eventBus: EventBus
   let mockFetch: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     store = new InMemoryWebhookStore()
-    eventBus = new InMemoryEventBus()
+    hub = new TenantEventHub()
+    eventBus = hub.busFor('acme')
     mockFetch = vi.fn()
     vi.useFakeTimers()
   })
@@ -86,7 +89,7 @@ describe('WebhookDispatcher', () => {
   })
 
   function makeDispatcher(opts: { maxAttempts?: number; baseRetryDelayMs?: number } = {}) {
-    return new WebhookDispatcher(store, eventBus, {
+    return new WebhookDispatcher(() => store, hub, {
       fetch: mockFetch,
       maxAttempts: opts.maxAttempts ?? 1,
       baseRetryDelayMs: opts.baseRetryDelayMs ?? 0,
@@ -310,7 +313,7 @@ describe('WebhookDispatcher', () => {
       mockFetch.mockResolvedValue(makeFailResponse(500))
       await store.save({ url: 'https://example.com/hook', events: [] })
 
-      const dispatcher = new WebhookDispatcher(store, eventBus, {
+      const dispatcher = new WebhookDispatcher(() => store, hub, {
         fetch: mockFetch,
         maxAttempts: 3,
         baseRetryDelayMs: 0,
@@ -329,7 +332,7 @@ describe('WebhookDispatcher', () => {
         .mockResolvedValueOnce(makeOkResponse())
       await store.save({ url: 'https://example.com/hook', events: [] })
 
-      const dispatcher = new WebhookDispatcher(store, eventBus, {
+      const dispatcher = new WebhookDispatcher(() => store, hub, {
         fetch: mockFetch,
         maxAttempts: 3,
         baseRetryDelayMs: 0,
@@ -346,7 +349,7 @@ describe('WebhookDispatcher', () => {
       mockFetch.mockResolvedValue(makeFailResponse(503))
       await store.save({ url: 'https://example.com/hook', events: [] })
 
-      const dispatcher = new WebhookDispatcher(store, eventBus, {
+      const dispatcher = new WebhookDispatcher(() => store, hub, {
         fetch: mockFetch,
         maxAttempts: 3,
         baseRetryDelayMs: 0,
@@ -439,6 +442,37 @@ describe('WebhookDispatcher', () => {
 
       // Only one webhook registered, so only one POST regardless of start() calls
       expect(mockFetch).toHaveBeenCalledOnce()
+    })
+  })
+  // ─── tenant isolation ──────────────────────────────────────────────────────
+
+  describe('tenant isolation', () => {
+    it("should deliver an event only to the webhooks of the tenant that produced it", async () => {
+      mockFetch.mockResolvedValue(makeOkResponse())
+      const globexStore = new InMemoryWebhookStore()
+      await store.save({ url: 'https://acme.example.com/hook', events: [] })
+      await globexStore.save({ url: 'https://globex.example.com/hook', events: [] })
+      const stores: Record<string, InMemoryWebhookStore> = { acme: store, globex: globexStore }
+
+      const dispatcher = new WebhookDispatcher((tenantId) => stores[tenantId]!, hub, {
+        fetch: mockFetch,
+        maxAttempts: 1,
+        baseRetryDelayMs: 0,
+      })
+      dispatcher.start()
+
+      await hub.busFor('acme').publish(COMPLETED_EVENT)
+      await vi.runAllTimersAsync()
+
+      expect(mockFetch).toHaveBeenCalledOnce()
+      expect(mockFetch.mock.calls[0]![0]).toBe('https://acme.example.com/hook')
+
+      mockFetch.mockClear()
+      await hub.busFor('globex').publish(STARTED_EVENT)
+      await vi.runAllTimersAsync()
+
+      expect(mockFetch).toHaveBeenCalledOnce()
+      expect(mockFetch.mock.calls[0]![0]).toBe('https://globex.example.com/hook')
     })
   })
 })

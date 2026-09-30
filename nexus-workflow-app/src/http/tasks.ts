@@ -6,7 +6,7 @@ import type { AppVariables } from './middleware/auth.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
-export function createTasksRouter(storeFactory: (tenantId: string) => StateStore, eventBus: EventBus): Hono<{ Variables: AppVariables }> {
+export function createTasksRouter(storeFactory: (tenantId: string) => StateStore, eventBusFor: (tenantId: string) => EventBus): Hono<{ Variables: AppVariables }> {
   const app = new Hono<{ Variables: AppVariables }>()
 
   // GET /tasks — list user tasks
@@ -108,7 +108,7 @@ export function createTasksRouter(storeFactory: (tenantId: string) => StateStore
       { op: 'updateUserTask' as const, task: completedTask },
     ]
     await store.executeTransaction(ops)
-    await eventBus.publishMany(result.events)
+    await eventBusFor(c.get('tenantId')).publishMany(result.events)
 
     return c.json({ task: completedTask, instance: result.newState.instance })
   })
@@ -134,7 +134,7 @@ export function createTasksRouter(storeFactory: (tenantId: string) => StateStore
 
     const updatedTask = { ...task, status: 'claimed' as const, assignee: claimedBy, claimedAt: new Date() }
     await store.executeTransaction([{ op: 'updateUserTask', task: updatedTask }])
-    await eventBus.publish({ type: 'UserTaskClaimed', taskId: id, claimedBy })
+    await eventBusFor(c.get('tenantId')).publish({ type: 'UserTaskClaimed', taskId: id, claimedBy })
 
     return c.json({ task: updatedTask })
   })
@@ -150,7 +150,7 @@ export function createTasksRouter(storeFactory: (tenantId: string) => StateStore
     const { assignee: _a, claimedAt: _c, ...taskBase } = task
     const updatedTask = { ...taskBase, status: 'open' as const }
     await store.executeTransaction([{ op: 'updateUserTask', task: updatedTask }])
-    await eventBus.publish({ type: 'UserTaskReleased', taskId: id })
+    await eventBusFor(c.get('tenantId')).publish({ type: 'UserTaskReleased', taskId: id })
 
     return c.json({ task: updatedTask })
   })

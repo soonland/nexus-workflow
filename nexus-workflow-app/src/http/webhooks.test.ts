@@ -12,7 +12,7 @@ describe('webhooks HTTP API', () => {
   beforeEach(() => {
     store = new InMemoryWebhookStore()
     app = new Hono()
-    app.route('/', createWebhooksRouter(store))
+    app.route('/', createWebhooksRouter(() => store))
   })
 
   // ─── POST /webhooks ───────────────────────────────────────────────────────
@@ -270,5 +270,57 @@ describe('webhooks HTTP API', () => {
       )
       expect(res.status).toBe(404)
     })
+  })
+})
+
+// ─── Tenant isolation ─────────────────────────────────────────────────────────
+
+describe('webhooks HTTP API — tenant isolation', () => {
+  function makeTenantApp() {
+    const stores: Record<string, InMemoryWebhookStore> = {
+      acme: new InMemoryWebhookStore(),
+      globex: new InMemoryWebhookStore(),
+    }
+    const app = new Hono<{ Variables: { tenantId: string } }>()
+    // Stand-in for the auth middleware: the tenant comes from a test header
+    app.use('*', async (c, next) => {
+      c.set('tenantId', c.req.header('X-Tenant')!)
+      return next()
+    })
+    app.route('/', createWebhooksRouter((tenantId) => stores[tenantId]!))
+    return app
+  }
+
+  const post = (app: Hono<{ Variables: { tenantId: string } }>, tenant: string, url: string) =>
+    app.fetch(
+      new Request('http://localhost/webhooks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Tenant': tenant },
+        body: JSON.stringify({ url }),
+      }),
+    )
+
+  it("GET /webhooks only lists the authenticated tenant's webhooks", async () => {
+    const app = makeTenantApp()
+    await post(app, 'acme', 'https://acme.example.com/hook')
+    await post(app, 'globex', 'https://globex.example.com/hook')
+
+    const res = await app.fetch(new Request('http://localhost/webhooks', { headers: { 'X-Tenant': 'acme' } }))
+    const body = await res.json()
+
+    expect(body.webhooks.map((w: { url: string }) => w.url)).toEqual(['https://acme.example.com/hook'])
+  })
+
+  it("DELETE /webhooks/:id cannot remove another tenant's webhook", async () => {
+    const app = makeTenantApp()
+    const created = await (await post(app, 'acme', 'https://acme.example.com/hook')).json()
+
+    const res = await app.fetch(
+      new Request(`http://localhost/webhooks/${created.id}`, { method: 'DELETE', headers: { 'X-Tenant': 'globex' } }),
+    )
+    expect(res.status).toBe(404)
+
+    const list = await (await app.fetch(new Request('http://localhost/webhooks', { headers: { 'X-Tenant': 'acme' } }))).json()
+    expect(list.webhooks).toHaveLength(1)
   })
 })

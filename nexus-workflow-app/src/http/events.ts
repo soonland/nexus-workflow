@@ -6,7 +6,7 @@ import type { AppVariables } from './middleware/auth.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
-export function createEventsRouter(storeFactory: (tenantId: string) => StateStore, eventBus: EventBus): Hono<{ Variables: AppVariables }> {
+export function createEventsRouter(storeFactory: (tenantId: string) => StateStore, eventBusFor: (tenantId: string) => EventBus): Hono<{ Variables: AppVariables }> {
   const app = new Hono<{ Variables: AppVariables }>()
 
   // POST /messages — deliver a message to the subscribed instance
@@ -63,7 +63,7 @@ export function createEventsRouter(storeFactory: (tenantId: string) => StateStor
       ...buildUserTaskCreationOps(result.events, definition, result.newState),
     ]
     await store.executeTransaction(ops)
-    await eventBus.publishMany(result.events)
+    await eventBusFor(c.get('tenantId')).publishMany(result.events)
 
     return c.json({ instance: result.newState.instance, events: result.events.map(ev => ev.type) })
   })
@@ -113,7 +113,7 @@ export function createEventsRouter(storeFactory: (tenantId: string) => StateStor
         ...buildUserTaskCreationOps(result.events, definition, result.newState),
       ]
       await store.executeTransaction(ops)
-      await eventBus.publishMany(result.events)
+      await eventBusFor(c.get('tenantId')).publishMany(result.events)
 
       results.push({ instanceId: sub.instanceId, events: result.events.map(ev => ev.type) })
     }

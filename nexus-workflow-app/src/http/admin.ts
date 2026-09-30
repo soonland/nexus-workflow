@@ -5,7 +5,7 @@ import type { AppVariables } from './middleware/auth.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
-export function createAdminRouter(storeFactory: (tenantId: string) => StateStore, eventBus: EventBus): Hono<{ Variables: AppVariables }> {
+export function createAdminRouter(storeFactory: (tenantId: string) => StateStore, eventBusFor: (tenantId: string) => EventBus): Hono<{ Variables: AppVariables }> {
   const app = new Hono<{ Variables: AppVariables }>()
 
   // POST /instances/:id/suspend — suspend an active instance
@@ -39,7 +39,7 @@ export function createAdminRouter(storeFactory: (tenantId: string) => StateStore
       ...buildUserTaskCreationOps(result.events, definition, result.newState),
     ]
     await store.executeTransaction(ops)
-    await eventBus.publishMany(result.events)
+    await eventBusFor(c.get('tenantId')).publishMany(result.events)
 
     return c.json({ instance: result.newState.instance })
   })
@@ -75,7 +75,7 @@ export function createAdminRouter(storeFactory: (tenantId: string) => StateStore
       ...buildUserTaskCreationOps(result.events, definition, result.newState),
     ]
     await store.executeTransaction(ops)
-    await eventBus.publishMany(result.events)
+    await eventBusFor(c.get('tenantId')).publishMany(result.events)
 
     return c.json({ instance: result.newState.instance })
   })
@@ -121,8 +121,8 @@ export function createAdminRouter(storeFactory: (tenantId: string) => StateStore
       ...buildUserTaskCreationOps(result.events, definition, result.newState),
     ]
     await store.executeTransaction(ops)
-    await eventBus.publishMany(result.events)
-    await eventBus.publish({ type: 'ProcessInstanceRestarted', instanceId: result.newState.instance.id, restartedFromId: id })
+    await eventBusFor(c.get('tenantId')).publishMany(result.events)
+    await eventBusFor(c.get('tenantId')).publish({ type: 'ProcessInstanceRestarted', instanceId: result.newState.instance.id, restartedFromId: id })
 
     return c.json(
       { instance: result.newState.instance, tokens: result.newState.tokens, restartedFromId: id },

@@ -1,5 +1,6 @@
 import { Redis } from 'ioredis'
-import type { ExecutionEvent, EventBus } from 'nexus-workflow-core'
+import type { ExecutionEvent } from 'nexus-workflow-core'
+import type { TenantEventSource } from './TenantEventHub.js'
 
 export const STREAM_KEY = 'nexus:workflow:events'
 
@@ -19,13 +20,17 @@ export class RedisStreamPublisher {
     await this.redis.quit()
   }
 
-  attach(eventBus: EventBus): void {
-    eventBus.subscribe((event) => { void this.publish(event) })
+  /**
+   * Publishes every tenant's events to the shared stream. Each entry carries a `tenantId`
+   * field so consumers can tell which tenant an event belongs to.
+   */
+  attach(source: TenantEventSource): void {
+    source.subscribeAll((tenantId, event) => { void this.publish(tenantId, event) })
   }
 
-  private async publish(event: ExecutionEvent): Promise<void> {
+  private async publish(tenantId: string, event: ExecutionEvent): Promise<void> {
     try {
-      await this.redis.xadd(STREAM_KEY, '*', 'type', event.type, 'data', JSON.stringify(event))
+      await this.redis.xadd(STREAM_KEY, '*', 'type', event.type, 'data', JSON.stringify(event), 'tenantId', tenantId)
     } catch (err) {
       console.error('[RedisStreamPublisher] failed to publish event:', err)
     }

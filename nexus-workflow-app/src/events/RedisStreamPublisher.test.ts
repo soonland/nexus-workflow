@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { InMemoryEventBus, type ExecutionEvent } from 'nexus-workflow-core'
+import type { ExecutionEvent } from 'nexus-workflow-core'
+import { TenantEventHub } from './TenantEventHub.js'
 
 const mockState = vi.hoisted(() => ({
   connect: vi.fn().mockResolvedValue(undefined),
@@ -44,8 +45,9 @@ describe('RedisStreamPublisher', () => {
 
   it('attach() subscribes to the event bus and publishes events via xadd', async () => {
     const publisher = new RedisStreamPublisher('redis://localhost:6379')
-    const eventBus = new InMemoryEventBus()
-    publisher.attach(eventBus)
+    const hub = new TenantEventHub()
+    const eventBus = hub.busFor('acme')
+    publisher.attach(hub)
 
     const event: ExecutionEvent = {
       type: 'ProcessInstanceStarted',
@@ -64,13 +66,29 @@ describe('RedisStreamPublisher', () => {
       'ProcessInstanceStarted',
       'data',
       JSON.stringify(event),
+      'tenantId',
+      'acme',
     )
+  })
+
+  it('attach() tags each event with the tenant that published it', async () => {
+    const publisher = new RedisStreamPublisher('redis://localhost:6379')
+    const hub = new TenantEventHub()
+    publisher.attach(hub)
+
+    await hub.busFor('acme').publish({ type: 'ProcessInstanceStarted', instanceId: 'a-1', definitionId: 'd', definitionVersion: 1 })
+    await hub.busFor('globex').publish({ type: 'ProcessInstanceStarted', instanceId: 'g-1', definitionId: 'd', definitionVersion: 1 })
+    await new Promise(r => setTimeout(r, 10))
+
+    const tenants = mockState.xadd.mock.calls.map(call => call[call.indexOf('tenantId') + 1])
+    expect(tenants).toEqual(['acme', 'globex'])
   })
 
   it('attach() publishes multiple events to the stream', async () => {
     const publisher = new RedisStreamPublisher('redis://localhost:6379')
-    const eventBus = new InMemoryEventBus()
-    publisher.attach(eventBus)
+    const hub = new TenantEventHub()
+    const eventBus = hub.busFor('acme')
+    publisher.attach(hub)
 
     await eventBus.publish({ type: 'ProcessInstanceStarted', instanceId: 'inst-1', definitionId: 'def-1', definitionVersion: 1 })
     await eventBus.publish({ type: 'ProcessInstanceCompleted', instanceId: 'inst-1' } as unknown as ExecutionEvent)
@@ -84,8 +102,9 @@ describe('RedisStreamPublisher', () => {
     mockState.xadd.mockRejectedValueOnce(new Error('Redis connection lost'))
 
     const publisher = new RedisStreamPublisher('redis://localhost:6379')
-    const eventBus = new InMemoryEventBus()
-    publisher.attach(eventBus)
+    const hub = new TenantEventHub()
+    const eventBus = hub.busFor('acme')
+    publisher.attach(hub)
 
     await expect(
       eventBus.publish({

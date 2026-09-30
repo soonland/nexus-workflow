@@ -10,10 +10,10 @@ import type postgres from 'postgres'
  * Tables created:
  *   definitions, instances, tokens, variable_scopes, user_tasks,
  *   event_subscriptions, gateway_join_states, history_entries,
- *   scheduled_timers, compensation_records
+ *   scheduled_timers, compensation_records, execution_events, webhook_registrations
  *
  * Tables NOT created here (they live in public and are shared):
- *   execution_events, webhook_registrations, schema_migrations, tenants, api_keys
+ *   schema_migrations, tenants, api_keys
  */
 export async function createTenantSchema(sql: postgres.Sql, schemaName: string): Promise<void> {
   // schemaName is validated by the caller (provisionTenantSchema) before reaching here.
@@ -153,5 +153,28 @@ export async function createTenantSchema(sql: postgres.Sql, schemaName: string):
     );
 
     CREATE INDEX IF NOT EXISTS compensation_records_instance_id_idx ON "${schemaName}".compensation_records (instance_id);
+
+    -- ─── Execution Events (audit trail) ────────────────────────────────────────
+
+    CREATE TABLE IF NOT EXISTS "${schemaName}".execution_events (
+      id          TEXT        PRIMARY KEY,
+      instance_id TEXT,
+      type        TEXT        NOT NULL,
+      occurred_at TIMESTAMPTZ NOT NULL,
+      data        JSONB       NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS execution_events_instance_id_idx ON "${schemaName}".execution_events (instance_id) WHERE instance_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS execution_events_occurred_at_idx ON "${schemaName}".execution_events (occurred_at);
+
+    -- ─── Webhook Registrations ─────────────────────────────────────────────────
+
+    CREATE TABLE IF NOT EXISTS "${schemaName}".webhook_registrations (
+      id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      url         TEXT        NOT NULL,
+      events      JSONB       NOT NULL DEFAULT '[]',
+      secret      TEXT,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `)
 }
