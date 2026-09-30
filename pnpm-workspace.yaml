@@ -11,3 +11,6 @@ allowBuilds:
   esbuild: true
   prisma: true
   unrs-resolver: true
+
+# Ignore versions published less than 3 days ago (matches the CI freshness guard)
+minimumReleaseAge: 4320
