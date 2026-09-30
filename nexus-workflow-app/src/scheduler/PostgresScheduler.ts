@@ -59,7 +59,11 @@ export class PostgresScheduler implements Scheduler {
   async start(): Promise<void> {
     if (this.intervalHandle !== null) return
     await this.poll()
-    this.intervalHandle = setInterval(() => void this.poll(), this.pollIntervalMs)
+    this.intervalHandle = setInterval(() => {
+      // A failed poll (e.g. a dropped connection) must not become an unhandled rejection,
+      // which would take the whole process — and every other tenant — down with it.
+      this.poll().catch(err => console.error('[PostgresScheduler] poll failed:', err))
+    }, this.pollIntervalMs)
   }
 
   /** Stop the polling loop. In-flight poll completes before returning. */
