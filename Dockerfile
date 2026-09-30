@@ -1,5 +1,5 @@
 # Stage 1: Install deps and build core + app
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 RUN npm install -g pnpm@12.6.0
 WORKDIR /monorepo
 # Manifests first so the install layer is cached until dependencies change.
@@ -24,7 +24,7 @@ RUN pnpm --filter nexus-workflow-app build
 RUN pnpm --filter nexus-workflow-app deploy --prod /out
 
 # Stage 2: Minimal runtime image
-FROM node:22-alpine AS runtime
+FROM node:24-alpine AS runtime
 WORKDIR /app
 COPY --from=builder /out/node_modules ./node_modules
 COPY --from=builder /out/package.json ./
