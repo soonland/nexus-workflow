@@ -40,8 +40,6 @@ const MessagesPage = async ({ searchParams }: MessagesPageProps) => {
       const otherUserId = empUserId === userId ? mgrUserId : empUserId
 
       if (otherUserId && otherUserId !== userId) {
-        resolvedRecipientId = otherUserId
-
         // Find or create conversation linked to this timesheet
         const [existing] = await db.$queryRaw<[{ id: string }?]>`
           SELECT c.id FROM conversations c
@@ -82,7 +80,6 @@ const MessagesPage = async ({ searchParams }: MessagesPageProps) => {
 
       if (existing) {
         resolvedConversationId = existing.id
-        resolvedRecipientId = undefined
       } else {
         const conv = await db.conversation.create({
           data: {
@@ -90,7 +87,6 @@ const MessagesPage = async ({ searchParams }: MessagesPageProps) => {
           },
         })
         resolvedConversationId = conv.id
-        resolvedRecipientId = undefined
       }
     }
   }

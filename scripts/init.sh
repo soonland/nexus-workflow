@@ -42,17 +42,16 @@ else
   info "nexus-workflow-app/.env already exists"
 fi
 
-# ── 2. npm install ─────────────────────────────────────────────────────────────
+# ── 2. pnpm install ────────────────────────────────────────────────────────────
 section "Installing dependencies"
 
-for pkg in nexus-workflow-core nexus-workflow-app nexus-erp; do
-  info "npm install — $pkg"
-  npm install --prefix "$ROOT/$pkg" --silent
-done
+command -v pnpm >/dev/null || { error "pnpm not found — run: corepack enable"; exit 1; }
+info "pnpm install (workspace)"
+pnpm --dir "$ROOT" install
 
 # ── 3. Build nexus-workflow-core (nexus-workflow-app depends on its dist/) ─────
 section "Building nexus-workflow-core"
-npm run build --prefix "$ROOT/nexus-workflow-core"
+pnpm --dir "$ROOT" --filter nexus-workflow-core build
 
 # ── 4. nexus-workflow-app — create DB + migrate ───────────────────────────────
 section "nexus-workflow-app — database setup"
@@ -62,7 +61,7 @@ section "nexus-workflow-app — database setup"
   set -a; [ -f .env ] && source .env; set +a
 
   info "Running migrations (nexus-workflow-app)"
-  npx tsx src/db/reset-cli.ts
+  pnpm exec tsx src/db/reset-cli.ts
 )
 
 # ── 5. nexus-erp — migrate + seed ─────────────────────────────────────────────
@@ -72,9 +71,9 @@ section "nexus-erp — database migration & seed"
   cd "$ROOT/nexus-erp"
   set -a; [ -f .env.local ] && source .env.local; set +a
   info "Running prisma migrate dev (creates DB if missing)"
-  npx prisma migrate dev --name init
+  pnpm exec prisma migrate dev --name init
   info "Running prisma db seed"
-  npx prisma db seed
+  pnpm exec prisma db seed
 )
 
 # ── Done ───────────────────────────────────────────────────────────────────────
@@ -82,8 +81,8 @@ echo ""
 info "All done. Start the stack with:"
 echo ""
 echo "  # Terminal 1 — workflow API"
-echo "  npm run dev --prefix nexus-workflow-app"
+echo "  pnpm --filter nexus-workflow-app dev"
 echo ""
 echo "  # Terminal 2 — ERP app"
-echo "  npm run dev --prefix nexus-erp"
+echo "  pnpm --filter nexus-erp dev"
 echo ""

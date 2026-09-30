@@ -3,10 +3,11 @@
   "private": true,
   "scripts": {
     "init": "bash scripts/init.sh",
-    "lint": "npm run lint --prefix nexus-workflow-core && npm run lint --prefix nexus-workflow-app && npm run lint --prefix nexus-erp",
+    "lint": "pnpm -r --workspace-concurrency=1 lint",
     "test:scripts": "vitest run --config vitest.scripts.config.js"
   },
   "devDependencies": {
-    "vitest": "^5.0.0"
-  }
+    "vitest": "^5.0.2"
+  },
+  "packageManager": "pnpm@12.6.0"
 }

@@ -4,3 +4,4 @@
 **/.env
 **/.env.*
 nexus-erp
+!nexus-erp/package.json

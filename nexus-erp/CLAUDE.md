@@ -5,12 +5,12 @@ Next.js 16 ERP application. Uses nexus-workflow-app as a workflow backend.
 ## Commands
 
 ```bash
-npm run dev           # start dev server on port 3001
-npm run build         # production build
-npm run typecheck     # type-check without emitting
-npm run db:generate   # prisma generate (after schema change)
-npm run db:migrate    # prisma migrate dev (create and apply migration)
-npm run db:deploy     # prisma migrate deploy (apply in prod)
+pnpm dev           # start dev server on port 3001
+pnpm build         # production build
+pnpm typecheck     # type-check without emitting
+pnpm db:generate   # prisma generate (after schema change)
+pnpm db:migrate    # prisma migrate dev (create and apply migration)
+pnpm db:deploy     # prisma migrate deploy (apply in prod)
 ```
 
 ## Environment Variables

@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto'
-import type { Context, Next } from 'hono'
+import type { MiddlewareHandler } from 'hono'
 import type postgres from 'postgres'
 
 /**
@@ -25,8 +25,11 @@ function hashKey(raw: string, secret: string): string {
  *
  * The `/health` path is always bypassed so liveness probes work without credentials.
  */
-export function createAuthMiddleware(sql: postgres.Sql, hmacSecret: string) {
-  return async function authMiddleware(c: Context<{ Variables: AppVariables }>, next: Next) {
+export function createAuthMiddleware(
+  sql: postgres.Sql,
+  hmacSecret: string,
+): MiddlewareHandler<{ Variables: AppVariables }> {
+  return async function authMiddleware(c, next) {
     if (c.req.path === '/health') {
       return next()
     }

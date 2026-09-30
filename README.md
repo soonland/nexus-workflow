@@ -88,8 +88,8 @@ RESET_DB=true   # drop and recreate all tables on next startup (dev only)
 
 ```bash
 cd nexus-workflow-app
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Migrations run automatically on startup. The app will log `[RedisStreamPublisher] connected` if Redis is reachable.
@@ -120,15 +120,15 @@ REDIS_URL=redis://localhost:6379
 
 ```bash
 cd nexus-erp
-npm install
-npm run db:migrate    # apply migrations
-npm run db:seed       # wipe and insert seed data
+pnpm install
+pnpm db:migrate    # apply migrations
+pnpm db:seed       # wipe and insert seed data
 ```
 
 ### Run
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 On startup, the app deploys BPMN workflow definitions and starts the Redis stream consumer. You should see:
@@ -164,7 +164,7 @@ Services must start in this order:
 
 ```bash
 # Reset workflow DB (drops and recreates all tables)
-RESET_DB=true npm run dev --prefix nexus-workflow-app
+RESET_DB=true pnpm --filter nexus-workflow-app dev
 
 # Reset ERP DB (drops, migrates, seeds)
 cd nexus-erp && npx prisma migrate reset
