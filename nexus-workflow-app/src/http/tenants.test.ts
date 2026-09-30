@@ -115,6 +115,7 @@ describe('tenants HTTP API', () => {
     deleteTenant: ReturnType<typeof vi.fn>
     listTenants: ReturnType<typeof vi.fn>
     updateTenant: ReturnType<typeof vi.fn>
+    markTenantDeleting: ReturnType<typeof vi.fn>
     deleteTenantAndKeys: ReturnType<typeof vi.fn>
     createApiKey: ReturnType<typeof vi.fn>
     listApiKeys: ReturnType<typeof vi.fn>
@@ -134,6 +135,7 @@ describe('tenants HTTP API', () => {
       deleteTenant: vi.fn().mockResolvedValue(undefined),
       listTenants: vi.fn(),
       updateTenant: vi.fn(),
+      markTenantDeleting: vi.fn().mockResolvedValue(true),
       deleteTenantAndKeys: vi.fn().mockResolvedValue(true),
       createApiKey: vi.fn(),
       listApiKeys: vi.fn(),
@@ -787,9 +789,33 @@ describe('tenants HTTP API', () => {
 
     it('404 for an unknown tenant', async () => {
       mockStore.updateTenant.mockResolvedValue(null)
+      mockStore.getTenant.mockResolvedValue(null)
       const res = await patch(app, '/tenants/nope', { status: 'suspended' }, AUTH)
       expect(res.status).toBe(404)
       expect(onTenantDeactivating).not.toHaveBeenCalled()
+    })
+
+    it('409 for a tenant that is being deleted, so a delete cannot be undone halfway', async () => {
+      mockStore.updateTenant.mockResolvedValue(null)
+      mockStore.getTenant.mockResolvedValue(makeTenant({ status: 'deleting' }))
+
+      const res = await patch(app, '/tenants/tenant-1', { status: 'active' }, AUTH)
+
+      expect(res.status).toBe(409)
+      expect(onTenantDeactivating).not.toHaveBeenCalled()
+    })
+
+    it('still returns the suspended tenant when stopping its workers fails (the status is already saved)', async () => {
+      mockStore.updateTenant.mockResolvedValue(makeTenant({ status: 'suspended' }))
+      onTenantDeactivating.mockRejectedValueOnce(new Error('pool end() failed'))
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      const res = await patch(app, '/tenants/tenant-1', { status: 'suspended' }, AUTH)
+
+      expect(res.status).toBe(200)
+      expect((await res.json()).tenant.status).toBe('suspended')
+      expect(errorSpy).toHaveBeenCalled()
+      errorSpy.mockRestore()
     })
 
     it.each([
@@ -812,22 +838,21 @@ describe('tenants HTTP API', () => {
       expect((await del(app, '/tenants/tenant-1')).status).toBe(403)
     })
 
-    it('200: suspends, stops workers, drops the schema, then deletes the rows — in that order', async () => {
+    it('200: marks the tenant deleting, stops workers, drops the schema, then deletes the rows — in that order', async () => {
       mockStore.getTenant.mockResolvedValue(makeTenant())
-      mockStore.updateTenant.mockResolvedValue(makeTenant({ status: 'suspended' }))
 
       const res = await del(app, '/tenants/tenant-1', AUTH)
 
       expect(res.status).toBe(200)
       expect(await res.json()).toEqual({ success: true })
       const order = [
-        mockStore.updateTenant.mock.invocationCallOrder[0]!,
+        mockStore.markTenantDeleting.mock.invocationCallOrder[0]!,
         onTenantDeactivating.mock.invocationCallOrder[0]!,
         vi.mocked(dropTenantSchema).mock.invocationCallOrder[0]!,
         mockStore.deleteTenantAndKeys.mock.invocationCallOrder[0]!,
       ]
       expect(order).toEqual([...order].sort((a, b) => a - b))
-      expect(mockStore.updateTenant).toHaveBeenCalledWith('tenant-1', { status: 'suspended' })
+      expect(mockStore.markTenantDeleting).toHaveBeenCalledWith('tenant-1')
       expect(dropTenantSchema).toHaveBeenCalledWith('tenant-1', expect.anything())
     })
 
@@ -835,8 +860,18 @@ describe('tenants HTTP API', () => {
       const res = await del(app, '/tenants/default', AUTH)
 
       expect(res.status).toBe(409)
-      expect(mockStore.updateTenant).not.toHaveBeenCalled()
+      expect(mockStore.markTenantDeleting).not.toHaveBeenCalled()
       expect(dropTenantSchema).not.toHaveBeenCalled()
+    })
+
+    it('can be retried: deleting a tenant that is already "deleting" runs the delete again', async () => {
+      mockStore.getTenant.mockResolvedValue(makeTenant({ status: 'deleting' }))
+
+      const res = await del(app, '/tenants/tenant-1', AUTH)
+
+      expect(res.status).toBe(200)
+      expect(dropTenantSchema).toHaveBeenCalled()
+      expect(mockStore.deleteTenantAndKeys).toHaveBeenCalled()
     })
 
     it('404 for an unknown tenant', async () => {
@@ -846,9 +881,8 @@ describe('tenants HTTP API', () => {
       expect(dropTenantSchema).not.toHaveBeenCalled()
     })
 
-    it('500 and leaves the tenant suspended, with its rows intact, when the schema cannot be dropped', async () => {
+    it('500 and leaves the tenant in "deleting", with its rows intact, when the schema cannot be dropped', async () => {
       mockStore.getTenant.mockResolvedValue(makeTenant())
-      mockStore.updateTenant.mockResolvedValue(makeTenant({ status: 'suspended' }))
       vi.mocked(dropTenantSchema).mockRejectedValueOnce(new Error('lock timeout'))
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 

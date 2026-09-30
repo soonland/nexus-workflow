@@ -167,10 +167,23 @@ export function createTenantsRouter(
     }
 
     const tenant = await store.updateTenant(id, changes)
-    if (!tenant) return c.json({ error: 'NOT_FOUND', message: `Tenant '${id}' not found` }, 404)
+    if (!tenant) {
+      // updateTenant also returns null for a tenant that is being deleted
+      if (await store.getTenant(id)) {
+        return c.json({ error: 'CONFLICT', message: `Tenant '${id}' is being deleted and cannot be changed` }, 409)
+      }
+      return c.json({ error: 'NOT_FOUND', message: `Tenant '${id}' not found` }, 404)
+    }
 
-    // The status is already stored, so new requests are rejected; now stop the background work.
-    if (changes.status === 'suspended') await options.onTenantDeactivating?.(id)
+    // The status is already stored (new requests are rejected), so a failure to stop the
+    // background work is not a failed request: the periodic worker sync will stop them too.
+    if (changes.status === 'suspended') {
+      try {
+        await options.onTenantDeactivating?.(id)
+      } catch (err) {
+        console.error(`[tenants] tenant '${id}' is suspended, but stopping its workers failed:`, err)
+      }
+    }
 
     return c.json({ tenant })
   })
@@ -188,16 +201,18 @@ export function createTenantsRouter(
     }
 
     try {
-      // Suspend first: new requests are rejected while the workers are stopped and the data
-      // is dropped. If a later step fails the tenant is simply left suspended.
-      await store.updateTenant(id, { status: 'suspended' })
+      // "deleting" is stored first: the tenant's keys are rejected and it can no longer be
+      // reactivated or renamed while the workers are stopped and the data is dropped. If a step
+      // fails the tenant stays "deleting" and DELETE can simply be retried (every step is
+      // safe to repeat, including a schema that is already gone).
+      await store.markTenantDeleting(id)
       await options.onTenantDeactivating?.(id)
       await dropTenantSchema(id, sql)
       await store.deleteTenantAndKeys(id)
     } catch (err) {
       console.error(`[tenants] failed to delete tenant '${id}':`, err)
       return c.json(
-        { error: 'DELETE_FAILED', message: `Failed to delete tenant '${id}'; it has been left suspended` },
+        { error: 'DELETE_FAILED', message: `Failed to delete tenant '${id}'; it is marked "deleting" — retry the DELETE` },
         500,
       )
     }

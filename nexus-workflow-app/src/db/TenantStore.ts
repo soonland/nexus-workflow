@@ -6,7 +6,7 @@ import type postgres from 'postgres'
 export interface Tenant {
   id: string
   name: string
-  status: 'active' | 'suspended'
+  status: 'active' | 'suspended' | 'deleting'
   createdAt: Date
 }
 
@@ -72,16 +72,29 @@ export class TenantStore {
     `
   }
 
-  /** Updates the given fields (name and/or status). Returns the tenant, or null if it does not exist. */
-  async updateTenant(id: string, changes: { name?: string; status?: Tenant['status'] }): Promise<Tenant | null> {
+  /**
+   * Updates the given fields (name and/or status). Returns the tenant, or null if it does not
+   * exist **or is being deleted** — a tenant in "deleting" can no longer be changed, so a
+   * reactivation cannot race with a delete. Use getTenant to tell the two cases apart.
+   */
+  async updateTenant(id: string, changes: { name?: string; status?: 'active' | 'suspended' }): Promise<Tenant | null> {
     const rows = await this.sql<Tenant[]>`
       UPDATE public.tenants
       SET name = COALESCE(${changes.name ?? null}, name),
           status = COALESCE(${changes.status ?? null}, status)
-      WHERE id = ${id}
+      WHERE id = ${id} AND status <> 'deleting'
       RETURNING id, name, status, created_at AS "createdAt"
     `
     return rows[0] ?? null
+  }
+
+  /**
+   * Marks the tenant as "deleting" (rejects its keys, blocks reactivation). Idempotent, so a
+   * failed delete can be retried. Returns false if the tenant does not exist.
+   */
+  async markTenantDeleting(id: string): Promise<boolean> {
+    const rows = await this.sql`UPDATE public.tenants SET status = 'deleting' WHERE id = ${id} RETURNING id`
+    return rows.length > 0
   }
 
   /**

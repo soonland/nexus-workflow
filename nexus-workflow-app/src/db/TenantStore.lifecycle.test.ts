@@ -66,6 +66,28 @@ describe('TenantStore lifecycle (Postgres)', () => {
     })
   })
 
+  describe('markTenantDeleting', () => {
+    it('marks the tenant as deleting, and updateTenant can then no longer change it', async () => {
+      const id = `${prefix}_deleting`
+      await store.createTenant(id, 'Being deleted')
+
+      expect(await store.markTenantDeleting(id)).toBe(true)
+      expect((await store.getTenant(id))?.status).toBe('deleting')
+
+      // A reactivation (or rename) racing with a delete must not win
+      expect(await store.updateTenant(id, { status: 'active' })).toBeNull()
+      expect(await store.updateTenant(id, { name: 'Renamed' })).toBeNull()
+      expect(await store.getTenant(id)).toMatchObject({ status: 'deleting', name: 'Being deleted' })
+
+      // Marking again (a retried delete) is fine
+      expect(await store.markTenantDeleting(id)).toBe(true)
+    })
+
+    it('returns false for an unknown tenant', async () => {
+      expect(await store.markTenantDeleting(`${prefix}_missing`)).toBe(false)
+    })
+  })
+
   describe('deleteTenantAndKeys', () => {
     it('removes the tenant together with all of its keys (revoked or not)', async () => {
       const id = `${prefix}_gone`
