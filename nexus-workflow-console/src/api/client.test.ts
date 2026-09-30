@@ -112,4 +112,38 @@ describe('createAdminApi', () => {
     await a.listTenants()
     expect((fetchMock.mock.calls[1]![1].headers as Record<string, string>)['Authorization']).toBe('Bearer second')
   })
+  describe('onUnauthorized', () => {
+    const withCallback = () => {
+      const onUnauthorized = vi.fn()
+      const a = createAdminApi(() => 'stale', fetchMock as unknown as typeof fetch, { onUnauthorized })
+      return { a, onUnauthorized }
+    }
+
+    it.each([401, 403])('is called when the API answers %i, and the error is still thrown', async (status) => {
+      fetchMock.mockImplementation(async () => jsonResponse({ error: 'X', message: 'nope' }, status))
+      const { a, onUnauthorized } = withCallback()
+
+      await expect(a.listTenants()).rejects.toMatchObject({ status })
+
+      expect(onUnauthorized).toHaveBeenCalledOnce()
+    })
+
+    it.each([404, 409, 500])('is not called for a %i', async (status) => {
+      fetchMock.mockImplementation(async () => jsonResponse({ error: 'X', message: 'nope' }, status))
+      const { a, onUnauthorized } = withCallback()
+
+      await expect(a.listTenants()).rejects.toBeInstanceOf(ApiError)
+
+      expect(onUnauthorized).not.toHaveBeenCalled()
+    })
+
+    it('is not called when the API cannot be reached', async () => {
+      fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
+      const { a, onUnauthorized } = withCallback()
+
+      await expect(a.listTenants()).rejects.toMatchObject({ status: 0 })
+
+      expect(onUnauthorized).not.toHaveBeenCalled()
+    })
+  })
 })

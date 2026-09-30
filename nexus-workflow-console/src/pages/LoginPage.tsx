@@ -3,7 +3,7 @@ import { Alert, Box, Button, Paper, TextField, Typography } from '@mui/material'
 import { useAuth } from '../auth/AuthContext'
 
 export function LoginPage() {
-  const { signIn } = useAuth()
+  const { signIn, signedOutReason } = useAuth()
   const [key, setKey] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -30,6 +30,11 @@ export function LoginPage() {
           Sign in with the platform admin key (<code>ADMIN_API_KEY</code> of nexus-workflow-app). It is kept in this
           browser tab only.
         </Typography>
+        {signedOutReason && !error && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            {signedOutReason}
+          </Alert>
+        )}
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}

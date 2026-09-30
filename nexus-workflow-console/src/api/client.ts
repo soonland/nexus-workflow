@@ -22,12 +22,26 @@ export interface AdminApi {
   revokeKey(tenantId: string, keyId: string): Promise<void>
 }
 
+export interface AdminApiOptions {
+  /**
+   * Called when the API answers 401 or 403 to an authenticated request, i.e. the credential the
+   * console holds is not accepted (it expired, was revoked or was rotated). The error is still thrown.
+   * While the console signs in with the admin key, both statuses mean exactly that; once accounts
+   * have roles, a 403 will only mean "not allowed" and must stop triggering this.
+   */
+  onUnauthorized?: () => void
+}
+
 /**
  * Client for the operator endpoints of nexus-workflow-app (`/tenants`). Requests use relative
  * URLs: in production the console is served by the API itself, in development Vite proxies them.
  * `getKey` is read on every call so signing in or out takes effect immediately.
  */
-export function createAdminApi(getKey: () => string | null, fetchImpl: typeof fetch = fetch): AdminApi {
+export function createAdminApi(
+  getKey: () => string | null,
+  fetchImpl: typeof fetch = fetch,
+  options: AdminApiOptions = {},
+): AdminApi {
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const headers: Record<string, string> = {}
     const key = getKey()
@@ -45,7 +59,10 @@ export function createAdminApi(getKey: () => string | null, fetchImpl: typeof fe
       throw new ApiError(0, 'Could not reach the workflow API. Is nexus-workflow-app running?')
     }
 
-    if (!response.ok) throw await toApiError(response)
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) options.onUnauthorized?.()
+      throw await toApiError(response)
+    }
     return (await response.json()) as T
   }
 

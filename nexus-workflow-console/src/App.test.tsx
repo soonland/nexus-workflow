@@ -70,4 +70,35 @@ describe('App sign-in', () => {
     await waitFor(() => expect(screen.getByLabelText(/admin key/i)).toBeInTheDocument())
     expect(sessionStorage.getItem('nexus-console-admin-key')).toBeNull()
   })
+  it('signs out with an explanation when the key stops being accepted after sign-in', async () => {
+    const user = userEvent.setup()
+    let accepted = true
+    const fetchImpl = vi.fn(async () =>
+      accepted
+        ? jsonResponse({ tenants: [{ id: 'acme', name: 'Acme Corp', status: 'active', createdAt: '2026-01-01T00:00:00.000Z', activeKeyCount: 0 }] })
+        : jsonResponse({ error: 'FORBIDDEN' }, 403),
+    )
+    render(<App fetchImpl={fetchImpl as unknown as typeof fetch} />)
+    await user.type(screen.getByLabelText(/admin key/i), 'right-key')
+    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    await screen.findByText('Acme Corp')
+
+    accepted = false // e.g. the server's ADMIN_API_KEY was rotated
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+
+    expect(await screen.findByText(/no longer accepted/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/admin key/i)).toBeInTheDocument()
+    expect(sessionStorage.getItem('nexus-console-admin-key')).toBeNull()
+  })
+
+  it('does not show the "no longer accepted" message for a plain wrong key at sign-in', async () => {
+    const user = userEvent.setup()
+    render(<App fetchImpl={makeFetch() as unknown as typeof fetch} />)
+
+    await user.type(screen.getByLabelText(/admin key/i), 'wrong-key')
+    await user.click(screen.getByRole('button', { name: /sign in/i }))
+
+    expect(await screen.findByText(/admin key was rejected/i)).toBeInTheDocument()
+    expect(screen.queryByText(/no longer accepted/i)).not.toBeInTheDocument()
+  })
 })

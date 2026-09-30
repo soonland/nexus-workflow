@@ -21,9 +21,13 @@ function writeStoredKey(key: string | null): void {
   }
 }
 
+const STALE_KEY_MESSAGE = 'Your admin key is no longer accepted by the server. Please sign in again.'
+
 interface AuthValue {
   api: AdminApi
   isSignedIn: boolean
+  /** Why the session ended on its own (e.g. the key was rotated), for the sign-in page to show. */
+  signedOutReason: string | null
   /** Verifies the key against the API and, if it is accepted, keeps it for this session. */
   signIn(key: string): Promise<void>
   signOut(): void
@@ -33,10 +37,27 @@ const AuthContext = createContext<AuthValue | null>(null)
 
 export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fetchImpl?: typeof fetch }) {
   const [key, setKey] = useState<string | null>(readStoredKey)
+  const [signedOutReason, setSignedOutReason] = useState<string | null>(null)
   // The API client reads the key through a ref so it always sees the current one.
   const keyRef = useRef(key)
 
-  const api = useMemo(() => createAdminApi(() => keyRef.current, fetchImpl), [fetchImpl])
+  const endSession = useCallback((reason: string | null) => {
+    keyRef.current = null
+    writeStoredKey(null)
+    setKey(null)
+    setSignedOutReason(reason)
+  }, [])
+
+  const api = useMemo(
+    () =>
+      createAdminApi(() => keyRef.current, fetchImpl, {
+        // The server stopped accepting the key we hold: drop it instead of staying "signed in"
+        onUnauthorized: () => {
+          if (keyRef.current !== null) endSession(STALE_KEY_MESSAGE)
+        },
+      }),
+    [fetchImpl, endSession],
+  )
 
   const signIn = useCallback(
     async (candidate: string) => {
@@ -44,18 +65,18 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
       await createAdminApi(() => candidate, fetchImpl).listTenants()
       keyRef.current = candidate
       writeStoredKey(candidate)
+      setSignedOutReason(null)
       setKey(candidate)
     },
     [fetchImpl],
   )
 
-  const signOut = useCallback(() => {
-    keyRef.current = null
-    writeStoredKey(null)
-    setKey(null)
-  }, [])
+  const signOut = useCallback(() => endSession(null), [endSession])
 
-  const value = useMemo(() => ({ api, isSignedIn: key !== null, signIn, signOut }), [api, key, signIn, signOut])
+  const value = useMemo(
+    () => ({ api, isSignedIn: key !== null, signedOutReason, signIn, signOut }),
+    [api, key, signedOutReason, signIn, signOut],
+  )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

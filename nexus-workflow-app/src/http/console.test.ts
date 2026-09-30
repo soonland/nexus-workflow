@@ -82,4 +82,45 @@ describe('mountConsole', () => {
     expect(await res.text()).not.toContain('top secret')
     rmSync(join(dir, '..', 'secret-outside.txt'), { force: true })
   })
+  describe('security headers', () => {
+    const paths = ['/console/', '/console/assets/app.js', '/console/tenants/acme']
+
+    it.each(paths)('sends hardening headers on %s', async (path) => {
+      const app = new Hono()
+      mountConsole(app, dir)
+
+      const res = await get(app, path)
+
+      expect(res.headers.get('x-frame-options')).toBe('DENY')
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff')
+      expect(res.headers.get('referrer-policy')).toBe('no-referrer')
+    })
+
+    it('restricts where the console may load code from, connect to and be framed by', async () => {
+      const app = new Hono()
+      mountConsole(app, dir)
+
+      const csp = (await get(app, '/console/')).headers.get('content-security-policy') ?? ''
+
+      expect(csp).toContain("default-src 'self'")
+      expect(csp).toContain("script-src 'self'")
+      expect(csp).toContain("connect-src 'self'")
+      expect(csp).toContain("frame-ancestors 'none'")
+      expect(csp).toContain("object-src 'none'")
+      expect(csp).toContain("base-uri 'none'")
+      // No inline or eval'd scripts, and no wildcard sources
+      expect(csp).not.toMatch(/script-src[^;]*'unsafe-(inline|eval)'/)
+      expect(csp).not.toMatch(/(^|[ ;])\*/)
+    })
+
+    it('does not add these headers to the API', async () => {
+      const app = new Hono()
+      app.get('/health', (c) => c.json({ status: 'ok' }))
+      mountConsole(app, dir)
+
+      const res = await get(app, '/health')
+
+      expect(res.headers.get('content-security-policy')).toBeNull()
+    })
+  })
 })
