@@ -151,7 +151,9 @@ const DepartmentForm = ({
           <Stack spacing={3} divider={<Divider />}>
             {/* Name section */}
             <Box>
-              <Typography variant="overline" color="text.secondary">Details</Typography>
+              <Typography variant="overline" sx={{
+                color: 'text.secondary'
+              }}>Details</Typography>
               <Box sx={{ mt: 1.5 }}>
                 <TextField
                   label="Department Name"
@@ -166,7 +168,9 @@ const DepartmentForm = ({
 
             {/* Members section */}
             <Box>
-              <Typography variant="overline" color="text.secondary">Members</Typography>
+              <Typography variant="overline" sx={{
+                color: 'text.secondary'
+              }}>Members</Typography>
               <Box sx={{ mt: 1.5 }}>
                 <Autocomplete
                   multiple
@@ -175,12 +179,12 @@ const DepartmentForm = ({
                   onChange={(_, newValue) => setMembers(newValue)}
                   getOptionLabel={getOptionLabel}
                   isOptionEqualToValue={(option, value) => option.id === value.id}
-                  renderTags={(value, getTagProps) =>
+                  renderValue={(value, getItemProps) =>
                     value.map((option, index) => (
                       <Chip
                         label={option.fullName}
                         size="small"
-                        {...getTagProps({ index })}
+                        {...getItemProps({ index })}
                         key={option.id}
                       />
                     ))
@@ -216,7 +220,9 @@ const DepartmentForm = ({
                   >
                     {savingPerms ? 'Saving…' : 'Save Permissions'}
                   </Button>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" sx={{
+                    color: 'text.secondary'
+                  }}>
                     Permissions granted to all members of this department
                   </Typography>
                 </Box>
@@ -225,7 +231,9 @@ const DepartmentForm = ({
 
             {/* Actions */}
             <Box>
-              <Stack direction="row" spacing={1.5} justifyContent="flex-end">
+              <Stack direction="row" spacing={1.5} sx={{
+                justifyContent: 'flex-end'
+              }}>
                 <Button component={NextLink} href="/departments" variant="text">
                   Cancel
                 </Button>

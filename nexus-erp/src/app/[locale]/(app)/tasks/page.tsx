@@ -65,9 +65,16 @@ const TasksPage = async () => {
 
       <Card>
         {tasks.length === 0 ? (
-          <Stack alignItems="center" spacing={2} sx={{ py: 8 }}>
+          <Stack
+            spacing={2}
+            sx={{
+              alignItems: 'center',
+              py: 8
+            }}>
             <InboxRoundedIcon sx={{ fontSize: 56, color: 'text.disabled' }} />
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" sx={{
+              color: 'text.secondary'
+            }}>
               {t('noPendingTasks')}
             </Typography>
           </Stack>
@@ -88,7 +95,9 @@ const TasksPage = async () => {
                   sx={{ '&:hover': { backgroundColor: 'action.hover' } }}
                 >
                   <TableCell>
-                    <Typography variant="body2" fontWeight={500}>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>
                       {task.name}
                     </Typography>
                   </TableCell>
@@ -96,7 +105,9 @@ const TasksPage = async () => {
                     <Chip label={task.status} size="small" color="warning" />
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>
                       {new Date(task.createdAt).toLocaleDateString()}
                     </Typography>
                   </TableCell>

@@ -38,7 +38,12 @@ const ProfileUpdateCard = async ({ request }: { request: Request }) => {
     <Card sx={{ borderLeft: '3px solid', borderColor: 'primary.main' }}>
       <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
         <Typography variant="h5" sx={{ mb: 0.5 }}>{t('title')}</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: 'text.secondary',
+            mb: 2.5
+          }}>
           {emp.fullName} &middot; {emp.user.email}
         </Typography>
 
@@ -57,7 +62,13 @@ const ProfileUpdateCard = async ({ request }: { request: Request }) => {
                 ...(i > 0 && { borderLeft: '1px solid', borderColor }),
               }}
             >
-              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'text.secondary',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
+                }}>
                 {h}
               </Typography>
             </Grid>
@@ -67,7 +78,9 @@ const ProfileUpdateCard = async ({ request }: { request: Request }) => {
           {rows.map((r) => (
             <React.Fragment key={r.label}>
               <Grid size={4} sx={cellSx}>
-                <Typography variant="body2" color="text.secondary">{r.label}</Typography>
+                <Typography variant="body2" sx={{
+                  color: 'text.secondary'
+                }}>{r.label}</Typography>
               </Grid>
               <Grid size={4} sx={{ ...cellSx, borderLeft: '1px solid', borderColor }}>
                 <Typography variant="body2" color={r.current ? 'text.primary' : 'text.disabled'}>
@@ -75,7 +88,12 @@ const ProfileUpdateCard = async ({ request }: { request: Request }) => {
                 </Typography>
               </Grid>
               <Grid size={4} sx={{ ...cellSx, borderLeft: '1px solid', borderColor, bgcolor: 'success.50' }}>
-                <Typography variant="body2" fontWeight={500} color="success.dark">
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontWeight: 500,
+                    color: 'success.dark'
+                  }}>
                   {r.proposed}
                 </Typography>
               </Grid>

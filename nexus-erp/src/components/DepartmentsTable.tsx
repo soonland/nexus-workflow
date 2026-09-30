@@ -81,7 +81,9 @@ const DepartmentsTable = ({ departments }: DepartmentsTableProps) => {
       <Card>
         {departments.length === 0 ? (
           <Box sx={{ py: 8, textAlign: 'center' }}>
-            <Typography color="text.secondary">No departments yet. Create one to get started.</Typography>
+            <Typography sx={{
+              color: 'text.secondary'
+            }}>No departments yet. Create one to get started.</Typography>
           </Box>
         ) : (
           <Table>
@@ -97,15 +99,21 @@ const DepartmentsTable = ({ departments }: DepartmentsTableProps) => {
               {departments.map((dept) => (
                 <TableRow key={dept.id} sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={500}>{dept.name}</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>{dept.name}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>
                       {dept._count.employees}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>
                       {new Date(dept.createdAt).toLocaleDateString('en-GB', {
                         day: 'numeric', month: 'short', year: 'numeric',
                       })}

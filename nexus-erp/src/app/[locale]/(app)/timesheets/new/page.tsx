@@ -81,7 +81,9 @@ const NewTimesheetForm = () => {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 8, justifyContent: 'center' }}>
         <CircularProgress size={24} />
-        <Typography color="text.secondary">{t('creating')}</Typography>
+        <Typography sx={{
+          color: 'text.secondary'
+        }}>{t('creating')}</Typography>
       </Box>
     )
   }

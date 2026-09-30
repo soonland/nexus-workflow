@@ -385,9 +385,9 @@ const EmployeeEditForm = ({
             onChange={(_, newValue) => setSelectedGroups(newValue)}
             getOptionLabel={(o) => o.groupName}
             isOptionEqualToValue={(o, v) => o.groupId === v.groupId}
-            renderTags={(value, getTagProps) =>
+            renderValue={(value, getItemProps) =>
               value.map((option, index) => {
-                const { key, ...tagProps } = getTagProps({ index })
+                const { key, ...tagProps } = getItemProps({ index })
                 return (
                   <Chip key={key} label={option.groupName} size="small" {...tagProps} />
                 )
@@ -419,7 +419,9 @@ const EmployeeEditForm = ({
           <Button variant="outlined" size="small" onClick={handleSaveGroups} disabled={savingGroups}>
             {savingGroups ? t('save.saving') : t('save.groups')}
           </Button>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: 'text.secondary'
+          }}>
             {t('hints.groupsMembership')}
           </Typography>
         </Box>
@@ -434,7 +436,9 @@ const EmployeeEditForm = ({
           </Box>
 
           {allPermissions.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: 'text.secondary'
+            }}>
               {t('noPermissions')}
             </Typography>
           ) : (
@@ -462,7 +466,9 @@ const EmployeeEditForm = ({
           <Button variant="contained" onClick={handleSavePermissions} disabled={savingPerms}>
             {savingPerms ? t('save.saving') : t('save.permissions')}
           </Button>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: 'text.secondary'
+          }}>
             {t('hints.permissionsGrants')}
           </Typography>
         </Box>

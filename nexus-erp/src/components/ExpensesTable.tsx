@@ -60,7 +60,9 @@ const ExpensesTable = ({ expenses, showEmployee }: ExpensesTableProps) => {
     <Card>
       {expenses.length === 0 ? (
         <Box sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: 'text.secondary'
+          }}>
             {t('noExpenses')}
           </Typography>
         </Box>
@@ -89,13 +91,17 @@ const ExpensesTable = ({ expenses, showEmployee }: ExpensesTableProps) => {
                 >
                   {showEmployee && (
                     <TableCell>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2" sx={{
+                        fontWeight: 500
+                      }}>
                         {exp.employee.fullName}
                       </Typography>
                     </TableCell>
                   )}
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>
                       {format.dateTime(new Date(exp.createdAt), { day: 'numeric', month: 'short', year: 'numeric' })}
                     </Typography>
                   </TableCell>

@@ -598,7 +598,12 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
         >
           <ArrowBackRoundedIcon />
         </IconButton>
-        <Typography variant="h3" color="text.primary" sx={{ flex: 1 }}>
+        <Typography
+          variant="h3"
+          sx={{
+            color: 'text.primary',
+            flex: 1
+          }}>
           {weekRangeLabel}
         </Typography>
         <Chip
@@ -647,7 +652,14 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                     pl: 2,
                   }}
                 >
-                  <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontWeight: 600,
+                      color: 'text.secondary',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em'
+                    }}>
                     {t('detail.projectDescription')}
                   </Typography>
                 </TableCell>
@@ -670,20 +682,24 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                     >
                       <Typography
                         variant="caption"
-                        display="block"
-                        fontWeight={today ? 700 : 600}
                         color={today ? 'primary.main' : weekend ? 'text.disabled' : 'text.secondary'}
-                        sx={{ textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1.3 }}
-                      >
+                        sx={{
+                          display: 'block',
+                          fontWeight: today ? 700 : 600,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          lineHeight: 1.3
+                        }}>
                         {formatDayAbbrev(day)}
                       </Typography>
                       <Typography
                         variant="caption"
-                        display="block"
-                        fontWeight={today ? 600 : 400}
                         color={today ? 'primary.main' : weekend ? 'text.disabled' : 'text.secondary'}
-                        sx={{ lineHeight: 1.3 }}
-                      >
+                        sx={{
+                          display: 'block',
+                          fontWeight: today ? 600 : 400,
+                          lineHeight: 1.3
+                        }}>
                         {formatDayNum(day)}
                       </Typography>
                     </TableCell>
@@ -695,7 +711,14 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                   align="center"
                   sx={{ py: 1.25, bgcolor: 'action.hover' }}
                 >
-                  <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontWeight: 600,
+                      color: 'text.secondary',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em'
+                    }}>
                     {t('detail.total')}
                   </Typography>
                 </TableCell>
@@ -885,7 +908,14 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
                     pl: 2,
                   }}
                 >
-                  <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontWeight: 700,
+                      color: 'text.secondary',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em'
+                    }}>
                     {t('detail.dailyTotal')}
                   </Typography>
                 </TableCell>
@@ -935,19 +965,27 @@ const TimesheetDetailPage = ({ params }: Readonly<{ params: Promise<{ id: string
       {/* ── Footer bar: week total summary + submit ── */}
       <Stack
         direction="row"
-        alignItems="center"
-        justifyContent="space-between"
-        flexWrap="wrap"
-        gap={2}
-        sx={{ mt: 2 }}
-      >
-        <Typography variant="body2" color="text.secondary">
+        sx={{
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 2,
+          mt: 2
+        }}>
+        <Typography variant="body2" sx={{
+          color: 'text.secondary'
+        }}>
           {weekTotal > 0
             ? t('detail.hoursLogged', { hours: formatHours(weekTotal) })
             : t('detail.noHours')}
         </Typography>
 
-        <Stack direction="row" alignItems="center" gap={1}>
+        <Stack
+          direction="row"
+          sx={{
+            alignItems: 'center',
+            gap: 1
+          }}>
           <Button
             variant="outlined"
             size="small"

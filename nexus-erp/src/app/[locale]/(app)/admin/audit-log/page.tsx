@@ -16,7 +16,12 @@ const AuditLogPage = async () => {
     <Box>
       <Box sx={{ mb: 3 }}>
         <Typography variant="h2">{t('title')}</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: 'text.secondary',
+            mt: 0.5
+          }}>
           {t('description')}
         </Typography>
       </Box>

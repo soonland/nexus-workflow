@@ -66,7 +66,9 @@ const GroupsTable = ({ groups }: GroupsTableProps) => {
       <Card>
         {groups.length === 0 ? (
           <Box sx={{ py: 8, textAlign: 'center' }}>
-            <Typography color="text.secondary">No groups yet. Create one to get started.</Typography>
+            <Typography sx={{
+              color: 'text.secondary'
+            }}>No groups yet. Create one to get started.</Typography>
           </Box>
         ) : (
           <Table>
@@ -84,14 +86,18 @@ const GroupsTable = ({ groups }: GroupsTableProps) => {
                 <TableRow key={group.id} sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" fontWeight={500}>{group.name}</Typography>
+                      <Typography variant="body2" sx={{
+                        fontWeight: 500
+                      }}>{group.name}</Typography>
                       {group.type === 'default' && (
                         <Chip label="Default" size="small" color="primary" variant="outlined" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 600 }} />
                       )}
                     </Box>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: 'text.secondary'
+                    }}>
                       {group.description || '—'}
                     </Typography>
                   </TableCell>
@@ -100,7 +106,12 @@ const GroupsTable = ({ groups }: GroupsTableProps) => {
                   </TableCell>
                   <TableCell>
                     {group.type === 'default'
-                      ? <Typography variant="body2" color="text.disabled" sx={{ fontStyle: 'italic' }}>All users</Typography>
+                      ? <Typography
+                      variant="body2"
+                      sx={{
+                        color: 'text.disabled',
+                        fontStyle: 'italic'
+                      }}>All users</Typography>
                       : <Chip label={group._count.members} size="small" variant="outlined" />}
                   </TableCell>
                   <TableCell align="right">
