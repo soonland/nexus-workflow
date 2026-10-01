@@ -108,8 +108,13 @@ function parsePnpmLockFile(content) {
   //   /lodash/4.17.21:
   const lines = content.split('\n');
   for (const line of lines) {
-    // v6+ snapshot: "  name@version:" at top level under snapshots
-    const snapshotMatch = line.match(/^  (@?[^@\s]+)@([\d][^\s:]*):$/);
+    // v6+ snapshot: "  name@version:" at top level under snapshots. Two details of real
+    // lockfiles matter here:
+    //  - scoped names are written as quoted keys:      '@scope/name@1.2.3':
+    //  - the key ends with the peer-dependency context: name@1.2.3(peer@4.5.6(...)):
+    //    That suffix is not part of the version (the registry has no such version), and the same
+    //    version resolved in a different peer context must not look like a bump.
+    const snapshotMatch = line.match(/^  '?(@?[^@\s']+)@(\d[^\s:'(]*)(?:\([^\s]*\))?'?:$/);
     if (snapshotMatch) {
       result[snapshotMatch[1]] = { version: snapshotMatch[2], dev: false };
       continue;

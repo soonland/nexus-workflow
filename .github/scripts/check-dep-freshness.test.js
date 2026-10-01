@@ -345,6 +345,78 @@ snapshots:
 });
 
 // ---------------------------------------------------------------------------
+// parsePnpmLockFile — real-world pnpm (lockfile v9) snapshot keys
+// ---------------------------------------------------------------------------
+
+describe('parsePnpmLockFile (pnpm v9 snapshot keys)', () => {
+  it('should strip the peer-dependency suffix from the version', () => {
+    const content = `snapshots:
+  eslint-plugin-import-x@4.17.1(@typescript-eslint/utils@8.70.1(eslint@10.11.0(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint@10.11.0(jiti@2.7.0)):
+    dependencies:
+      debug: 4.4.3
+`;
+    expect(parsePnpmLockFile(content)).toEqual({
+      'eslint-plugin-import-x': { version: '4.17.1', dev: false },
+    });
+  });
+
+  it('should parse scoped packages, which pnpm writes as quoted keys', () => {
+    const content = `snapshots:
+  '@pnpm/exe.android-arm64@12.6.0':
+    optional: true
+  '@babel/core@7.29.7(supports-color@7.2.0)':
+    dependencies:
+      '@babel/code-frame': 7.29.0
+`;
+    const result = parsePnpmLockFile(content);
+    expect(result['@pnpm/exe.android-arm64']).toEqual({ version: '12.6.0', dev: false });
+    expect(result['@babel/core']).toEqual({ version: '7.29.7', dev: false });
+  });
+
+  it('should keep pre-release versions intact', () => {
+    const content = `snapshots:
+  next-auth@5.0.0-beta.32(next@16.3.6(react@19.3.0))(react@19.3.0):
+    dependencies:
+      jose: 6.1.0
+`;
+    expect(parsePnpmLockFile(content)['next-auth']?.version).toBe('5.0.0-beta.32');
+  });
+
+  it('should give the same version whichever peer context a package was resolved in', () => {
+    const a = parsePnpmLockFile(`snapshots:\n  react-dom@19.3.0(react@19.3.0):\n    dependencies:\n      scheduler: 0.28.0\n`);
+    const b = parsePnpmLockFile(`snapshots:\n  react-dom@19.3.0(react@19.3.0(other@1.0.0)):\n    dependencies:\n      scheduler: 0.28.0\n`);
+    expect(a['react-dom']?.version).toBe('19.3.0');
+    expect(b['react-dom']?.version).toBe('19.3.0');
+  });
+
+  it('should not report a bump when only the peer suffix changed', () => {
+    const base = parsePnpmLockFile(`snapshots:\n  eslint-plugin-import@2.32.0(eslint@9.39.5):\n    dependencies:\n      x: 1\n`);
+    const head = parsePnpmLockFile(`snapshots:\n  eslint-plugin-import@2.32.0(eslint@10.11.0):\n    dependencies:\n      x: 1\n`);
+    expect(detectBumps(base, head)).toEqual([]);
+  });
+
+  it('should report a real version bump of a scoped package', () => {
+    const base = parsePnpmLockFile(`snapshots:\n  '@mui/material@7.3.11(react@19.3.0)':\n    dependencies:\n      x: 1\n`);
+    const head = parsePnpmLockFile(`snapshots:\n  '@mui/material@9.4.0(react@19.3.0)':\n    dependencies:\n      x: 1\n`);
+    expect(detectBumps(base, head)).toEqual([{ name: '@mui/material', oldVersion: '7.3.11', newVersion: '9.4.0' }]);
+  });
+
+  it('should never hand the registry lookup a version containing parentheses', () => {
+    const content = `snapshots:
+  vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0):
+    dependencies:
+      x: 1
+  '@types/react-dom@19.3.0(@types/react@19.3.0)':
+    dependencies:
+      x: 1
+`;
+    for (const { version } of Object.values(parsePnpmLockFile(content))) {
+      expect(version).not.toMatch(/[()']/);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // parseLockFile
 // ---------------------------------------------------------------------------
 
