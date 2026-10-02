@@ -100,6 +100,7 @@ export class TenantStore {
   /**
    * Deletes the tenant row and every key it ever had (api_keys references tenants).
    * Returns false if the tenant does not exist. The tenant's schema is not touched here.
+   * The tenant's user memberships are removed with it (ON DELETE CASCADE); the users stay.
    */
   async deleteTenantAndKeys(id: string): Promise<boolean> {
     return this.sql.begin(async (txRaw) => {
