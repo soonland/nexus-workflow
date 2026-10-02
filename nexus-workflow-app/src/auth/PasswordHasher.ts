@@ -87,16 +87,19 @@ export class PasswordHasher {
   /**
    * Check a password against a stored hash. Never throws for bad input: a wrong password, a
    * password outside the policy, a malformed hash and a missing hash (`null`: unknown account, or
-   * one that has no password yet) all return false. The missing/malformed case still performs a
-   * full scrypt run, so the response time does not reveal whether an account exists.
+   * one that has no password yet) all return false. Each of those still performs a full scrypt run
+   * (with the current parameters), so the response time does not reveal whether an account exists.
    */
   async verify(password: string, stored: string | null): Promise<boolean> {
     const parsed = stored === null ? null : parse(stored)
-    if (!parsed) {
+    // Every path that cannot succeed still pays for one scrypt run. Returning early for a password
+    // outside the policy would answer instantly for an existing account while an unknown one takes
+    // the full time, and that difference tells an attacker which emails are registered. The input
+    // is capped first, so an oversized password cannot make this any more expensive.
+    if (!parsed || !this.withinPolicy(password)) {
       await derive(password.normalize('NFKC').slice(0, MAX_PASSWORD_LENGTH), DUMMY_SALT, this.params, KEY_LENGTH)
       return false
     }
-    if (!this.withinPolicy(password)) return false
 
     const key = await derive(password.normalize('NFKC'), parsed.salt, parsed, parsed.hash.length)
     return key.length === parsed.hash.length && timingSafeEqual(key, parsed.hash)

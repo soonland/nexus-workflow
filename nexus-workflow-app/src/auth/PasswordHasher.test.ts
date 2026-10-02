@@ -119,6 +119,43 @@ describe('PasswordHasher', () => {
     })
   })
 
+  describe('timing of passwords outside the policy', () => {
+    const timeIt = async (fn: () => Promise<unknown>) => {
+      const start = performance.now()
+      await fn()
+      return performance.now() - start
+    }
+    const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]!
+
+    // If a too-short or too-long password returned early for an existing account, an attacker could
+    // send one and tell real emails (fast reply) from unknown ones (full scrypt run).
+    it.each([
+      ['too short', 'short'],
+      ['too long', 'x'.repeat(5000)],
+      ['empty', ''],
+    ])('a %s password costs as much as a wrong one for an existing account', async (_label, bad) => {
+      const hasher = new PasswordHasher({ N: 16384, r: 8, p: 1 })
+      const hash = await hasher.hash(GOOD)
+      await hasher.verify(GOOD, hash) // warm up
+
+      const wrong: number[] = []
+      const outOfPolicy: number[] = []
+      for (let i = 0; i < 5; i++) {
+        wrong.push(await timeIt(() => hasher.verify('wrong password here', hash)))
+        outOfPolicy.push(await timeIt(() => hasher.verify(bad, hash)))
+      }
+
+      expect(median(outOfPolicy)).toBeGreaterThan(median(wrong) * 0.4)
+      expect(median(outOfPolicy)).toBeLessThan(median(wrong) * 2.5)
+    })
+
+    it('still returns false for them', async () => {
+      const hash = await fast.hash(GOOD)
+      expect(await fast.verify('short', hash)).toBe(false)
+      expect(await fast.verify('x'.repeat(5000), hash)).toBe(false)
+    })
+  })
+
   describe('needsRehash', () => {
     it('is false for a hash made with the current parameters', async () => {
       expect(fast.needsRehash(await fast.hash(GOOD))).toBe(false)
