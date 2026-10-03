@@ -1,8 +1,9 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { normalizeEmail } from '../auth/email.js'
-import type { LoginThrottle } from '../auth/LoginThrottle.js'
-import type { PasswordHasher } from '../auth/PasswordHasher.js'
+import type { BeginResult, LoginThrottle } from '../auth/LoginThrottle.js'
+import { PasswordPolicyError, type PasswordHasher } from '../auth/PasswordHasher.js'
 import { clearSessionCookie, clientIp, readSessionToken, setSessionCookie } from '../auth/sessionCookie.js'
+import type { InviteStore } from '../db/InviteStore.js'
 import type { SessionStore } from '../db/SessionStore.js'
 import type { UserStore } from '../db/UserStore.js'
 import { csrfGuard } from './middleware/csrf.js'
@@ -10,6 +11,7 @@ import { csrfGuard } from './middleware/csrf.js'
 export interface AuthRouterDeps {
   users: UserStore
   sessions: SessionStore
+  invites: InviteStore
   hasher: PasswordHasher
   /**
    * Failures for one account from one client address. This is the strict lock: whoever is
@@ -33,10 +35,14 @@ export interface AuthRouterDeps {
 }
 
 const INVALID_CREDENTIALS = { error: 'INVALID_CREDENTIALS', message: 'Invalid email or password' } as const
+const INVALID_INVITE = { error: 'INVALID_INVITE', message: 'This invitation link is invalid or has expired' } as const
 
-/** Sign-in for people: `POST /login`, `POST /logout` and `GET /me`, with a session cookie. */
+/**
+ * Sign-in for people: `POST /login`, `POST /logout` and `GET /me`, with a session cookie, plus the
+ * two public endpoints of an invite link: `POST /invite-info` and `POST /accept-invite`.
+ */
 export function createAuthRouter(deps: AuthRouterDeps): Hono {
-  const { users, sessions, hasher, accountIpThrottle, accountThrottle, ipThrottle, trustedProxies } = deps
+  const { users, sessions, invites, hasher, accountIpThrottle, accountThrottle, ipThrottle, trustedProxies } = deps
   const trustProxy = trustedProxies > 0
   const app = new Hono()
 
@@ -116,14 +122,117 @@ export function createAuthRouter(deps: AuthRouterDeps): Hono {
     accountIpThrottle.recordSuccess(`${accountKey}|${ip}`)
 
     // A new session for every sign-in; the one the browser arrived with (if any) is retired
-    const previous = readSessionToken(c)
-    if (previous) await sessions.destroy(previous)
-    const { token } = await sessions.create(credentials.id, { userAgent: c.req.header('user-agent') ?? null, ip })
-    await users.recordLogin(credentials.id)
-    setSessionCookie(c, token, deps.sessionMaxAgeSeconds, trustProxy)
+    await startSession(c, credentials.id, ip)
 
     const user = await users.findById(credentials.id)
     return c.json({ user, memberships: await users.listMemberships(credentials.id) })
+  })
+
+  /** Start a session for a user who has just proved who they are (signed in, or accepted an invite). */
+  async function startSession(c: Context, userId: string, ip: string) {
+    const previous = readSessionToken(c)
+    if (previous) await sessions.destroy(previous)
+    const { token } = await sessions.create(userId, { userAgent: c.req.header('user-agent') ?? null, ip })
+    await users.recordLogin(userId)
+    setSessionCookie(c, token, deps.sessionMaxAgeSeconds, trustProxy)
+  }
+
+  /**
+   * Invite links are guessed at by address like passwords are, so failures are throttled per client
+   * address (in their own bucket: they do not count against signing in). Without a known address
+   * there is nothing to key on, so no per-address limit applies.
+   */
+  function beginInviteAttempt(c: Context): { blocked: Response } | { attempt: Extract<BeginResult, { allowed: true }> | null; ip: string } {
+    const ip = clientIp(c, trustedProxies)
+    if (ip === 'unknown') return { attempt: null, ip }
+    const attempt = ipThrottle.begin(`invite:${ip}`)
+    if (!attempt.allowed) {
+      c.header('Retry-After', String(attempt.retryAfterSeconds))
+      return { blocked: c.json({ error: 'TOO_MANY_ATTEMPTS', message: 'Too many attempts. Try again later.' }, 429) }
+    }
+    return { attempt, ip }
+  }
+
+  async function readTokenBody(c: Context): Promise<Record<string, unknown> | Response> {
+    let body: unknown
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'VALIDATION_ERROR', message: 'Invalid JSON body' }, 400)
+    }
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+      return c.json({ error: 'VALIDATION_ERROR', message: 'Body must be a JSON object' }, 400)
+    }
+    return body as Record<string, unknown>
+  }
+
+  // Who an invite is for, so the page can greet them before they choose a password
+  app.post('/invite-info', async (c) => {
+    const body = await readTokenBody(c)
+    if (body instanceof Response) return body
+    if (typeof body['token'] !== 'string') {
+      return c.json({ error: 'VALIDATION_ERROR', message: '"token" must be a string' }, 400)
+    }
+
+    const started = beginInviteAttempt(c)
+    if ('blocked' in started) return started.blocked
+    try {
+      const info = await invites.inspect(body['token'])
+      if (!info) {
+        started.attempt?.fail()
+        return c.json(INVALID_INVITE, 404)
+      }
+      started.attempt?.release()
+      return c.json(info)
+    } catch (err) {
+      started.attempt?.release()
+      throw err
+    }
+  })
+
+  // The invited person chooses their own password; the link works once and signs them in
+  app.post('/accept-invite', async (c) => {
+    const body = await readTokenBody(c)
+    if (body instanceof Response) return body
+    const { token, password } = body
+    if (typeof token !== 'string' || typeof password !== 'string') {
+      return c.json({ error: 'VALIDATION_ERROR', message: '"token" and "password" must be strings' }, 400)
+    }
+
+    const started = beginInviteAttempt(c)
+    if ('blocked' in started) return started.blocked
+    const { attempt, ip } = started
+    try {
+      // Cheap check first, so made-up links never cost a password hash
+      if (!(await invites.inspect(token))) {
+        attempt?.fail()
+        return c.json(INVALID_INVITE, 400)
+      }
+
+      let passwordHash: string
+      try {
+        passwordHash = await hasher.hash(password)
+      } catch (err) {
+        if (err instanceof PasswordPolicyError) {
+          attempt?.release() // a weak password is not a guess at the link
+          return c.json({ error: 'WEAK_PASSWORD', message: err.message }, 400)
+        }
+        throw err
+      }
+
+      const user = await invites.accept(token, passwordHash)
+      if (!user) {
+        attempt?.fail() // used or expired between the check and now
+        return c.json(INVALID_INVITE, 400)
+      }
+
+      attempt?.release()
+      await startSession(c, user.id, ip)
+      return c.json({ user, memberships: await users.listMemberships(user.id) })
+    } catch (err) {
+      attempt?.release()
+      throw err
+    }
   })
 
   app.post('/logout', async (c) => {

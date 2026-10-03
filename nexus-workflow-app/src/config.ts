@@ -32,6 +32,8 @@ export const config = {
   sessionIdleMs: Number(process.env['SESSION_IDLE_MINUTES'] ?? 480) * 60_000,
   /** A session ends this long after sign-in however busy it was. Default: 7 days. */
   sessionMaxMs: Number(process.env['SESSION_MAX_DAYS'] ?? 7) * 86_400_000,
+  /** How long an invitation link stays valid. Default: 7 days. */
+  inviteTtlMs: Number(process.env['INVITE_TTL_HOURS'] ?? 168) * 3_600_000,
   /**
    * The origin the console is served from (for example https://workflow.example.com), used to
    * check the Origin header of sign-in requests. Set it behind a proxy that rewrites the host.
@@ -62,8 +64,8 @@ export function assertConfigValid(cfg: typeof config) {
   }
 
   const positive = (n: number) => Number.isFinite(n) && n > 0
-  if (!positive(cfg.sessionIdleMs) || !positive(cfg.sessionMaxMs)) {
-    console.error('[config] SESSION_IDLE_MINUTES and SESSION_MAX_DAYS must be positive numbers. Exiting.')
+  if (!positive(cfg.sessionIdleMs) || !positive(cfg.sessionMaxMs) || !positive(cfg.inviteTtlMs)) {
+    console.error('[config] SESSION_IDLE_MINUTES, SESSION_MAX_DAYS and INVITE_TTL_HOURS must be positive numbers. Exiting.')
     process.exit(1)
   }
 

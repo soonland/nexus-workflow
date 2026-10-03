@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from 'hono'
 import { isAdminKeyHeader } from '../../auth/adminKey.js'
-import { isOperator, type Principal } from '../../auth/principal.js'
+import { isOperator, managedTenantIds, type Principal } from '../../auth/principal.js'
 import { readSessionToken } from '../../auth/sessionCookie.js'
 import type { SessionStore } from '../../db/SessionStore.js'
 import type { UserStore } from '../../db/UserStore.js'
@@ -17,16 +17,20 @@ export interface OperatorGuardDeps {
 }
 
 /**
- * Lets only platform operators through: the admin key, or a signed-in user with the `operator`
- * role. Anyone else is refused, with the status telling a client what to do:
+ * Builds a guard that admits the callers `allow` accepts. Anyone else is refused, with the status
+ * telling a client what to do:
  *  - 401: no credential, or a session that is not valid (sign in)
- *  - 403: a credential that is not an operator's (a tenant manager, a tenant API key, a wrong key)
+ *  - 403: a credential that is not allowed (a tenant API key, a wrong key, the wrong role)
  *
- * Explicit `Authorization` credentials win over a cookie. A session is cookie-based, so state-changing
- * requests made with one also have to pass the CSRF check; a Bearer credential is not sent by a
- * browser on its own and needs none.
+ * Explicit `Authorization` credentials win over a cookie; the only one accepted here is the admin
+ * key. A session is cookie-based, so state-changing requests made with one also have to pass the
+ * CSRF check; a Bearer credential is not sent by a browser on its own and needs none.
  */
-export function createOperatorGuard(deps: OperatorGuardDeps): MiddlewareHandler<{ Variables: AppVariables }> {
+function createGuard(
+  deps: OperatorGuardDeps,
+  allow: (principal: Principal) => boolean,
+  forbidden: { bearer: string; session: string },
+): MiddlewareHandler<{ Variables: AppVariables }> {
   return async (c, next) => {
     const authHeader = c.req.header('Authorization')
     if (authHeader) {
@@ -34,13 +38,13 @@ export function createOperatorGuard(deps: OperatorGuardDeps): MiddlewareHandler<
         c.set('principal', { kind: 'adminKey' })
         return next()
       }
-      return c.json({ error: 'FORBIDDEN', message: 'Operator credentials required' }, 403)
+      return c.json({ error: 'FORBIDDEN', message: forbidden.bearer }, 403)
     }
 
     const token = readSessionToken(c)
     const resolved = token ? await deps.sessions.resolve(token) : null
     if (!resolved) {
-      return c.json({ error: 'UNAUTHENTICATED', message: 'Sign in as an operator, or send the admin key' }, 401, {
+      return c.json({ error: 'UNAUTHENTICATED', message: 'Sign in, or send the admin key' }, 401, {
         'WWW-Authenticate': 'Bearer realm="nexus-workflow"',
       })
     }
@@ -51,9 +55,28 @@ export function createOperatorGuard(deps: OperatorGuardDeps): MiddlewareHandler<
       user: resolved.user,
       memberships: await deps.users.listMemberships(resolved.user.id),
     }
-    if (!isOperator(principal)) return c.json({ error: 'FORBIDDEN', message: 'Operator role required' }, 403)
+    if (!allow(principal)) return c.json({ error: 'FORBIDDEN', message: forbidden.session }, 403)
 
     c.set('principal', principal)
     return next()
   }
+}
+
+/** Platform operators only: the admin key, or a signed-in user with the `operator` role. */
+export function createOperatorGuard(deps: OperatorGuardDeps): MiddlewareHandler<{ Variables: AppVariables }> {
+  return createGuard(deps, isOperator, {
+    bearer: 'Operator credentials required',
+    session: 'Operator role required',
+  })
+}
+
+/**
+ * Whoever may administer people: operators, and tenant managers (who are then limited to their
+ * own tenants by UserAdmin). The admin key counts as an operator.
+ */
+export function createPeopleAdminGuard(deps: OperatorGuardDeps): MiddlewareHandler<{ Variables: AppVariables }> {
+  return createGuard(deps, (principal) => isOperator(principal) || managedTenantIds(principal).length > 0, {
+    bearer: 'Operator credentials required',
+    session: 'Operator or tenant manager role required',
+  })
 }

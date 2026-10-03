@@ -169,6 +169,35 @@ People sign in with an email and password and get a session cookie. (API keys ar
 - **Behind a proxy:** set `TRUST_PROXY` to the number of proxies of yours in front of the server (`true` means 1; `2` for a CDN plus a load balancer). Then `X-Forwarded-For` / `X-Forwarded-Proto` are believed and the client address is the entry that many places from the end of `X-Forwarded-For`. Leave it unset when nothing sits in front: the header is client-controlled.
 - Failed sign-ins always answer `401 INVALID_CREDENTIALS` with the same body and about the same time, whether or not the account exists.
 
+### Creating people and inviting them
+
+There is no email server, so a person is invited with a **one-time link** that you hand them. They open it, choose their own password and are signed in.
+
+**The first operator** (nobody can invite them) is created from the command line, against the database, with the same `DATABASE_URL` and `API_KEY_HMAC_SECRET` the server uses:
+
+```bash
+pnpm --filter nexus-workflow-app operator:create you@example.com --name "Your Name"
+# prints: http://localhost:3000/console/invite/<token>
+```
+
+It is safe to run again: an existing account is kept and re-enabled, gains the operator role once, and gets a new link. That makes it the way back in if every operator is ever locked out.
+
+After that, people are managed through the API (the console screen comes next):
+
+| Request | Effect |
+|---|---|
+| `GET /users` | The people you may see: everyone for an operator; for a tenant manager, only people who belong *wholly* to tenants they manage |
+| `POST /users` `{email, name, memberships?}` | Create a person with roles and get their invite link (`invite.url`) back. Shown only once |
+| `GET /users/:id` | One person with their roles |
+| `PATCH /users/:id` `{status}` | Disable (`"disabled"`) or re-enable (`"active"`); disabling ends their sessions |
+| `POST /users/:id/memberships` `{role, tenantId}` · `DELETE /users/:id/memberships/:membershipId` | Give or take away a role |
+| `POST /users/:id/invite` | A new link, which replaces the previous one. For someone who already has a password this is the **password reset** |
+| `POST /auth/invite-info` `{token}` · `POST /auth/accept-invite` `{token, password}` | Public. What the invite link calls |
+
+- **Who may do what:** operators administer anyone; a tenant manager can invite and manage people in their own tenants only, can never grant `operator` or a tenant they do not manage, and cannot see or touch anyone who also belongs elsewhere (those people are simply "not found").
+- **Guard rails:** nobody can disable themselves or take away their own operator role or last role (another administrator does that), and the platform always keeps at least one active operator.
+- **Links:** valid for `INVITE_TTL_HOURS` (default 168 = 7 days), usable once, stored only as a hash, and replaced when a new one is issued. Accepting one sets the password and ends the person's other sessions. Guessing links is throttled per client address.
+
 ### Who can do what
 
 Every request is made by one of these, and what it may do follows from that:

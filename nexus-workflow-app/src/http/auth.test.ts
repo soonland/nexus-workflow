@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import postgres from 'postgres'
 import { PasswordHasher } from '../auth/PasswordHasher.js'
 import { LoginThrottle } from '../auth/LoginThrottle.js'
+import { InviteStore } from '../db/InviteStore.js'
 import { runMigrations } from '../db/migrate.js'
 import { SessionStore } from '../db/SessionStore.js'
 import { UserStore, type User } from '../db/UserStore.js'
@@ -18,6 +19,7 @@ describe('auth HTTP API (Postgres)', () => {
   let sql: postgres.Sql
   let users: UserStore
   let sessions: SessionStore
+  let invites: InviteStore
   let hasher: PasswordHasher
   let now: number
   let app: Hono
@@ -28,6 +30,7 @@ describe('auth HTTP API (Postgres)', () => {
     sql = postgres(DATABASE_URL)
     users = new UserStore(sql)
     sessions = new SessionStore(sql, { hmacSecret: 'auth-test-secret', idleMs: 30 * MINUTE, maxMs: 24 * 60 * MINUTE })
+    invites = new InviteStore(sql, { hmacSecret: 'auth-test-secret', ttlMs: 24 * 60 * MINUTE })
     hasher = new PasswordHasher({ N: 1024, r: 8, p: 1 })
     ada = await users.createUser({ email: email('ada'), name: 'Ada', passwordHash: await hasher.hash(PASSWORD) })
     await users.addMembership(ada.id, 'operator', null)
@@ -46,6 +49,7 @@ describe('auth HTTP API (Postgres)', () => {
       createAuthRouter({
         users,
         sessions,
+        invites,
         hasher,
         accountIpThrottle: new LoginThrottle({ maxFailures: 3, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE, now: () => now }),
         accountThrottle: new LoginThrottle({ maxFailures: 8, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE, now: () => now }),
@@ -62,7 +66,7 @@ describe('auth HTTP API (Postgres)', () => {
     proxied.route(
       '/auth',
       createAuthRouter({
-        users, sessions, hasher,
+        users, sessions, invites, hasher,
         accountIpThrottle: new LoginThrottle({ maxFailures: 3, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE, now: () => now }),
         accountThrottle: new LoginThrottle({ maxFailures: 8, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE, now: () => now }),
         ipThrottle: new LoginThrottle({ maxFailures: ipLimit, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE, now: () => now }),
@@ -70,9 +74,9 @@ describe('auth HTTP API (Postgres)', () => {
         trustedProxies: proxies,
       }),
     )
-    return (ip: string, body: unknown) =>
+    return (ip: string, body: unknown, path = '/auth/login') =>
       proxied.fetch(
-        new Request(url('/auth/login'), {
+        new Request(url(path), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Nexus-Console': '1', Origin: 'http://localhost', 'X-Forwarded-For': ip },
           body: JSON.stringify(body),
@@ -156,7 +160,7 @@ describe('auth HTTP API (Postgres)', () => {
       proxied.route(
         '/auth',
         createAuthRouter({
-          users, sessions, hasher,
+          users, sessions, invites, hasher,
           accountIpThrottle: new LoginThrottle({ maxFailures: 3, windowMs: MINUTE, lockMs: MINUTE }),
           accountThrottle: new LoginThrottle({ maxFailures: 8, windowMs: MINUTE, lockMs: MINUTE }),
           ipThrottle: new LoginThrottle({ maxFailures: 10, windowMs: MINUTE, lockMs: MINUTE }),
@@ -352,7 +356,7 @@ describe('auth HTTP API (Postgres)', () => {
         '/auth',
         createAuthRouter({
           users: { findCredentialsByEmail: async () => { throw new Error('database down') } } as unknown as UserStore,
-          sessions, hasher,
+          sessions, invites, hasher,
           accountIpThrottle: new LoginThrottle({ maxFailures: 2, windowMs: MINUTE, lockMs: MINUTE }),
           accountThrottle: new LoginThrottle({ maxFailures: 2, windowMs: MINUTE, lockMs: MINUTE }),
           ipThrottle: new LoginThrottle({ maxFailures: 2, windowMs: MINUTE, lockMs: MINUTE }),
@@ -370,6 +374,118 @@ describe('auth HTTP API (Postgres)', () => {
       for (let i = 0; i < 5; i++) statuses.push((await attempt()).status)
 
       expect(statuses).toEqual([500, 500, 500, 500, 500]) // never 429: errors are not guesses
+    })
+  })
+
+  // ─── invites ───────────────────────────────────────────────────────────────
+
+  describe('accepting an invite', () => {
+    const NEW_PASSWORD = 'a fresh passphrase for me'
+
+    async function invited(name: string): Promise<{ user: User; token: string }> {
+      const user = await users.createUser({ email: email(name), name })
+      const { token } = await invites.create(user.id, ada.id)
+      return { user, token }
+    }
+
+    const accept = (body: unknown, headers: Record<string, string> = SAME_SITE) => send('/auth/accept-invite', { method: 'POST', body, headers })
+    const info = (body: unknown, headers: Record<string, string> = SAME_SITE) => send('/auth/invite-info', { method: 'POST', body, headers })
+
+    it('tells the person who the invite is for before they choose a password', async () => {
+      const { token } = await invited('info')
+
+      const res = await info({ token })
+
+      expect(res.status).toBe(200)
+      expect(await res.json()).toMatchObject({ email: email('info'), name: 'info' })
+    })
+
+    it('sets the password, signs the person in and uses the invite up', async () => {
+      const { user, token } = await invited('accepts')
+
+      const res = await accept({ token, password: NEW_PASSWORD })
+
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.user).toMatchObject({ id: user.id, hasPassword: true })
+      expect(JSON.stringify(body)).not.toMatch(/scrypt|passwordHash/i)
+      const { header, value } = cookieOf(res)
+      expect(header).toMatch(/HttpOnly/i)
+      expect((await send('/auth/me', { headers: withCookie(value) })).status).toBe(200)
+
+      // the new password works, and the same link does not work twice
+      expect((await login({ email: email('accepts'), password: NEW_PASSWORD })).status).toBe(200)
+      const again = await accept({ token, password: 'another passphrase entirely' })
+      expect(again.status).toBe(400)
+      expect(await again.json()).toMatchObject({ error: 'INVALID_INVITE' })
+    })
+
+    it('gives the same answer for an unknown, a malformed, an expired and a used link', async () => {
+      const expired = await invited('expired')
+      await sql`UPDATE public.invites SET expires_at = now() - interval '1 second' WHERE user_id = ${expired.user.id}`
+      const used = await invited('used')
+      await accept({ token: used.token, password: NEW_PASSWORD })
+
+      const answers = await Promise.all(
+        ['x'.repeat(43), 'short', expired.token, used.token].map((token) => accept({ token, password: NEW_PASSWORD })),
+      )
+
+      for (const res of answers) expect(res.status).toBe(400)
+      const bodies = await Promise.all(answers.map((r) => r.json()))
+      expect(new Set(bodies.map((b) => JSON.stringify(b))).size).toBe(1)
+      expect(bodies[0]).toMatchObject({ error: 'INVALID_INVITE' })
+      expect((await info({ token: 'x'.repeat(43) })).status).toBe(404)
+    })
+
+    it('refuses a weak password and keeps the invite usable', async () => {
+      const { token } = await invited('weak')
+
+      const weak = await accept({ token, password: 'short' })
+
+      expect(weak.status).toBe(400)
+      expect(await weak.json()).toMatchObject({ error: 'WEAK_PASSWORD' })
+      expect((await accept({ token, password: NEW_PASSWORD })).status).toBe(200)
+    })
+
+    it('refuses the invite of a disabled person', async () => {
+      const { user, token } = await invited('disabledinv')
+      await users.setStatus(user.id, 'disabled')
+      expect((await accept({ token, password: NEW_PASSWORD })).status).toBe(400)
+    })
+
+    it('replaces the session the browser arrived with (no fixation)', async () => {
+      const first = await signIn()
+      const { token } = await invited('replaces')
+
+      const res = await accept({ token, password: NEW_PASSWORD }, { ...SAME_SITE, ...withCookie(first) })
+
+      expect(await sessions.resolve(first)).toBeNull()
+      expect(await sessions.resolve(cookieOf(res).value)).not.toBeNull()
+    })
+
+    it('rejects a body without a token and password', async () => {
+      expect((await accept({})).status).toBe(400)
+      expect((await accept({ token: 5, password: NEW_PASSWORD })).status).toBe(400)
+      expect((await info({})).status).toBe(400)
+    })
+
+    it('needs the CSRF header like every other state-changing call', async () => {
+      const { token } = await invited('csrf')
+      expect((await accept({ token, password: NEW_PASSWORD }, { Origin: 'http://localhost' })).status).toBe(403)
+      expect((await info({ token }, { Origin: 'http://localhost' })).status).toBe(403)
+      expect((await accept({ token, password: NEW_PASSWORD })).status).toBe(200) // still unused
+    })
+
+    it('stops an address that keeps trying made-up links, without affecting signing in from it', async () => {
+      const from = appBehindProxy(1, 5)
+      const made_up = { token: 'x'.repeat(43), password: NEW_PASSWORD }
+
+      const statuses: number[] = []
+      for (let i = 0; i < 8; i++) statuses.push((await from('198.51.100.66', made_up, '/auth/accept-invite')).status)
+
+      expect(statuses).toEqual([400, 400, 400, 400, 400, 429, 429, 429])
+      expect((await from('203.0.113.5', made_up, '/auth/accept-invite')).status).toBe(400) // another address
+      expect((await from('198.51.100.66', { email: email('ada'), password: PASSWORD })).status).toBe(200) // signing in is separate
     })
   })
 
