@@ -103,3 +103,29 @@ export interface Paged<T> {
   page: number
   pageSize: number
 }
+
+export type TaskStatus = 'open' | 'claimed' | 'completed' | 'cancelled'
+export const TASK_STATUSES: TaskStatus[] = ['open', 'claimed', 'completed', 'cancelled']
+
+export interface UserTask {
+  id: string
+  instanceId: string
+  name: string
+  description?: string
+  assignee?: string
+  candidateGroups?: string[]
+  dueDate?: string
+  priority: number
+  status: TaskStatus
+  createdAt: string
+  claimedAt?: string
+  completedAt?: string
+}
+
+export interface Webhook {
+  id: string
+  url: string
+  /** Empty means every event. */
+  events: string[]
+  createdAt: string
+}

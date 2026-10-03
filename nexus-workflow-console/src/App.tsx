@@ -8,10 +8,12 @@ import { InvitePage, readInviteToken } from './pages/InvitePage'
 import { LoginPage } from './pages/LoginPage'
 import { DefinitionsPage } from './pages/DefinitionsPage'
 import { InstancesPage } from './pages/InstancesPage'
+import { TasksPage } from './pages/TasksPage'
+import { WebhooksPage } from './pages/WebhooksPage'
 import { TenantsPage } from './pages/TenantsPage'
 import { UsersPage } from './pages/UsersPage'
 
-type Screen = 'definitions' | 'instances' | 'tenants' | 'users'
+type Screen = 'definitions' | 'instances' | 'tasks' | 'webhooks' | 'tenants' | 'users'
 
 function Shell() {
   const { api, session, loading, signOut } = useAuth()
@@ -35,7 +37,7 @@ function Shell() {
   }
   if (!session) return <LoginPage />
 
-  const screens: Screen[] = [...(tenant.tenantId ? (['definitions', 'instances'] as const) : []), ...(isOperator(session) ? (['tenants'] as const) : []), ...(canManageUsers(session) ? (['users'] as const) : [])]
+  const screens: Screen[] = [...(tenant.tenantId ? (['definitions', 'instances', 'tasks', 'webhooks'] as const) : []), ...(isOperator(session) ? (['tenants'] as const) : []), ...(canManageUsers(session) ? (['users'] as const) : [])]
   const screen = chosen && screens.includes(chosen) ? chosen : screens[0]
 
   return (
@@ -49,6 +51,8 @@ function Shell() {
             <Tabs value={screen} onChange={(_event, value: Screen) => setChosen(value)} sx={{ flexGrow: 1 }}>
               {screens.includes('definitions') && <Tab value="definitions" label="Definitions" />}
               {screens.includes('instances') && <Tab value="instances" label="Instances" />}
+              {screens.includes('tasks') && <Tab value="tasks" label="Tasks" />}
+              {screens.includes('webhooks') && <Tab value="webhooks" label="Webhooks" />}
               {screens.includes('tenants') && <Tab value="tenants" label="Tenants" />}
               {screens.includes('users') && <Tab value="users" label="Users" />}
             </Tabs>
@@ -85,6 +89,10 @@ function Shell() {
       <Container maxWidth="lg" sx={{ py: 4 }}>
         {screen === 'definitions' && tenant.api && tenant.tenantId && <DefinitionsPage key={tenant.tenantId} api={tenant.api} tenantId={tenant.tenantId} />}
         {screen === 'instances' && tenant.api && tenant.tenantId && <InstancesPage key={tenant.tenantId} api={tenant.api} tenantId={tenant.tenantId} />}
+        {screen === 'tasks' && tenant.api && tenant.tenantId && (
+          <TasksPage key={tenant.tenantId} api={tenant.api} tenantId={tenant.tenantId} actor={session.kind === 'user' ? session.user.email : describeSession(session)} />
+        )}
+        {screen === 'webhooks' && tenant.api && tenant.tenantId && <WebhooksPage key={tenant.tenantId} api={tenant.api} tenantId={tenant.tenantId} />}
         {screen === 'tenants' && <TenantsPage api={api} />}
         {screen === 'users' && <UsersPage api={api} session={session} />}
         {screen === undefined && (

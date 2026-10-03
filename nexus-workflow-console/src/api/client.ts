@@ -4,6 +4,9 @@ import type {
   InstanceStatus,
   InstanceSummary,
   Paged,
+  TaskStatus,
+  UserTask,
+  Webhook,
   CreatedKey,
   Invite,
   InviteInfo,
@@ -168,6 +171,7 @@ export function makeRequest(
       if (response.status === 401 && authenticated) options.onUnauthorized?.()
       throw await toApiError(response)
     }
+    if (response.status === 204) return undefined as T // e.g. deleting a webhook: nothing to parse
     return (await response.json()) as T
   }
 }
@@ -191,6 +195,16 @@ export interface TenantApi {
   cancelInstance(id: string): Promise<void>
   /** Starts a new instance from a terminated one; returns the new instance's id. */
   restartInstance(id: string): Promise<string>
+
+  listTasks(query: { status?: TaskStatus; page: number; pageSize: number }): Promise<Paged<UserTask>>
+  claimTask(id: string, claimedBy: string): Promise<void>
+  releaseTask(id: string): Promise<void>
+  completeTask(id: string, completedBy: string, outputVariables?: Record<string, unknown>): Promise<void>
+
+  listWebhooks(): Promise<Webhook[]>
+  /** `secret` signs the deliveries; the server never returns it again. */
+  createWebhook(input: { url: string; events?: string[]; secret?: string }): Promise<void>
+  deleteWebhook(id: string): Promise<void>
 }
 
 /**
@@ -206,6 +220,7 @@ export function createTenantApi(
 ): TenantApi {
   const request = makeRequest(getKey, fetchImpl, options, { 'X-Tenant': tenantId })
   const instancePath = (id: string) => `/instances/${encodeURIComponent(id)}`
+  const taskPath = (id: string) => `/tasks/${encodeURIComponent(id)}`
   return {
     listDefinitions() {
       return request<DefinitionSummary[]>('GET', '/definitions')
@@ -226,6 +241,29 @@ export function createTenantApi(
     },
     async cancelInstance(id) {
       await request('DELETE', instancePath(id))
+    },
+    listTasks({ status, page, pageSize }) {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+      if (status) params.set('status', status)
+      return request<Paged<UserTask>>('GET', `/tasks?${params}`)
+    },
+    async claimTask(id, claimedBy) {
+      await request('POST', `${taskPath(id)}/claim`, { claimedBy })
+    },
+    async releaseTask(id) {
+      await request('POST', `${taskPath(id)}/release`)
+    },
+    async completeTask(id, completedBy, outputVariables) {
+      await request('POST', `${taskPath(id)}/complete`, { completedBy, ...(outputVariables ? { outputVariables } : {}) })
+    },
+    async listWebhooks() {
+      return (await request<{ webhooks: Webhook[] }>('GET', '/webhooks')).webhooks
+    },
+    async createWebhook(input) {
+      await request('POST', '/webhooks', input)
+    },
+    async deleteWebhook(id) {
+      await request('DELETE', `/webhooks/${encodeURIComponent(id)}`)
     },
     async restartInstance(id) {
       return (await request<{ instance: { id: string } }>('POST', `${instancePath(id)}/restart`)).instance.id

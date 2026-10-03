@@ -247,6 +247,31 @@ describe('createAdminApi', () => {
       expect([lastCall().init.method, lastCall().url]).toEqual(['POST', '/instances/i1/restart'])
     })
 
+    it('reach the task and webhook routes, and cope with a webhook delete that answers 204 with no body', async () => {
+      fetchMock.mockImplementation(async () => jsonResponse({ items: [], total: 0, page: 0, pageSize: 20, webhooks: [] }))
+      const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch)
+      const seen = async (call: () => Promise<unknown>) => {
+        await call()
+        return [lastCall().init.method, lastCall().url, lastCall().init.body ? JSON.parse(lastCall().init.body as string) : undefined]
+      }
+
+      expect(await seen(() => tenant.listTasks({ status: 'open', page: 0, pageSize: 20 }))).toEqual(['GET', '/tasks?page=0&pageSize=20&status=open', undefined])
+      expect(await seen(() => tenant.claimTask('t 1', 'ada@example.com'))).toEqual(['POST', '/tasks/t%201/claim', { claimedBy: 'ada@example.com' }])
+      expect(await seen(() => tenant.releaseTask('t1'))).toEqual(['POST', '/tasks/t1/release', undefined])
+      expect(await seen(() => tenant.completeTask('t1', 'ada@example.com', { approved: true }))).toEqual([
+        'POST',
+        '/tasks/t1/complete',
+        { completedBy: 'ada@example.com', outputVariables: { approved: true } },
+      ])
+      expect((await seen(() => tenant.completeTask('t1', 'ada@example.com')))[2]).toEqual({ completedBy: 'ada@example.com' })
+      expect(await tenant.listWebhooks()).toEqual([])
+      expect(await seen(() => tenant.createWebhook({ url: 'https://x.example/h', secret: 's' }))).toEqual(['POST', '/webhooks', { url: 'https://x.example/h', secret: 's' }])
+
+      fetchMock.mockImplementation(async () => new Response(null, { status: 204 }))
+      await expect(tenant.deleteWebhook('w 1')).resolves.toBeUndefined()
+      expect([lastCall().init.method, lastCall().url]).toEqual(['DELETE', '/webhooks/w%201'])
+    })
+
     it('sign the user out on a 401 but not on a 403', async () => {
       const onUnauthorized = vi.fn()
       const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch, { onUnauthorized })

@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 import type { AdminApi, TenantApi } from '../api/client'
-import type { ApiKey, DefinitionSummary, InstanceSummary, Membership, SessionInfo, Tenant, User, UserWithMemberships } from '../api/types'
+import type { ApiKey, DefinitionSummary, InstanceSummary, Membership, UserTask, Webhook, SessionInfo, Tenant, User, UserWithMemberships } from '../api/types'
 
 export function makeTenant(overrides: Partial<Tenant> = {}): Tenant {
   return {
@@ -103,5 +103,28 @@ export function makeFakeTenantApi(): { [K in keyof TenantApi]: ReturnType<typeof
     resumeInstance: vi.fn().mockResolvedValue(undefined),
     cancelInstance: vi.fn().mockResolvedValue(undefined),
     restartInstance: vi.fn().mockResolvedValue('new-instance'),
+    listTasks: vi.fn().mockResolvedValue({ items: [], total: 0, page: 0, pageSize: 20 }),
+    claimTask: vi.fn().mockResolvedValue(undefined),
+    releaseTask: vi.fn().mockResolvedValue(undefined),
+    completeTask: vi.fn().mockResolvedValue(undefined),
+    listWebhooks: vi.fn().mockResolvedValue([]),
+    createWebhook: vi.fn().mockResolvedValue(undefined),
+    deleteWebhook: vi.fn().mockResolvedValue(undefined),
   } as never
+}
+
+export function makeTask(overrides: Partial<UserTask> = {}): UserTask {
+  return {
+    id: 'task-1',
+    instanceId: 'aaaaaaaa-1111-2222-3333-444444444444',
+    name: 'Review timesheet',
+    priority: 50,
+    status: 'open',
+    createdAt: '2026-01-05T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+export function makeWebhook(overrides: Partial<Webhook> = {}): Webhook {
+  return { id: 'hook-1', url: 'https://example.com/hook', events: [], createdAt: '2026-01-06T00:00:00.000Z', ...overrides }
 }
