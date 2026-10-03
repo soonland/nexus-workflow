@@ -14,6 +14,9 @@ export default defineConfig({
       '/tenants': API_URL,
       '/users': API_URL,
       '/auth': API_URL,
+      // the tenant screens
+      '/definitions': API_URL,
+      '/instances': API_URL,
     },
   },
   build: {
