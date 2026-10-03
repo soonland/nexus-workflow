@@ -15,6 +15,7 @@ vi.mock('../db/tenantProvisioner.js', () => ({
   provisionTenantSchema: vi.fn().mockResolvedValue(undefined),
   dropTenantSchema: vi.fn().mockResolvedValue(undefined),
   VALID_TENANT_ID: /^[a-zA-Z0-9_-]+$/,
+  schemaName: (id: string) => `tenant_${id}`,
 }))
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────

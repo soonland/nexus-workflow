@@ -1,5 +1,5 @@
 import type postgres from 'postgres'
-import { VALID_TENANT_ID } from './tenantProvisioner.js'
+import { schemaName } from './tenantProvisioner.js'
 
 /** The instance statuses the engine uses. */
 export const INSTANCE_STATUSES = ['pending', 'active', 'suspended', 'completed', 'terminated'] as const
@@ -23,9 +23,8 @@ export const COUNT_TIMEOUT_MS = 5_000
  * (one transaction) and a statement timeout; a tenant that is too slow to count throws.
  */
 export async function readTenantCounts(sql: postgres.Sql, tenantId: string, timeoutMs = COUNT_TIMEOUT_MS): Promise<TenantCounts> {
-  if (!VALID_TENANT_ID.test(tenantId)) throw new Error(`Invalid tenantId: "${tenantId}"`)
-  // The id is validated above: only letters, digits, hyphens and underscores reach the identifier.
-  const schema = `"tenant_${tenantId}"`
+  // schemaName() rejects anything but letters, digits, hyphens and underscores, so it is safe to quote
+  const schema = `"${schemaName(tenantId)}"`
 
   const { byStatus, tasks } = await sql.begin(async (txRaw) => {
     const tx = txRaw as unknown as postgres.Sql
