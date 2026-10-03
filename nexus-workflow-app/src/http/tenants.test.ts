@@ -15,6 +15,7 @@ vi.mock('../db/tenantProvisioner.js', () => ({
   provisionTenantSchema: vi.fn().mockResolvedValue(undefined),
   dropTenantSchema: vi.fn().mockResolvedValue(undefined),
   VALID_TENANT_ID: /^[a-zA-Z0-9_-]+$/,
+  schemaName: (id: string) => `tenant_${id}`,
 }))
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -746,6 +747,85 @@ describe('tenants HTTP API', () => {
       const body = await res.json()
       expect(body.tenants.map((t: { id: string }) => t.id)).toEqual(['a', 'b'])
       expect(body.tenants[0]).toMatchObject({ status: 'active', activeKeyCount: 2 })
+      expect(body.tenants[0]).not.toHaveProperty('counts') // only on request
+    })
+
+    describe('?counts=true', () => {
+      const COUNTS = { instances: { pending: 0, active: 3, suspended: 1, completed: 9, terminated: 2 }, pendingTasks: 4 }
+      let readCounts: ReturnType<typeof vi.fn>
+
+      beforeEach(() => {
+        readCounts = vi.fn().mockResolvedValue(COUNTS)
+        app = new Hono()
+        app.route('/tenants', createTenantsRouter(vi.fn() as unknown as postgres.Sql, 'test-secret', ADMIN_KEY, { onTenantDeactivating, readCounts }))
+        mockStore.listTenants.mockResolvedValue([
+          { ...makeTenant({ id: 'a' }), activeKeyCount: 1 },
+          { ...makeTenant({ id: 'b', status: 'suspended' }), activeKeyCount: 0 },
+          { ...makeTenant({ id: 'c', status: 'deleting' }), activeKeyCount: 0 },
+        ])
+      })
+
+      it('403 without the admin key', async () => {
+        expect((await get(app, '/tenants?counts=true')).status).toBe(403)
+        expect(readCounts).not.toHaveBeenCalled()
+      })
+
+      it('adds the numbers to each tenant, including suspended ones', async () => {
+        const body = await (await get(app, '/tenants?counts=true', AUTH)).json()
+
+        expect(body.tenants[0]).toMatchObject({ id: 'a', activeKeyCount: 1, counts: COUNTS })
+        expect(body.tenants[1]).toMatchObject({ id: 'b', counts: COUNTS })
+      })
+
+      it('does not read a tenant that is being deleted (its schema may be gone)', async () => {
+        const body = await (await get(app, '/tenants?counts=true', AUTH)).json()
+
+        expect(body.tenants[2]).toMatchObject({ id: 'c', counts: null })
+        expect(readCounts).not.toHaveBeenCalledWith('c')
+      })
+
+      it('gives null for a tenant that cannot be read, and still lists the others', async () => {
+        const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        readCounts.mockImplementation(async (id: string) => {
+          if (id === 'a') throw new Error('schema missing')
+          return COUNTS
+        })
+
+        const res = await get(app, '/tenants?counts=true', AUTH)
+
+        expect(res.status).toBe(200)
+        const body = await res.json()
+        expect(body.tenants[0]).toMatchObject({ id: 'a', counts: null })
+        expect(body.tenants[1]).toMatchObject({ id: 'b', counts: COUNTS })
+        error.mockRestore()
+      })
+
+      it('counts at most five tenants at a time, and keeps the order', async () => {
+        mockStore.listTenants.mockResolvedValue(Array.from({ length: 12 }, (_, i) => ({ ...makeTenant({ id: `t${i}` }), activeKeyCount: 0 })))
+        let running = 0
+        let peak = 0
+        readCounts.mockImplementation(async () => {
+          running++
+          peak = Math.max(peak, running)
+          await new Promise((resolve) => setTimeout(resolve, 5))
+          running--
+          return COUNTS
+        })
+
+        const body = await (await get(app, '/tenants?counts=true', AUTH)).json()
+
+        expect(peak).toBeLessThanOrEqual(5)
+        expect(peak).toBeGreaterThan(1) // it does run them side by side
+        expect(body.tenants.map((t: { id: string }) => t.id)).toEqual(Array.from({ length: 12 }, (_, i) => `t${i}`))
+        expect(readCounts).toHaveBeenCalledTimes(12)
+      })
+
+      it('is off for any other value', async () => {
+        const body = await (await get(app, '/tenants?counts=yes', AUTH)).json()
+
+        expect(body.tenants[0]).not.toHaveProperty('counts')
+        expect(readCounts).not.toHaveBeenCalled()
+      })
     })
   })
 

@@ -1,5 +1,12 @@
 export type TenantStatus = 'active' | 'suspended' | 'deleting'
 
+/** How busy a tenant is: numbers only, never what its workflows contain. */
+export interface TenantCounts {
+  instances: Record<'pending' | 'active' | 'suspended' | 'completed' | 'terminated', number>
+  /** Tasks that are open or claimed. */
+  pendingTasks: number
+}
+
 export interface Tenant {
   id: string
   name: string
@@ -7,6 +14,8 @@ export interface Tenant {
   createdAt: string
   /** Number of API keys that have not been revoked. */
   activeKeyCount: number
+  /** Null when it cannot be read (a tenant being deleted). Absent in answers that were not asked for it. */
+  counts?: TenantCounts | null
 }
 
 export interface ApiKey {

@@ -19,6 +19,31 @@ function setup(tenants = [acme, suspended, deleting, defaultTenant]) {
 }
 
 describe('TenantsPage', () => {
+  it('shows how busy each tenant is: running and suspended instances and open tasks', async () => {
+    const busy = makeTenant({
+      id: 'busy',
+      name: 'Busy Co',
+      counts: { instances: { pending: 0, active: 12, suspended: 3, completed: 40, terminated: 1 }, pendingTasks: 7 },
+    })
+    setup([busy])
+
+    const row = (await screen.findByText('Busy Co')).closest('tr')!
+    const cells = within(row).getAllByRole('cell').map((c) => c.textContent)
+    // name, status, keys, running, suspended, open tasks, created, actions
+    expect(cells.slice(3, 6)).toEqual(['12', '3', '7'])
+  })
+
+  it('shows zeros for a tenant with no work, and a dash where the numbers are not known', async () => {
+    const idle = makeTenant({ id: 'idle', name: 'Idle Co', counts: { instances: { pending: 0, active: 0, suspended: 0, completed: 0, terminated: 0 }, pendingTasks: 0 } })
+    const unknown = makeTenant({ id: 'gone', name: 'Going Co', status: 'deleting', counts: null })
+    setup([idle, unknown])
+
+    const idleCells = within((await screen.findByText('Idle Co')).closest('tr')!).getAllByRole('cell').map((c) => c.textContent)
+    const unknownCells = within(screen.getByText('Going Co').closest('tr')!).getAllByRole('cell').map((c) => c.textContent)
+    expect(idleCells.slice(3, 6)).toEqual(['0', '0', '0'])
+    expect(unknownCells.slice(3, 6)).toEqual(['—', '—', '—'])
+  })
+
   it('lists tenants with their status and active key count', async () => {
     setup()
 

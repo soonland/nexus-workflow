@@ -83,7 +83,7 @@ export function createAdminApi(
 
   return {
     async listTenants() {
-      return (await request<{ tenants: Tenant[] }>('GET', '/tenants')).tenants
+      return (await request<{ tenants: Tenant[] }>('GET', '/tenants?counts=true')).tenants
     },
     async createTenant(id, name) {
       return (await request<{ tenant: Tenant }>('POST', '/tenants', { id, name })).tenant

@@ -4,6 +4,7 @@ import postgres from 'postgres'
 import { runMigrations } from '../db/migrate.js'
 import { SessionStore } from '../db/SessionStore.js'
 import { TenantStore } from '../db/TenantStore.js'
+import { dropTenantSchema, provisionTenantSchema } from '../db/tenantProvisioner.js'
 import { UserStore } from '../db/UserStore.js'
 import { createAuthMiddleware, type AppVariables } from './middleware/auth.js'
 import { createOperatorGuard } from './middleware/operator.js'
@@ -39,6 +40,7 @@ describe('authorization (Postgres)', () => {
 
     await tenants.createTenant(tenantA, 'Tenant A')
     await tenants.createTenant(tenantB, 'Tenant B')
+    await provisionTenantSchema(tenantA, sql) // A has a real schema (so it can be counted); B is only a registry row
     keyOfA = (await tenants.createApiKey(tenantA, 'service')).plaintext
 
     const make = async (name: string, roles: Array<['operator', null] | ['tenant_manager', string]>) => {
@@ -67,6 +69,7 @@ describe('authorization (Postgres)', () => {
   })
 
   afterAll(async () => {
+    await dropTenantSchema(tenantA, sql)
     await sql`DELETE FROM public.users WHERE email LIKE ${prefix + '.%'}`
     await sql`DELETE FROM public.api_keys WHERE tenant_id LIKE ${prefix + '%'}`
     await sql`DELETE FROM public.tenants WHERE id LIKE ${prefix + '%'}`
@@ -125,6 +128,24 @@ describe('authorization (Postgres)', () => {
     ])('refuses %s with 403', async (_label, c) => {
       const call_ = c.bearer === 'TENANT_KEY' ? { bearer: keyOfA } : c
       expect(await status('/tenants', call_)).toBe(403)
+    })
+
+    it('keeps the per-tenant numbers (?counts=true) to operators too', async () => {
+      expect(await status('/tenants?counts=true', { session: 'managerA', tenant: tenantA })).toBe(403)
+      expect(await status('/tenants?counts=true', { session: 'norole' })).toBe(403)
+      expect(await status('/tenants?counts=true', { bearer: keyOfA })).toBe(403)
+      expect(await status('/tenants?counts=true')).toBe(401)
+      expect(await status('/tenants?counts=true', { session: 'operator' })).toBe(200)
+    })
+
+    it('reads the real numbers when no counter is injected (the default wiring)', async () => {
+      const res = await call('/tenants?counts=true', { session: 'operator' })
+
+      const mine = (res.body['tenants'] as Array<{ id: string; counts: unknown }>).find((t) => t.id === tenantA)
+      expect(mine?.counts).toEqual({ instances: { pending: 0, active: 0, suspended: 0, completed: 0, terminated: 0 }, pendingTasks: 0 })
+      // a tenant that is only a registry row (no schema) cannot be counted: null, and the list still works
+      const bare = (res.body['tenants'] as Array<{ id: string; counts: unknown }>).find((t) => t.id === tenantB)
+      expect(bare?.counts).toBeNull()
     })
 
     it('treats a dead session as not signed in (401), not as forbidden', async () => {

@@ -3,7 +3,8 @@ import { createTenantSchema } from './schema.js'
 
 export const VALID_TENANT_ID = /^[a-zA-Z0-9_-]+$/
 
-function schemaName(tenantId: string): string {
+/** The Postgres schema that holds a tenant's data. Throws for an id that could not be a safe schema name. */
+export function schemaName(tenantId: string): string {
   if (!VALID_TENANT_ID.test(tenantId)) {
     throw new Error(`Invalid tenantId: "${tenantId}". Only alphanumeric characters, hyphens, and underscores are allowed.`)
   }

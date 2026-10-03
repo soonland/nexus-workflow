@@ -50,7 +50,7 @@ function makeServer(overrides: Partial<Server> = {}) {
       server.signedInAs = invite.session
       return jsonResponse(invite.session)
     }
-    if (url === '/tenants') {
+    if (url === '/tenants?counts=true') {
       if (usesKey || roles.includes('operator')) return jsonResponse({ tenants: [ACME] })
       if (wrongKey) return jsonResponse({ error: 'FORBIDDEN', message: 'Admin API key required' }, 403)
       return server.signedInAs ? jsonResponse({ error: 'FORBIDDEN', message: 'Operator access required' }, 403) : jsonResponse({ error: 'UNAUTHENTICATED' }, 401)
@@ -174,7 +174,7 @@ describe('what each role sees', () => {
     expect(await screen.findByText('Flow 2')).toBeInTheDocument()
     for (const tab of ['Instances', 'Tasks', 'Webhooks', 'Users']) expect(screen.getByRole('button', { name: tab })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Tenants' })).not.toBeInTheDocument()
-    expect(calls).not.toHaveBeenCalledWith('/tenants', expect.anything())
+    expect(calls.mock.calls.some(([url]) => String(url).startsWith('/tenants'))).toBe(false)
   })
 
   it('an operator who manages no tenant gets no tenant screens', async () => {
