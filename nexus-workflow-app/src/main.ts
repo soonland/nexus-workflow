@@ -12,6 +12,7 @@ import { createAdminRouter } from './http/admin.js'
 import { createEventsRouter } from './http/events.js'
 import { createObservabilityRouter } from './http/observability.js'
 import { createWebhooksRouter } from './http/webhooks.js'
+import { createAuthRouter } from './http/auth.js'
 import { mountConsole } from './http/console.js'
 import { createTenantsRouter } from './http/tenants.js'
 import { createAuthMiddleware, type AppVariables } from './http/middleware/auth.js'
@@ -25,6 +26,10 @@ import { createTenantWorkers } from './worker/createTenantWorkers.js'
 import { RedisStreamPublisher } from './events/RedisStreamPublisher.js'
 import { TenantEventHub } from './events/TenantEventHub.js'
 import { TenantResourceCache } from './db/TenantResourceCache.js'
+import { SessionStore } from './db/SessionStore.js'
+import { UserStore } from './db/UserStore.js'
+import { LoginThrottle } from './auth/LoginThrottle.js'
+import { PasswordHasher } from './auth/PasswordHasher.js'
 
 assertConfigValid(config)
 
@@ -95,6 +100,37 @@ if (mountConsole(app, config.consoleDir)) {
 } else {
   console.log('operator console not built (pnpm --filter nexus-workflow-console build) — /console is not served')
 }
+// ─── Sign-in for people ───────────────────────────────────────────────────────
+// Public routes (they authenticate themselves with a password / the session cookie), so they sit
+// before the API-key middleware below. Failed sign-ins are throttled per account from one address
+// (so a stranger guessing cannot lock the real owner out), per account overall (guessing spread over
+// many addresses) and per address; unknown emails count too.
+const MINUTE_MS = 60_000
+const userStore = new UserStore(authSql)
+const sessionStore = new SessionStore(authSql, {
+  hmacSecret: config.apiKeyHmacSecret,
+  idleMs: config.sessionIdleMs,
+  maxMs: config.sessionMaxMs,
+})
+app.route('/auth', createAuthRouter({
+  users: userStore,
+  sessions: sessionStore,
+  hasher: new PasswordHasher(),
+  accountIpThrottle: new LoginThrottle({ maxFailures: 5, windowMs: 15 * MINUTE_MS, lockMs: 15 * MINUTE_MS }),
+  accountThrottle: new LoginThrottle({ maxFailures: 25, windowMs: 15 * MINUTE_MS, lockMs: 15 * MINUTE_MS }),
+  ipThrottle: new LoginThrottle({ maxFailures: 30, windowMs: 15 * MINUTE_MS, lockMs: 15 * MINUTE_MS }),
+  sessionMaxAgeSeconds: Math.floor(config.sessionMaxMs / 1000),
+  trustedProxies: config.trustedProxies,
+  publicOrigin: config.publicOrigin,
+}))
+
+// Expired sessions are already refused when used; this just keeps the table small.
+const purgeSessions = () =>
+  sessionStore.purgeExpired().catch((err) => console.error('[sessions] failed to purge expired sessions:', err))
+void purgeSessions()
+const sessionPurgeTimer = setInterval(() => void purgeSessions(), 10 * MINUTE_MS)
+sessionPurgeTimer.unref()
+
 // /tenants is protected by the admin API key, not the DB-backed tenant key
 app.route('/tenants', createTenantsRouter(authSql, config.apiKeyHmacSecret, config.adminApiKey, {
   // A suspended or deleted tenant must not keep background workers or connection pools alive
@@ -145,6 +181,7 @@ async function shutdown(signal: string): Promise<void> {
     await new Promise<void>((resolve) => server.close(() => resolve()))
 
     // 2. Stop background workers — unsubscribes from events; in-flight tasks settle independently
+    clearInterval(sessionPurgeTimer)
     webhookDispatcher.stop()
     await tenantWorkers.stop()
 

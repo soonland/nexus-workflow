@@ -125,6 +125,11 @@ export class UserStore {
     return this.sql<User[]>`SELECT ${this.sql.unsafe(USER_COLUMNS)} FROM public.users ORDER BY created_at ASC, id ASC`
   }
 
+  /** Notes that the user just signed in. */
+  async recordLogin(userId: string): Promise<void> {
+    await this.sql`UPDATE public.users SET last_login_at = now() WHERE id = ${userId}`
+  }
+
   /** Sets a new password hash and ends all of the user's sessions. False if the user does not exist. */
   async setPassword(userId: string, passwordHash: string): Promise<boolean> {
     return this.sql.begin(async (txRaw) => {
