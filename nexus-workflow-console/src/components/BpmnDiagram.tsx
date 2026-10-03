@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Box } from '@mui/material'
 import NavigatedViewer from 'bpmn-js/lib/NavigatedViewer'
 import 'bpmn-js/dist/assets/diagram-js.css'
+import { ensureLayout } from '../bpmnLayout'
 
 interface Props {
   xml: string
@@ -41,8 +42,8 @@ export default function BpmnDiagram({ xml, activeIds, doneIds, errorIds, onError
     const viewer = new NavigatedViewer({ container: element })
     let cancelled = false
 
-    viewer
-      .importXML(xml)
+    ensureLayout(xml)
+      .then((laidOut) => viewer.importXML(laidOut))
       .then(() => {
         if (cancelled) return
         const canvas = viewer.get('canvas') as {
