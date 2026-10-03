@@ -12,6 +12,8 @@ export default defineConfig({
     port: 3002,
     proxy: {
       '/tenants': API_URL,
+      '/users': API_URL,
+      '/auth': API_URL,
     },
   },
   build: {
