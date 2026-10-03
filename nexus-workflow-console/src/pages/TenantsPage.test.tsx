@@ -19,6 +19,51 @@ function setup(tenants = [acme, suspended, deleting, defaultTenant]) {
 }
 
 describe('TenantsPage', () => {
+  describe('search and sort', () => {
+    const counts = (running: number, tasks: number) => ({ instances: { pending: 0, active: running, suspended: 0, completed: 0, terminated: 0 }, pendingTasks: tasks })
+    const list = [
+      makeTenant({ id: 'zeta', name: 'Zeta Ltd', activeKeyCount: 2, counts: counts(9, 4), createdAt: '2026-01-03T00:00:00.000Z' }),
+      makeTenant({ id: 'alpha', name: 'Alpha Inc', activeKeyCount: 11, counts: counts(30, 1), createdAt: '2026-01-01T00:00:00.000Z' }),
+      makeTenant({ id: 'mid', name: 'Middle Co', status: 'suspended', activeKeyCount: 0, counts: counts(2, 0), createdAt: '2026-01-02T00:00:00.000Z' }),
+    ]
+    const names = () => screen.getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell')[0]!.querySelector('p')?.textContent)
+
+    it('searches by name, id or status', async () => {
+      const { user } = setup(list)
+      await screen.findByText('Zeta Ltd')
+
+      await user.type(screen.getByRole('searchbox', { name: 'Search tenants' }), 'suspended')
+
+      expect(names()).toEqual(['Middle Co'])
+      expect(screen.getByText('Showing 1 to 1 of 1 entries (filtered from 3)')).toBeInTheDocument()
+    })
+
+    it('sorts by name, and by number columns as numbers', async () => {
+      const { user } = setup(list)
+      await screen.findByText('Zeta Ltd')
+
+      await user.click(screen.getByRole('button', { name: 'Tenant' }))
+      expect(names()).toEqual(['Alpha Inc', 'Middle Co', 'Zeta Ltd'])
+
+      await user.click(screen.getByRole('button', { name: 'Active keys' })) // 0, 2, 11 (not "0, 11, 2")
+      expect(names()).toEqual(['Middle Co', 'Zeta Ltd', 'Alpha Inc'])
+
+      await user.click(screen.getByRole('button', { name: 'Running' }))
+      await user.click(screen.getByRole('button', { name: 'Running' }))
+      expect(names()).toEqual(['Alpha Inc', 'Zeta Ltd', 'Middle Co'])
+    })
+
+    it('puts tenants whose numbers are unknown last, whichever way it sorts', async () => {
+      const { user } = setup([...list, makeTenant({ id: 'gone', name: 'Going Co', status: 'deleting', counts: null })])
+      await screen.findByText('Zeta Ltd')
+
+      await user.click(screen.getByRole('button', { name: 'Running' }))
+      expect(names().at(-1)).toBe('Going Co')
+      await user.click(screen.getByRole('button', { name: 'Running' }))
+      expect(names().at(-1)).toBe('Going Co')
+    })
+  })
+
   it('shows how busy each tenant is: running and suspended instances and open tasks', async () => {
     const busy = makeTenant({
       id: 'busy',

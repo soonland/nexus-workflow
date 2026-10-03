@@ -19,7 +19,6 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TablePagination,
   TableRow,
   TextField,
   Tooltip,
@@ -29,10 +28,9 @@ import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import type { TenantApi } from '../api/client'
 import { TASK_STATUSES, type Paged, type TaskStatus, type UserTask } from '../api/types'
 import { PageHeader } from '../components/PageHeader'
+import { ListFooter, ListToolbar } from '../list/ListControls'
 import { formatDate } from '../format'
 import { parseJsonObject } from '../jsonObject'
-
-const PAGE_SIZE = 20
 
 interface Props {
   api: TenantApi
@@ -45,6 +43,7 @@ export function TasksPage({ api, tenantId, actor }: Props) {
   const [result, setResult] = useState<Paged<UserTask> | null>(null)
   const [status, setStatus] = useState<TaskStatus | ''>('open')
   const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(20)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<{ severity: 'success' | 'error'; text: string } | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -58,9 +57,9 @@ export function TasksPage({ api, tenantId, actor }: Props) {
   const load = useCallback(async () => {
     const request = ++latestRequest.current
     try {
-      const loaded = await api.listTasks({ ...(status ? { status } : {}), page, pageSize: PAGE_SIZE })
+      const loaded = await api.listTasks({ ...(status ? { status } : {}), page, pageSize })
       if (request !== latestRequest.current) return
-      const lastPage = Math.max(0, Math.ceil(loaded.total / PAGE_SIZE) - 1)
+      const lastPage = Math.max(0, Math.ceil(loaded.total / pageSize) - 1)
       if (page > lastPage) {
         setPage(lastPage)
         return
@@ -71,7 +70,7 @@ export function TasksPage({ api, tenantId, actor }: Props) {
       if (request !== latestRequest.current) return
       setError(err instanceof Error ? err.message : 'Could not load the tasks')
     }
-  }, [api, status, page])
+  }, [api, status, page, pageSize])
 
   useEffect(() => {
     void load()
@@ -148,7 +147,15 @@ export function TasksPage({ api, tenantId, actor }: Props) {
           <CircularProgress aria-label="Loading tasks" />
         </Box>
       ) : (
-        <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
+        <>
+          <ListToolbar
+            pageSize={pageSize}
+            onPageSize={(size) => {
+              setPageSize(size)
+              setPage(0)
+            }}
+          />
+          <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
           <Table>
             <TableHead>
               <TableRow>
@@ -212,15 +219,9 @@ export function TasksPage({ api, tenantId, actor }: Props) {
               })}
             </TableBody>
           </Table>
-          <TablePagination
-            component="div"
-            count={result?.total ?? 0}
-            page={page}
-            rowsPerPage={PAGE_SIZE}
-            rowsPerPageOptions={[PAGE_SIZE]}
-            onPageChange={(_event, next) => setPage(next)}
-          />
+          <ListFooter page={page} onPage={setPage} pageSize={pageSize} filteredCount={result?.total ?? 0} totalCount={result?.total ?? 0} />
         </TableContainer>
+        </>
       )}
 
       <Dialog open={completing !== null} onClose={closeCompleting} fullWidth maxWidth="sm">

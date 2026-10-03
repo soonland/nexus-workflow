@@ -26,10 +26,21 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DeployDefinitionDialog } from '../components/DeployDefinitionDialog'
 import { StartInstanceDialog } from '../components/StartInstanceDialog'
 import { PageHeader } from '../components/PageHeader'
+import { ListFooter, ListToolbar, SortHeader } from '../list/ListControls'
+import { useListView } from '../list/useListView'
 import { formatDate } from '../format'
+
+// What the search looks in, and what each sortable column sorts by (module level: stable between renders)
+const definitionText = (d: DefinitionSummary) => `${d.name} ${d.id} v${d.version}`
+const definitionSort = {
+  name: (d: DefinitionSummary) => d.name || d.id,
+  version: (d: DefinitionSummary) => d.version,
+  deployed: (d: DefinitionSummary) => d.deployedAt,
+}
 
 export function DefinitionsPage({ api, tenantId }: { api: TenantApi; tenantId: string }) {
   const [definitions, setDefinitions] = useState<DefinitionSummary[] | null>(null)
+  const view = useListView(definitions, { searchText: definitionText, sortValues: definitionSort })
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<{ severity: 'success' | 'error'; text: string } | null>(null)
   const [deleting, setDeleting] = useState<DefinitionSummary | null>(null)
@@ -95,25 +106,27 @@ export function DefinitionsPage({ api, tenantId }: { api: TenantApi; tenantId: s
           <CircularProgress aria-label="Loading definitions" />
         </Box>
       ) : (
-        <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
+        <>
+          <ListToolbar pageSize={view.pageSize} onPageSize={view.setPageSize} query={view.query} onQuery={view.setQuery} searchLabel="Search definitions" />
+          <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Definition</TableCell>
-                <TableCell align="right">Version</TableCell>
-                <TableCell>Deployed</TableCell>
+                <SortHeader label="Definition" sortKey="name" sort={view.sort} onSort={view.toggleSort} />
+                <SortHeader label="Version" sortKey="version" align="right" sort={view.sort} onSort={view.toggleSort} />
+                <SortHeader label="Deployed" sortKey="deployed" sort={view.sort} onSort={view.toggleSort} />
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {(definitions ?? []).length === 0 && (
+              {view.rows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} align="center" sx={{ color: 'text.secondary', py: 4 }}>
-                    No definitions deployed yet
+                    {view.query.trim() !== '' ? 'Nothing matches your search' : 'No definitions deployed yet'}
                   </TableCell>
                 </TableRow>
               )}
-              {(definitions ?? []).map((definition, index, all) => (
+              {view.rows.map((definition) => (
                 <TableRow key={`${definition.id}@${definition.version}`} hover>
                   <TableCell>
                     <Typography sx={{ fontWeight: 600 }}>{definition.name || definition.id}</Typography>
@@ -131,8 +144,8 @@ export function DefinitionsPage({ api, tenantId }: { api: TenantApi; tenantId: s
                         Start
                       </Button>
                     )}
-                    {/* Deleting removes every version, so offer it once per definition, not once per version row */}
-                    {all.findIndex((other) => other.id === definition.id) === index && (
+                    {/* Deleting removes every version, so offer it once per definition: on the latest version's row, like Start */}
+                    {definition.version === latestVersion.get(definition.id) && (
                       <Tooltip title="Delete all versions">
                         <IconButton
                           size="small"
@@ -149,7 +162,9 @@ export function DefinitionsPage({ api, tenantId }: { api: TenantApi; tenantId: s
               ))}
             </TableBody>
           </Table>
+          <ListFooter page={view.page} onPage={view.setPage} pageSize={view.pageSize} filteredCount={view.filteredCount} totalCount={view.totalCount} />
         </TableContainer>
+        </>
       )}
 
       <DeployDefinitionDialog

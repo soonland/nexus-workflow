@@ -27,9 +27,22 @@ import { CreateUserDialog } from '../components/CreateUserDialog'
 import { InviteLinkDialog } from '../components/InviteLinkDialog'
 import { MembershipsDialog } from '../components/MembershipsDialog'
 import { PageHeader } from '../components/PageHeader'
+import { ListFooter, ListToolbar, SortHeader } from '../list/ListControls'
+import { useListView } from '../list/useListView'
 import { formatDate } from '../format'
 
 const roleLabel = (m: Membership) => (m.role === 'operator' ? 'operator' : `manager · ${m.tenantId}`)
+
+const roleText = (u: UserWithMemberships) => u.memberships.map(roleLabel).join(', ')
+const userStatus = (u: UserWithMemberships) => (u.status === 'disabled' ? 'disabled' : u.hasPassword ? 'active' : 'invited')
+// What the search looks in, and what each sortable column sorts by (module level: stable between renders)
+const userText = (u: UserWithMemberships) => `${u.name} ${u.email} ${roleText(u)} ${userStatus(u)}`
+const userSort = {
+  name: (u: UserWithMemberships) => u.name,
+  roles: roleText,
+  status: userStatus,
+  lastLogin: (u: UserWithMemberships) => u.lastLoginAt,
+}
 
 export function UsersPage({ api, session }: { api: AdminApi; session: Session }) {
   const operator = isOperator(session)
@@ -37,6 +50,7 @@ export function UsersPage({ api, session }: { api: AdminApi; session: Session })
   const ownId = session.kind === 'user' ? session.user.id : null
 
   const [users, setUsers] = useState<UserWithMemberships[] | null>(null)
+  const view = useListView(users, { searchText: userText, sortValues: userSort })
   const [tenantIds, setTenantIds] = useState<string[]>(managed.slice().sort())
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<{ severity: 'success' | 'error'; text: string } | null>(null)
@@ -118,26 +132,28 @@ export function UsersPage({ api, session }: { api: AdminApi; session: Session })
           <CircularProgress aria-label="Loading users" />
         </Box>
       ) : (
-        <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
+        <>
+          <ListToolbar pageSize={view.pageSize} onPageSize={view.setPageSize} query={view.query} onQuery={view.setQuery} searchLabel="Search people" />
+          <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Person</TableCell>
-                <TableCell>Roles</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Last sign-in</TableCell>
+                <SortHeader label="Person" sortKey="name" sort={view.sort} onSort={view.toggleSort} />
+                <SortHeader label="Roles" sortKey="roles" sort={view.sort} onSort={view.toggleSort} />
+                <SortHeader label="Status" sortKey="status" sort={view.sort} onSort={view.toggleSort} />
+                <SortHeader label="Last sign-in" sortKey="lastLogin" sort={view.sort} onSort={view.toggleSort} />
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {(users ?? []).length === 0 && (
+              {view.rows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} align="center" sx={{ color: 'text.secondary', py: 4 }}>
-                    No users yet
+                    {view.query.trim() !== '' ? 'Nothing matches your search' : 'No users yet'}
                   </TableCell>
                 </TableRow>
               )}
-              {(users ?? []).map((user) => {
+              {view.rows.map((user) => {
                 const busy = busyId === user.id
                 const self = user.id === ownId
                 return (
@@ -198,7 +214,9 @@ export function UsersPage({ api, session }: { api: AdminApi; session: Session })
               })}
             </TableBody>
           </Table>
+          <ListFooter page={view.page} onPage={view.setPage} pageSize={view.pageSize} filteredCount={view.filteredCount} totalCount={view.totalCount} />
         </TableContainer>
+        </>
       )}
 
       <CreateUserDialog

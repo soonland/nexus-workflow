@@ -29,6 +29,8 @@ import { CreateTenantDialog } from '../components/CreateTenantDialog'
 import { KeysDrawer } from '../components/KeysDrawer'
 import { StatusChip } from '../components/StatusChip'
 import { PageHeader } from '../components/PageHeader'
+import { ListFooter, ListToolbar, SortHeader } from '../list/ListControls'
+import { useListView } from '../list/useListView'
 import { formatDate } from '../format'
 
 /** A number for a table cell, or a dash where it is not known (a tenant being deleted). */
@@ -37,8 +39,21 @@ const count = (n: number | undefined) => (n === undefined ? '—' : n)
 /** Owns pre-multi-tenancy data; the API refuses to delete it. */
 const PROTECTED_TENANT_ID = 'default'
 
+// What the search looks in, and what each sortable column sorts by (module level: stable between renders)
+const tenantText = (t: Tenant) => `${t.name} ${t.id} ${t.status}`
+const tenantSort = {
+  name: (t: Tenant) => t.name,
+  status: (t: Tenant) => t.status,
+  keys: (t: Tenant) => t.activeKeyCount,
+  running: (t: Tenant) => t.counts?.instances.active,
+  suspended: (t: Tenant) => t.counts?.instances.suspended,
+  tasks: (t: Tenant) => t.counts?.pendingTasks,
+  created: (t: Tenant) => t.createdAt,
+}
+
 export function TenantsPage({ api }: { api: AdminApi }) {
   const [tenants, setTenants] = useState<Tenant[] | null>(null)
+  const view = useListView(tenants, { searchText: tenantText, sortValues: tenantSort })
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<{ severity: 'success' | 'error'; text: string } | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -106,29 +121,31 @@ export function TenantsPage({ api }: { api: AdminApi }) {
           <CircularProgress aria-label="Loading tenants" />
         </Box>
       ) : (
-        <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
+        <>
+          <ListToolbar pageSize={view.pageSize} onPageSize={view.setPageSize} query={view.query} onQuery={view.setQuery} searchLabel="Search tenants" />
+          <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Tenant</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell align="right">Active keys</TableCell>
-                <TableCell align="right">Running</TableCell>
-                <TableCell align="right">Suspended</TableCell>
-                <TableCell align="right">Open tasks</TableCell>
-                <TableCell>Created</TableCell>
+                <SortHeader label="Tenant" sortKey="name" sort={view.sort} onSort={view.toggleSort} />
+                <SortHeader label="Status" sortKey="status" sort={view.sort} onSort={view.toggleSort} />
+                <SortHeader label="Active keys" sortKey="keys" align="right" sort={view.sort} onSort={view.toggleSort} />
+                <SortHeader label="Running" sortKey="running" align="right" sort={view.sort} onSort={view.toggleSort} />
+                <SortHeader label="Suspended" sortKey="suspended" align="right" sort={view.sort} onSort={view.toggleSort} />
+                <SortHeader label="Open tasks" sortKey="tasks" align="right" sort={view.sort} onSort={view.toggleSort} />
+                <SortHeader label="Created" sortKey="created" sort={view.sort} onSort={view.toggleSort} />
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {(tenants ?? []).length === 0 && (
+              {view.rows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 4 }}>
-                    No tenants yet
+                    {view.query.trim() !== '' ? 'Nothing matches your search' : 'No tenants yet'}
                   </TableCell>
                 </TableRow>
               )}
-              {(tenants ?? []).map((tenant) => {
+              {view.rows.map((tenant) => {
                 const busy = busyId === tenant.id
                 const beingDeleted = tenant.status === 'deleting'
                 return (
@@ -182,7 +199,9 @@ export function TenantsPage({ api }: { api: AdminApi }) {
               })}
             </TableBody>
           </Table>
+          <ListFooter page={view.page} onPage={view.setPage} pageSize={view.pageSize} filteredCount={view.filteredCount} totalCount={view.totalCount} />
         </TableContainer>
+        </>
       )}
 
       <CreateTenantDialog

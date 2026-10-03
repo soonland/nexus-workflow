@@ -117,4 +117,52 @@ describe('DefinitionsPage', () => {
       expect(within(starts[0]!.closest('tr')!).getByText('3')).toBeInTheDocument() // the version 3 row
     })
   })
+
+  describe('search and sort', () => {
+    const three = [
+      makeDefinition({ id: 'onboarding', name: 'Onboarding', version: 3, deployedAt: '2026-01-05T00:00:00.000Z' }),
+      makeDefinition({ id: 'approval', name: 'Approval', version: 1, deployedAt: '2026-01-09T00:00:00.000Z' }),
+      makeDefinition({ id: 'expenses', name: 'Expense claims', version: 12, deployedAt: '2026-01-01T00:00:00.000Z' }),
+    ]
+    const shown = () => screen.getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell')[0]!.querySelector('p')?.textContent)
+
+    it('searches by name or id', async () => {
+      const { user } = setup(three)
+      await screen.findByText('Onboarding')
+
+      await user.type(screen.getByRole('searchbox', { name: 'Search definitions' }), 'EXPENSE')
+
+      expect(shown()).toEqual(['Expense claims'])
+      expect(screen.getByText('Showing 1 to 1 of 1 entries (filtered from 3)')).toBeInTheDocument()
+    })
+
+    it('says so when nothing matches', async () => {
+      const { user } = setup(three)
+      await screen.findByText('Onboarding')
+
+      await user.type(screen.getByRole('searchbox', { name: 'Search definitions' }), 'zzz')
+
+      expect(screen.getByText('Nothing matches your search')).toBeInTheDocument()
+    })
+
+    it('sorts by a column, and reverses on a second click', async () => {
+      const { user } = setup(three)
+      await screen.findByText('Onboarding')
+
+      await user.click(screen.getByRole('button', { name: 'Version' }))
+      expect(shown()).toEqual(['Approval', 'Onboarding', 'Expense claims']) // 1, 3, 12: as numbers
+
+      await user.click(screen.getByRole('button', { name: 'Version' }))
+      expect(shown()).toEqual(['Expense claims', 'Onboarding', 'Approval'])
+    })
+
+    it('sorts by deploy date', async () => {
+      const { user } = setup(three)
+      await screen.findByText('Onboarding')
+
+      await user.click(screen.getByRole('button', { name: 'Deployed' }))
+
+      expect(shown()).toEqual(['Expense claims', 'Onboarding', 'Approval'])
+    })
+  })
 })

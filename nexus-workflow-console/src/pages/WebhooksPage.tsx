@@ -29,10 +29,22 @@ import type { TenantApi } from '../api/client'
 import type { Webhook } from '../api/types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { PageHeader } from '../components/PageHeader'
+import { ListFooter, ListToolbar, SortHeader } from '../list/ListControls'
+import { useListView } from '../list/useListView'
 import { formatDate } from '../format'
+
+const eventsText = (w: Webhook) => (w.events.length === 0 ? 'all events' : w.events.join(', '))
+// What the search looks in, and what each sortable column sorts by (module level: stable between renders)
+const webhookText = (w: Webhook) => `${w.url} ${eventsText(w)}`
+const webhookSort = {
+  url: (w: Webhook) => w.url,
+  events: eventsText,
+  added: (w: Webhook) => w.createdAt,
+}
 
 export function WebhooksPage({ api, tenantId }: { api: TenantApi; tenantId: string }) {
   const [webhooks, setWebhooks] = useState<Webhook[] | null>(null)
+  const view = useListView(webhooks, { searchText: webhookText, sortValues: webhookSort })
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<{ severity: 'success' | 'error'; text: string } | null>(null)
   const [creating, setCreating] = useState(false)
@@ -121,25 +133,27 @@ export function WebhooksPage({ api, tenantId }: { api: TenantApi; tenantId: stri
           <CircularProgress aria-label="Loading webhooks" />
         </Box>
       ) : (
-        <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
+        <>
+          <ListToolbar pageSize={view.pageSize} onPageSize={view.setPageSize} query={view.query} onQuery={view.setQuery} searchLabel="Search webhooks" />
+          <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Address</TableCell>
-                <TableCell>Events</TableCell>
-                <TableCell>Added</TableCell>
+                <SortHeader label="Address" sortKey="url" sort={view.sort} onSort={view.toggleSort} />
+                <SortHeader label="Events" sortKey="events" sort={view.sort} onSort={view.toggleSort} />
+                <SortHeader label="Added" sortKey="added" sort={view.sort} onSort={view.toggleSort} />
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {(webhooks ?? []).length === 0 && (
+              {view.rows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} align="center" sx={{ color: 'text.secondary', py: 4 }}>
-                    No webhooks yet
+                    {view.query.trim() !== '' ? 'Nothing matches your search' : 'No webhooks yet'}
                   </TableCell>
                 </TableRow>
               )}
-              {(webhooks ?? []).map((webhook) => (
+              {view.rows.map((webhook) => (
                 <TableRow key={webhook.id} hover>
                   <TableCell sx={{ wordBreak: 'break-all' }}>{webhook.url}</TableCell>
                   <TableCell>
@@ -165,7 +179,9 @@ export function WebhooksPage({ api, tenantId }: { api: TenantApi; tenantId: stri
               ))}
             </TableBody>
           </Table>
+          <ListFooter page={view.page} onPage={view.setPage} pageSize={view.pageSize} filteredCount={view.filteredCount} totalCount={view.totalCount} />
         </TableContainer>
+        </>
       )}
 
       <Dialog open={creating} onClose={closeForm} fullWidth maxWidth="sm">

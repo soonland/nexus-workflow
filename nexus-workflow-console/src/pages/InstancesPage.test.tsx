@@ -119,11 +119,23 @@ describe('InstancesPage', () => {
   it('pages through long lists', async () => {
     const { api, user } = setup([running], 45)
     await row('aaaaaaaa')
-    expect(screen.getByText('1–20 of 45')).toBeInTheDocument()
+    expect(screen.getByText('Showing 1 to 20 of 45 entries')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /next page/i }))
 
     await waitFor(() => expect(api.listInstances).toHaveBeenLastCalledWith({ page: 1, pageSize: 20 }))
+  })
+
+  it('asks for more or fewer entries per page, from the first page', async () => {
+    const { api, user } = setup([running], 120)
+    await row('aaaaaaaa')
+    await user.click(screen.getByRole('button', { name: /next page/i }))
+    await waitFor(() => expect(api.listInstances).toHaveBeenLastCalledWith({ page: 1, pageSize: 20 }))
+
+    await user.click(screen.getByRole('combobox', { name: 'Entries per page' }))
+    await user.click(await screen.findByRole('option', { name: '50' }))
+
+    await waitFor(() => expect(api.listInstances).toHaveBeenLastCalledWith({ page: 0, pageSize: 50 }))
   })
 
   it('shows a message and lets you retry when the list cannot be loaded', async () => {
