@@ -1,6 +1,9 @@
 import type {
   ApiKey,
   DefinitionSummary,
+  InstanceStatus,
+  InstanceSummary,
+  Paged,
   CreatedKey,
   Invite,
   InviteInfo,
@@ -180,6 +183,14 @@ async function toApiError(response: Response): Promise<ApiError> {
 
 export interface TenantApi {
   listDefinitions(): Promise<DefinitionSummary[]>
+  /** Deletes every version of the definition; refused while it has running instances. */
+  deleteDefinition(id: string): Promise<void>
+  listInstances(query: { status?: InstanceStatus; page: number; pageSize: number }): Promise<Paged<InstanceSummary>>
+  suspendInstance(id: string): Promise<void>
+  resumeInstance(id: string): Promise<void>
+  cancelInstance(id: string): Promise<void>
+  /** Starts a new instance from a terminated one; returns the new instance's id. */
+  restartInstance(id: string): Promise<string>
 }
 
 /**
@@ -194,9 +205,30 @@ export function createTenantApi(
   options: AdminApiOptions = {},
 ): TenantApi {
   const request = makeRequest(getKey, fetchImpl, options, { 'X-Tenant': tenantId })
+  const instancePath = (id: string) => `/instances/${encodeURIComponent(id)}`
   return {
     listDefinitions() {
       return request<DefinitionSummary[]>('GET', '/definitions')
+    },
+    async deleteDefinition(id) {
+      await request('DELETE', `/definitions/${encodeURIComponent(id)}`)
+    },
+    listInstances({ status, page, pageSize }) {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+      if (status) params.set('status', status)
+      return request<Paged<InstanceSummary>>('GET', `/instances?${params}`)
+    },
+    async suspendInstance(id) {
+      await request('POST', `${instancePath(id)}/suspend`)
+    },
+    async resumeInstance(id) {
+      await request('POST', `${instancePath(id)}/resume`)
+    },
+    async cancelInstance(id) {
+      await request('DELETE', instancePath(id))
+    },
+    async restartInstance(id) {
+      return (await request<{ instance: { id: string } }>('POST', `${instancePath(id)}/restart`)).instance.id
     },
   }
 }

@@ -76,7 +76,30 @@ export interface InviteInfo {
 
 export interface DefinitionSummary {
   id: string
-  name?: string
-  version?: number
-  isDeployable?: boolean
+  version: number
+  name: string
+  deployedAt: string
+  isDeployable: boolean
+}
+
+export type InstanceStatus = 'pending' | 'active' | 'suspended' | 'completed' | 'terminated'
+export const INSTANCE_STATUSES: InstanceStatus[] = ['pending', 'active', 'suspended', 'completed', 'terminated']
+
+export interface InstanceSummary {
+  id: string
+  definitionId: string
+  definitionVersion: number
+  status: InstanceStatus
+  correlationKey?: string
+  businessKey?: string
+  startedAt: string
+  completedAt?: string
+}
+
+export interface Paged<T> {
+  items: T[]
+  total: number
+  /** Zero-based. */
+  page: number
+  pageSize: number
 }
