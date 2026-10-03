@@ -24,7 +24,7 @@ export default defineConfig({
   server: {
     port: 3002,
     proxy: Object.fromEntries(
-      ['/tenants', '/users', '/auth', '/definitions', '/instances'].map((path) => [path, apiProxy]),
+      ['/tenants', '/users', '/auth', '/definitions', '/instances', '/tasks', '/webhooks'].map((path) => [path, apiProxy]),
     ),
   },
   build: {

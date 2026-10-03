@@ -172,8 +172,7 @@ describe('what each role sees', () => {
 
     expect(await screen.findByRole('heading', { name: 'Definitions' })).toBeInTheDocument()
     expect(await screen.findByText('Flow 2')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Instances' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Users' })).toBeInTheDocument()
+    for (const tab of ['Instances', 'Tasks', 'Webhooks', 'Users']) expect(screen.getByRole('tab', { name: tab })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'Tenants' })).not.toBeInTheDocument()
     expect(calls).not.toHaveBeenCalledWith('/tenants', expect.anything())
   })
