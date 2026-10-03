@@ -16,6 +16,7 @@ import { createAuthRouter } from './http/auth.js'
 import { mountConsole } from './http/console.js'
 import { createTenantsRouter } from './http/tenants.js'
 import { createAuthMiddleware, type AppVariables } from './http/middleware/auth.js'
+import { createOperatorGuard } from './http/middleware/operator.js'
 import { PostgresWebhookStore } from './webhooks/WebhookStore.js'
 import { WebhookDispatcher } from './webhooks/WebhookDispatcher.js'
 import { PostgresEventLog } from './db/EventLog.js'
@@ -131,8 +132,15 @@ void purgeSessions()
 const sessionPurgeTimer = setInterval(() => void purgeSessions(), 10 * MINUTE_MS)
 sessionPurgeTimer.unref()
 
-// /tenants is protected by the admin API key, not the DB-backed tenant key
+// /tenants is for platform operators: a signed-in operator, or the admin key (break-glass). Tenant
+// API keys and tenant managers are refused.
 app.route('/tenants', createTenantsRouter(authSql, config.apiKeyHmacSecret, config.adminApiKey, {
+  guard: createOperatorGuard({
+    adminApiKey: config.adminApiKey,
+    sessions: sessionStore,
+    users: userStore,
+    publicOrigin: config.publicOrigin,
+  }),
   // A suspended or deleted tenant must not keep background workers or connection pools alive
   // (a deleted tenant's schema is dropped right after this returns).
   onTenantDeactivating: async (tenantId) => {
@@ -140,7 +148,13 @@ app.route('/tenants', createTenantsRouter(authSql, config.apiKeyHmacSecret, conf
     await Promise.all([stores.evict(tenantId), eventLogs.evict(tenantId), webhookStores.evict(tenantId)])
   },
 }))
-app.use('*', createAuthMiddleware(authSql, config.apiKeyHmacSecret))
+// Everything below is a tenant's own data. Programs use a tenant API key (Bearer); a signed-in
+// tenant manager can use a session, naming the tenant in the X-Tenant header.
+app.use('*', createAuthMiddleware(authSql, config.apiKeyHmacSecret, {
+  sessions: sessionStore,
+  users: userStore,
+  publicOrigin: config.publicOrigin,
+}))
 // Workers must be running before the tenant's first event is published (they subscribe to
 // in-process events), so start them here rather than waiting for the next registry sync.
 app.use('*', async (c, next) => {

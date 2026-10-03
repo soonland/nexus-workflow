@@ -169,9 +169,25 @@ People sign in with an email and password and get a session cookie. (API keys ar
 - **Behind a proxy:** set `TRUST_PROXY` to the number of proxies of yours in front of the server (`true` means 1; `2` for a CDN plus a load balancer). Then `X-Forwarded-For` / `X-Forwarded-Proto` are believed and the client address is the entry that many places from the end of `X-Forwarded-For`. Leave it unset when nothing sits in front: the header is client-controlled.
 - Failed sign-ins always answer `401 INVALID_CREDENTIALS` with the same body and about the same time, whether or not the account exists.
 
+### Who can do what
+
+Every request is made by one of these, and what it may do follows from that:
+
+| Caller | Credential | Platform admin (`/tenants`) | A tenant's own data (definitions, instances, tasks, webhooks, ...) |
+|---|---|---|---|
+| **Operator** | signed-in user with the `operator` role, or the admin key | yes | **no**: running the platform is not reading its customers' workflows |
+| **Tenant manager** | signed-in user with the `tenant_manager` role for that tenant | no | yes, for the tenants they manage only |
+| **Tenant API key** | `Authorization: Bearer <key>` | no | yes, for the key's own tenant |
+| Anonymous | none | no | no |
+
+- **Tenant routes with a session:** a signed-in tenant manager names the tenant in the `X-Tenant` header and must manage it (`400` if the header is missing, `403` for any other tenant, and also for one that does not exist, so tenants cannot be probed). A tenant API key always acts as its own tenant; `X-Tenant` is ignored for keys.
+- **Status codes:** `401` means "no valid credential, sign in"; `403` means "your credential is valid but not allowed". A suspended or deleting tenant rejects its managers with `403` and its keys with `401`.
+- **Cookies and CSRF:** state-changing requests made with a session cookie need the `X-Nexus-Console: 1` header (and a matching `Origin`), on these routes as well as on `/auth`. Bearer credentials need neither. If both are sent, the Bearer credential wins.
+- To look inside a tenant, an operator needs a membership or a key for it; this is deliberate.
+
 ### Managing tenants (admin API)
 
-The `/tenants` endpoints are for the platform operator and take `Authorization: Bearer $ADMIN_API_KEY` (set `ADMIN_API_KEY` when starting the workflow app). Tenant API keys cannot use them.
+The `/tenants` endpoints are for platform operators: a signed-in operator, or `Authorization: Bearer $ADMIN_API_KEY` (set `ADMIN_API_KEY` when starting the workflow app). Tenant managers and tenant API keys cannot use them.
 
 | Request | Effect |
 |---|---|
