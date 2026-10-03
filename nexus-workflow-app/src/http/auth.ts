@@ -3,12 +3,15 @@ import { normalizeEmail } from '../auth/email.js'
 import type { BeginResult, LoginThrottle } from '../auth/LoginThrottle.js'
 import { PasswordPolicyError, type PasswordHasher } from '../auth/PasswordHasher.js'
 import { clearSessionCookie, clientIp, readSessionToken, setSessionCookie } from '../auth/sessionCookie.js'
+import type { AuditLog } from '../db/AuditLog.js'
 import type { InviteStore } from '../db/InviteStore.js'
 import type { SessionStore } from '../db/SessionStore.js'
 import type { UserStore } from '../db/UserStore.js'
 import { csrfGuard } from './middleware/csrf.js'
 
 export interface AuthRouterDeps {
+  /** Sign-ins and failed sign-ins are written here. */
+  audit?: AuditLog
   users: UserStore
   sessions: SessionStore
   invites: InviteStore
@@ -112,6 +115,13 @@ export function createAuthRouter(deps: AuthRouterDeps): Hono {
 
     if (!credentials || !passwordOk || credentials.status !== 'active') {
       attempts.forEach((attempt) => attempt.fail())
+      // The caller is told nothing about why; the log can say (only operators read it). A failed
+      // attempt is bounded by the throttle above, so this cannot be used to flood the log.
+      await deps.audit?.record({
+        action: 'login.failure',
+        actor: { kind: 'anonymous', label: email },
+        details: { ip, reason: credentials && credentials.status !== 'active' ? 'account disabled' : 'bad credentials' },
+      })
       return c.json(INVALID_CREDENTIALS, 401)
     }
 
@@ -125,6 +135,7 @@ export function createAuthRouter(deps: AuthRouterDeps): Hono {
     await startSession(c, credentials.id, ip)
 
     const user = await users.findById(credentials.id)
+    await deps.audit?.record({ action: 'login.success', actor: { kind: 'user', id: credentials.id, label: credentials.email }, details: { ip } })
     return c.json({ user, memberships: await users.listMemberships(credentials.id) })
   })
 
@@ -228,7 +239,15 @@ export function createAuthRouter(deps: AuthRouterDeps): Hono {
 
       attempt?.release()
       await startSession(c, user.id, ip)
-      return c.json({ user, memberships: await users.listMemberships(user.id) })
+      const memberships = await users.listMemberships(user.id)
+      await deps.audit?.record({
+        action: 'invite.accept',
+        actor: { kind: 'user', id: user.id, label: user.email },
+        tenantIds: [...new Set(memberships.flatMap((m) => (m.tenantId ? [m.tenantId] : [])))],
+        target: user.id,
+        details: { ip },
+      })
+      return c.json({ user, memberships })
     } catch (err) {
       attempt?.release()
       throw err

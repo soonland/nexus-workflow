@@ -1,3 +1,4 @@
+import type { AuditLog } from '../db/AuditLog.js'
 import type { InviteStore } from '../db/InviteStore.js'
 import {
   EmailTakenError,
@@ -9,6 +10,7 @@ import {
   type UserStore,
   type UserWithMemberships,
 } from '../db/UserStore.js'
+import { auditActorOf } from './auditActor.js'
 import { isOperator, managedTenantIds, type Principal } from './principal.js'
 
 // ─── Results ──────────────────────────────────────────────────────────────────
@@ -68,7 +70,14 @@ export class UserAdmin {
   constructor(
     private readonly users: UserStore,
     private readonly invites: InviteStore,
+    /** Where administrative changes are written down. Optional so the rules can be tested alone. */
+    private readonly audit?: AuditLog,
   ) {}
+
+  /** The tenants a person belongs to: what an audit entry about them is filed under. */
+  private tenantsOf(memberships: Array<{ tenantId: string | null }>): string[] {
+    return [...new Set(memberships.flatMap((m) => (m.tenantId ? [m.tenantId] : [])))]
+  }
 
   async list(actor: Principal): Promise<Outcome<UserWithMemberships[]>> {
     const scope = this.scopeOf(actor)
@@ -112,6 +121,13 @@ export class UserAdmin {
       const invite = await this.invites.create(created.id, scope.actorUserId)
       const user = await this.users.getWithMemberships(created.id)
       if (!user) throw new Error('Unexpected: the user just created was not found')
+      await this.audit?.record({
+        action: 'user.create',
+        actor: auditActorOf(actor),
+        tenantIds: this.tenantsOf(memberships),
+        target: user.id,
+        details: { email: user.email, roles: memberships.map((m) => ({ role: m.role, tenantId: m.tenantId })), invited: true },
+      })
       return ok({ user, invite })
     } catch (err) {
       await this.users.deleteUser(created.id).catch(() => {}) // do not leave a half-created person behind
@@ -133,6 +149,13 @@ export class UserAdmin {
     } catch (err) {
       return this.fromStoreError(err)
     }
+    await this.audit?.record({
+      action: status === 'disabled' ? 'user.disable' : 'user.enable',
+      actor: auditActorOf(actor),
+      tenantIds: this.tenantsOf(target.value.memberships),
+      target: userId,
+      details: { email: target.value.email },
+    })
     return this.reach(scope, userId)
   }
 
@@ -147,11 +170,20 @@ export class UserAdmin {
     const invalid = await this.validateMembership(request)
     if (invalid) return invalid
 
+    let created: Membership
     try {
-      return ok(await this.users.addMembership(userId, request.role, request.tenantId))
+      created = await this.users.addMembership(userId, request.role, request.tenantId)
     } catch (err) {
       return this.fromStoreError(err)
     }
+    await this.audit?.record({
+      action: 'membership.add',
+      actor: auditActorOf(actor),
+      tenantIds: this.tenantsOf([created]),
+      target: userId,
+      details: { email: target.value.email, role: created.role, tenantId: created.tenantId },
+    })
+    return ok(created)
   }
 
   async removeMembership(actor: Principal, userId: string, membershipId: string): Promise<Outcome<null>> {
@@ -172,6 +204,13 @@ export class UserAdmin {
     } catch (err) {
       return this.fromStoreError(err)
     }
+    await this.audit?.record({
+      action: 'membership.remove',
+      actor: auditActorOf(actor),
+      tenantIds: this.tenantsOf([membership]),
+      target: userId,
+      details: { email: target.value.email, role: membership.role, tenantId: membership.tenantId },
+    })
     return ok(null)
   }
 
@@ -187,6 +226,14 @@ export class UserAdmin {
     if (target.value.status !== 'active') return fail('CONFLICT', 'Enable the account before inviting the person again')
 
     const invite = await this.invites.create(userId, scope.actorUserId)
+    await this.audit?.record({
+      action: 'invite.create',
+      actor: auditActorOf(actor),
+      tenantIds: this.tenantsOf(target.value.memberships),
+      target: userId,
+      // for someone who already has a password this is a password reset
+      details: { email: target.value.email, reset: target.value.hasPassword },
+    })
     return ok({ user: target.value, invite })
   }
 

@@ -1,7 +1,10 @@
-import { Hono, type MiddlewareHandler } from 'hono'
+import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import type postgres from 'postgres'
 import { isAdminKeyHeader } from '../auth/adminKey.js'
 import { TenantStore } from '../db/TenantStore.js'
+import { auditActorOf } from '../auth/auditActor.js'
+import type { Principal } from '../auth/principal.js'
+import type { AuditActor, AuditLog } from '../db/AuditLog.js'
 import { readTenantCounts, type TenantCounts } from '../db/tenantCounts.js'
 import { dropTenantSchema, provisionTenantSchema, VALID_TENANT_ID } from '../db/tenantProvisioner.js'
 
@@ -20,6 +23,8 @@ export interface TenantsRouterOptions {
   onTenantDeactivating?: (tenantId: string) => void | Promise<void>
   /** How the per-tenant numbers of `GET /tenants?counts=true` are read. Tests replace it. */
   readCounts?: (tenantId: string) => Promise<TenantCounts>
+  /** Where changes to tenants and keys are written down. */
+  audit?: AuditLog
 }
 
 /** How many tenants are counted at the same time: bounds the load one list request puts on the pool. */
@@ -50,6 +55,12 @@ export function createTenantsRouter(
 ): Hono {
   const app = new Hono()
   const store = new TenantStore(sql, hmacSecret)
+
+  /** Who is acting. The guard sets the principal; with the default (admin key only) guard there is none, and it is the admin key. */
+  const actorOf = (c: Context): AuditActor => {
+    const principal = c.get('principal') as Principal | undefined
+    return principal ? auditActorOf(principal) : { kind: 'adminKey' }
+  }
 
   // ─── Admin auth guard ─────────────────────────────────────────────────────
 
@@ -125,6 +136,7 @@ export function createTenantsRouter(
       return c.json({ error: 'PROVISIONING_FAILED', message: `Failed to provision schema for tenant '${id}'` }, 500)
     }
 
+    await options.audit?.record({ action: 'tenant.create', actor: actorOf(c), tenantIds: [id], target: id, details: { name: tenant.name } })
     return c.json({ tenant }, 201)
   })
 
@@ -215,6 +227,14 @@ export function createTenantsRouter(
       }
     }
 
+    // One entry for each kind of change made
+    const actor = actorOf(c)
+    if (changes.status) {
+      await options.audit?.record({ action: changes.status === 'suspended' ? 'tenant.suspend' : 'tenant.reactivate', actor, tenantIds: [id], target: id })
+    }
+    if (changes.name) {
+      await options.audit?.record({ action: 'tenant.rename', actor, tenantIds: [id], target: id, details: { name: changes.name } })
+    }
     return c.json({ tenant })
   })
 
@@ -247,6 +267,7 @@ export function createTenantsRouter(
       )
     }
 
+    await options.audit?.record({ action: 'tenant.delete', actor: actorOf(c), tenantIds: [id], target: id })
     return c.json({ success: true })
   })
 
@@ -280,6 +301,8 @@ export function createTenantsRouter(
     if (tenant.status !== 'active') return c.json({ error: 'FORBIDDEN', message: `Tenant '${tenantId}' is not active` }, 403)
 
     const { key, plaintext } = await store.createApiKey(tenantId, name.trim())
+    // the key's id and name, never the key itself
+    await options.audit?.record({ action: 'key.create', actor: actorOf(c), tenantIds: [tenantId], target: key.id, details: { name: key.name } })
     return c.json({ key, plaintext }, 201)
   })
 
@@ -307,6 +330,7 @@ export function createTenantsRouter(
     const revoked = await store.revokeApiKey(tenantId, keyId)
     if (!revoked) return c.json({ error: 'NOT_FOUND', message: `Key '${keyId}' not found or already revoked` }, 404)
 
+    await options.audit?.record({ action: 'key.revoke', actor: actorOf(c), tenantIds: [tenantId], target: keyId })
     return c.json({ success: true })
   })
 

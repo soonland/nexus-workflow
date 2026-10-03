@@ -12,9 +12,11 @@ import { createAdminRouter } from './http/admin.js'
 import { createEventsRouter } from './http/events.js'
 import { createObservabilityRouter } from './http/observability.js'
 import { createWebhooksRouter } from './http/webhooks.js'
+import { AuditLog } from './db/AuditLog.js'
 import { UserAdmin } from './auth/UserAdmin.js'
 import { InviteStore } from './db/InviteStore.js'
 import { createAuthRouter } from './http/auth.js'
+import { createAuditRouter } from './http/audit.js'
 import { createUsersRouter } from './http/users.js'
 import { mountConsole } from './http/console.js'
 import { createTenantsRouter } from './http/tenants.js'
@@ -111,6 +113,7 @@ if (mountConsole(app, config.consoleDir)) {
 // many addresses) and per address; unknown emails count too.
 const MINUTE_MS = 60_000
 const userStore = new UserStore(authSql)
+const auditLog = new AuditLog(authSql)
 const sessionStore = new SessionStore(authSql, {
   hmacSecret: config.apiKeyHmacSecret,
   idleMs: config.sessionIdleMs,
@@ -118,6 +121,7 @@ const sessionStore = new SessionStore(authSql, {
 })
 const inviteStore = new InviteStore(authSql, { hmacSecret: config.apiKeyHmacSecret, ttlMs: config.inviteTtlMs })
 app.route('/auth', createAuthRouter({
+  audit: auditLog,
   users: userStore,
   sessions: sessionStore,
   invites: inviteStore,
@@ -140,7 +144,7 @@ sessionPurgeTimer.unref()
 // People: operators administer everyone, tenant managers only their own tenants' people (UserAdmin
 // holds the rules). Same credentials as /tenants, but tenant managers are let in too.
 app.route('/users', createUsersRouter({
-  admin: new UserAdmin(userStore, inviteStore),
+  admin: new UserAdmin(userStore, inviteStore, auditLog),
   guard: createPeopleAdminGuard({
     adminApiKey: config.adminApiKey,
     sessions: sessionStore,
@@ -150,9 +154,21 @@ app.route('/users', createUsersRouter({
   publicOrigin: config.publicOrigin,
 }))
 
+// The audit log: operators read everything, tenant managers the entries for their own tenants
+app.route('/audit', createAuditRouter({
+  audit: auditLog,
+  guard: createPeopleAdminGuard({
+    adminApiKey: config.adminApiKey,
+    sessions: sessionStore,
+    users: userStore,
+    publicOrigin: config.publicOrigin,
+  }),
+}))
+
 // /tenants is for platform operators: a signed-in operator, or the admin key (break-glass). Tenant
 // API keys and tenant managers are refused.
 app.route('/tenants', createTenantsRouter(authSql, config.apiKeyHmacSecret, config.adminApiKey, {
+  audit: auditLog,
   guard: createOperatorGuard({
     adminApiKey: config.adminApiKey,
     sessions: sessionStore,
