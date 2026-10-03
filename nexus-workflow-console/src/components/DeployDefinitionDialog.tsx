@@ -34,6 +34,7 @@ export function DeployDefinitionDialog({ open, api, onClose, onDeployed }: Props
   }
 
   function close() {
+    if (busy) return // a request is in flight: its answer must land in a dialog that is still open
     const done = result
     reset()
     if (done) onDeployed(done)
@@ -147,7 +148,9 @@ export function DeployDefinitionDialog({ open, api, onClose, onDeployed }: Props
           </Button>
         ) : (
           <>
-            <Button onClick={close}>Cancel</Button>
+            <Button disabled={busy} onClick={close}>
+              Cancel
+            </Button>
             <Button variant="contained" disabled={busy || xml.trim() === ''} onClick={() => void deploy()}>
               {busy ? 'Deploying…' : 'Deploy'}
             </Button>

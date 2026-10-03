@@ -75,4 +75,21 @@ describe('StartInstanceDialog', () => {
     expect(onClose).toHaveBeenCalled()
     expect(api.startInstance).not.toHaveBeenCalled()
   })
+
+  it('cannot be dismissed while the instance is starting, so onStarted is never orphaned', async () => {
+    const { api, user, onClose, onStarted } = setup()
+    let finish: (value: string) => void = () => undefined
+    api.startInstance.mockImplementation(() => new Promise<string>((resolve) => (finish = resolve)))
+
+    await user.click(start())
+
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    await user.keyboard('{Escape}')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    finish('abc')
+    await waitFor(() => expect(onStarted).toHaveBeenCalledWith('abc', expect.objectContaining({ id: 'approval' })))
+    expect(onClose).not.toHaveBeenCalled()
+  })
 })

@@ -107,4 +107,22 @@ describe('DeployDefinitionDialog', () => {
     expect(onClose).toHaveBeenCalled()
     expect(api.deployDefinition).not.toHaveBeenCalled()
   })
+
+  it('cannot be dismissed while the deploy is in flight, so its result is never lost', async () => {
+    const { api, user, onClose, onDeployed } = setup()
+    let finish: (value: unknown) => void = () => undefined
+    api.deployDefinition.mockImplementation(() => new Promise((resolve) => (finish = resolve)))
+    await user.click(xmlBox())
+    await user.paste('<x/>')
+    await user.click(deployButton())
+
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    await user.keyboard('{Escape}')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    finish({ id: 'approval', version: 2, name: 'Approval', validationWarnings: [] })
+    await user.click(await screen.findByRole('button', { name: 'Done' }))
+    expect(onDeployed).toHaveBeenCalledOnce()
+  })
 })

@@ -28,6 +28,7 @@ export function StartInstanceDialog({ definition, api, onClose, onStarted }: Pro
   }
 
   function close() {
+    if (busy) return // a request is in flight: do not dismiss, or onStarted would fire after the dialog is gone
     reset()
     onClose()
   }
@@ -82,7 +83,9 @@ export function StartInstanceDialog({ definition, api, onClose, onStarted }: Pro
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={close}>Cancel</Button>
+          <Button disabled={busy} onClick={close}>
+            Cancel
+          </Button>
           <Button type="submit" variant="contained" disabled={busy}>
             {busy ? 'Starting…' : 'Start instance'}
           </Button>
