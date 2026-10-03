@@ -1,7 +1,9 @@
 import type {
   ApiKey,
   DefinitionSummary,
+  HistoryEntry,
   InstanceStatus,
+  InstanceView,
   InstanceSummary,
   Paged,
   TaskStatus,
@@ -172,6 +174,8 @@ export function makeRequest(
       throw await toApiError(response)
     }
     if (response.status === 204) return undefined as T // e.g. deleting a webhook: nothing to parse
+    // The BPMN XML comes back as text, everything else as JSON
+    if (!(response.headers.get('Content-Type') ?? '').includes('json')) return (await response.text()) as T
     return (await response.json()) as T
   }
 }
@@ -195,6 +199,11 @@ export interface TenantApi {
   cancelInstance(id: string): Promise<void>
   /** Starts a new instance from a terminated one; returns the new instance's id. */
   restartInstance(id: string): Promise<string>
+
+  getInstance(id: string): Promise<InstanceView>
+  getInstanceHistory(id: string): Promise<HistoryEntry[]>
+  /** The BPMN XML a definition version was deployed from. */
+  getDefinitionXml(id: string, version: number): Promise<string>
 
   listTasks(query: { status?: TaskStatus; page: number; pageSize: number }): Promise<Paged<UserTask>>
   claimTask(id: string, claimedBy: string): Promise<void>
@@ -241,6 +250,15 @@ export function createTenantApi(
     },
     async cancelInstance(id) {
       await request('DELETE', instancePath(id))
+    },
+    getInstance(id) {
+      return request<InstanceView>('GET', instancePath(id))
+    },
+    async getInstanceHistory(id) {
+      return (await request<{ history: HistoryEntry[] }>('GET', `${instancePath(id)}/history`)).history
+    },
+    getDefinitionXml(id, version) {
+      return request<string>('GET', `/definitions/${encodeURIComponent(id)}/xml?version=${version}`)
     },
     listTasks({ status, page, pageSize }) {
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })

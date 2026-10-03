@@ -272,6 +272,22 @@ describe('createAdminApi', () => {
       expect([lastCall().init.method, lastCall().url]).toEqual(['DELETE', '/webhooks/w%201'])
     })
 
+    it('reads an instance, its history, and the definition XML as text', async () => {
+      const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch)
+
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ instance: { id: 'i1' }, tokens: [], variables: { a: 1 } }))
+      expect((await tenant.getInstance('i 1')).variables).toEqual({ a: 1 })
+      expect(lastCall().url).toBe('/instances/i%201')
+
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ history: [{ id: 'h1' }] }))
+      expect(await tenant.getInstanceHistory('i1')).toEqual([{ id: 'h1' }])
+      expect(lastCall().url).toBe('/instances/i1/history')
+
+      fetchMock.mockImplementationOnce(async () => new Response('<definitions/>', { status: 200, headers: { 'Content-Type': 'application/xml' } }))
+      expect(await tenant.getDefinitionXml('my flow', 3)).toBe('<definitions/>')
+      expect(lastCall().url).toBe('/definitions/my%20flow/xml?version=3')
+    })
+
     it('sign the user out on a 401 but not on a 403', async () => {
       const onUnauthorized = vi.fn()
       const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch, { onUnauthorized })

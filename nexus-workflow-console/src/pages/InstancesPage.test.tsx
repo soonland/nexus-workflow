@@ -16,7 +16,7 @@ function setup(items: InstanceSummary[] = [running, paused, waiting, stopped, do
   const api = makeFakeTenantApi()
   api.listInstances.mockResolvedValue({ items, total, page: 0, pageSize: 20 })
   const user = userEvent.setup()
-  render(<InstancesPage api={api} tenantId="acme" />)
+  render(<InstancesPage api={api} tenantId="acme" onOpen={() => undefined} />)
   return { api, user }
 }
 
@@ -36,7 +36,7 @@ describe('InstancesPage', () => {
     setup()
     await row('aaaaaaaa')
 
-    const names = (id: string) => within(screen.getByText(id).closest('tr')!).queryAllByRole('button').map((b) => b.textContent)
+    const names = (id: string) => within(screen.getByText(id).closest('tr')!).queryAllByRole('button').filter((b) => !b.hasAttribute('title')).map((b) => b.textContent)
     expect(names('aaaaaaaa')).toEqual(['Suspend', 'Cancel'])
     expect(names('bbbbbbbb')).toEqual(['Resume', 'Cancel'])
     expect(names('cccccccc')).toEqual(['Cancel'])
@@ -54,6 +54,18 @@ describe('InstancesPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Resume bbbbbbbb' }))
     await waitFor(() => expect(api.resumeInstance).toHaveBeenCalledWith('bbbbbbbb-0000'))
+  })
+
+  it('opens an instance when its id is clicked', async () => {
+    const api = makeFakeTenantApi()
+    api.listInstances.mockResolvedValue({ items: [running], total: 1, page: 0, pageSize: 20 })
+    const opened: string[] = []
+    const user = userEvent.setup()
+    render(<InstancesPage api={api} tenantId="acme" onOpen={(id) => opened.push(id)} />)
+
+    await user.click(await screen.findByRole('button', { name: 'aaaaaaaa' }))
+
+    expect(opened).toEqual(['aaaaaaaa-0000'])
   })
 
   it('asks before cancelling, and does nothing if you back out', async () => {
@@ -118,7 +130,7 @@ describe('InstancesPage', () => {
     const api = makeFakeTenantApi()
     api.listInstances.mockRejectedValueOnce(new ApiError(0, 'Could not reach the workflow API.')).mockResolvedValue({ items: [running], total: 1, page: 0, pageSize: 20 })
     const user = userEvent.setup()
-    render(<InstancesPage api={api} tenantId="acme" />)
+    render(<InstancesPage api={api} tenantId="acme" onOpen={() => undefined} />)
 
     expect(await screen.findByText(/could not reach/i)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Retry' }))
@@ -132,7 +144,7 @@ describe('InstancesPage', () => {
       .mockImplementationOnce(() => new Promise((resolve) => (releaseSlow = resolve))) // the first load, for "all"
       .mockResolvedValue({ items: [paused], total: 1, page: 0, pageSize: 20 }) // the filtered load
     const user = userEvent.setup()
-    render(<InstancesPage api={api} tenantId="acme" />)
+    render(<InstancesPage api={api} tenantId="acme" onOpen={() => undefined} />)
 
     await user.click(screen.getByRole('combobox', { name: 'Status' }))
     await user.click(await screen.findByRole('option', { name: 'suspended' }))
@@ -151,7 +163,7 @@ describe('InstancesPage', () => {
       return { items: [], total: 20, page, pageSize: 20 } // page 1 no longer exists
     })
     const user = userEvent.setup()
-    render(<InstancesPage api={api} tenantId="acme" />)
+    render(<InstancesPage api={api} tenantId="acme" onOpen={() => undefined} />)
     await screen.findByText('aaaaaaaa')
 
     await user.click(screen.getByRole('button', { name: /next page/i }))
