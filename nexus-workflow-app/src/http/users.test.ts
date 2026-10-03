@@ -133,9 +133,39 @@ describe('users HTTP API (Postgres)', () => {
       expect(body['user']).toMatchObject({ email: email('ada'), name: 'ada', status: 'active', hasPassword: false })
       expect(body['user'].memberships).toMatchObject([{ role: 'tenant_manager', tenantId: tenantA }])
       expect(body['invite'].token).toMatch(/^[A-Za-z0-9_-]{43}$/)
-      expect(body['invite'].url).toBe(`http://localhost/console/invite/${body['invite'].token}`)
+      // only a path, unless PUBLIC_ORIGIN is configured: the console adds its own origin
+      expect(body['invite'].path).toBe(`/console/invite/${body['invite'].token}`)
+      expect(body['invite']).not.toHaveProperty('url')
       expect(Date.parse(body['invite'].expiresAt)).toBeGreaterThan(Date.now())
       expect(JSON.stringify(body)).not.toMatch(/passwordHash|scrypt/)
+    })
+
+    it('never builds a link from the Host header: a spoofed host cannot end up in an invite link', async () => {
+      const spoofed = (headers: Record<string, string> = {}) =>
+        app.fetch(
+          new Request('http://evil.example.com/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_KEY}`, 'X-Forwarded-Host': 'evil.example.com', ...headers },
+            body: JSON.stringify({ email: email(`spoof${Math.random().toString(36).slice(2, 6)}`), name: 'Spoof' }),
+          }),
+        )
+
+      const created = await spoofed()
+      const text = await created.text()
+
+      expect(created.status).toBe(201)
+      expect(text).not.toContain('evil.example.com')
+      expect(JSON.parse(text).invite.path).toMatch(/^\/console\/invite\//)
+
+      // the same for a re-issued invite
+      const userId = JSON.parse(text).user.id as string
+      const reissued = await app.fetch(
+        new Request(`http://evil.example.com/users/${userId}/invite`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${ADMIN_KEY}`, 'X-Forwarded-Host': 'evil.example.com' },
+        }),
+      )
+      expect(await reissued.text()).not.toContain('evil.example.com')
     })
 
     it('builds the link from PUBLIC_ORIGIN when it is set', async () => {
@@ -157,6 +187,7 @@ describe('users HTTP API (Postgres)', () => {
       )
       const body = (await res.json()) as any
       expect(body.invite.url).toBe(`https://workflow.example.com/console/invite/${body.invite.token}`)
+      expect(body.invite.path).toBe(`/console/invite/${body.invite.token}`)
     })
 
     it('a tenant manager can invite a manager for their own tenant', async () => {
@@ -266,7 +297,7 @@ describe('users HTTP API (Postgres)', () => {
 
       expect(second.status).toBe(200)
       expect(second.body['invite'].token).not.toBe(first['invite'].token)
-      expect(second.body['invite'].url).toContain(second.body['invite'].token)
+      expect(second.body['invite'].path).toBe(`/console/invite/${second.body['invite'].token}`)
       expect((await call(`/${outsiderId}/invite`, { method: 'POST', as: 'managerA' })).status).toBe(404)
     })
   })

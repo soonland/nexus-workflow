@@ -1,11 +1,14 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { normalizeOrigin } from './auth/origin.js'
 
 const nodeEnv = process.env['NODE_ENV'] ?? 'development'
 
 // The built operator console (`pnpm --filter nexus-workflow-console build`). The default is the
 // sibling package, which is right both for `tsx src/main.ts` and for the compiled dist/main.js.
 const defaultConsoleDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../nexus-workflow-console/dist')
+
+const publicOrigin = normalizeOrigin(process.env['PUBLIC_ORIGIN'])
 
 function parseTrustedProxies(value: string | undefined): number {
   if (!value || value === 'false') return 0
@@ -35,10 +38,14 @@ export const config = {
   /** How long an invitation link stays valid. Default: 7 days. */
   inviteTtlMs: Number(process.env['INVITE_TTL_HOURS'] ?? 168) * 3_600_000,
   /**
-   * The origin the console is served from (for example https://workflow.example.com), used to
-   * check the Origin header of sign-in requests. Set it behind a proxy that rewrites the host.
+   * The origin the console is served from (for example https://workflow.example.com), normalised to
+   * the exact form a browser sends in its Origin header (no trailing slash or path, lower case).
+   * Used to check the Origin of sign-in requests and to build absolute invite links. Set it behind a
+   * proxy that rewrites the host.
    */
-  publicOrigin: process.env['PUBLIC_ORIGIN'] || undefined,
+  publicOrigin: publicOrigin.ok ? publicOrigin.origin : undefined,
+  /** The raw PUBLIC_ORIGIN when it is not a usable http(s) origin; assertConfigValid refuses to start. */
+  publicOriginInvalid: publicOrigin.ok ? undefined : process.env['PUBLIC_ORIGIN'],
   /**
    * How many proxies of yours sit in front of this server: 0 (default), `true` (= 1) or a number.
    * Above 0, X-Forwarded-For / X-Forwarded-Proto are believed. Only set it behind proxies you control.
@@ -56,6 +63,13 @@ export function assertConfigValid(cfg: typeof config) {
     process.exit(1)
   } else if (!cfg.adminApiKey) {
     console.warn('[config] ADMIN_API_KEY is not set — bootstrap key unavailable.')
+  }
+
+  if (cfg.publicOriginInvalid !== undefined) {
+    console.error(
+      `[config] PUBLIC_ORIGIN must be an http(s) origin such as https://workflow.example.com, got "${cfg.publicOriginInvalid}". Exiting.`,
+    )
+    process.exit(1)
   }
 
   if (Number.isNaN(cfg.trustedProxies)) {

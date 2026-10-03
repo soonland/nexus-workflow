@@ -7,7 +7,10 @@ export interface UsersRouterDeps {
   admin: UserAdmin
   /** Admits operators and tenant managers (createPeopleAdminGuard); sets the principal. */
   guard: MiddlewareHandler<{ Variables: AppVariables }>
-  /** The origin the console is served from; invite links are built on it. Defaults to the request's. */
+  /**
+   * The origin the console is served from (PUBLIC_ORIGIN). When set, invites also carry an absolute
+   * `url`; when not, only a `path`: the origin is never taken from the request.
+   */
   publicOrigin?: string | undefined
 }
 
@@ -69,9 +72,18 @@ export function createUsersRouter(deps: UsersRouterDeps): Hono<{ Variables: AppV
   const reply = <T>(c: Ctx, outcome: Outcome<T>, success: (value: T) => Response) =>
     outcome.ok ? success(outcome.value) : c.json({ error: outcome.error, message: outcome.message }, STATUS[(outcome as Failure).error])
 
-  const inviteBody = (c: Ctx, invite: { token: string; expiresAt: Date }) => {
-    const origin = deps.publicOrigin ?? new URL(c.req.url).origin
-    return { token: invite.token, url: `${origin}/console/invite/${invite.token}`, expiresAt: invite.expiresAt }
+  // The invite link is the sensitive object, so it must never be built from request data such as
+  // the Host header (an attacker-chosen host would end up in a link an operator then sends on).
+  // The response always carries the path; the absolute `url` only when PUBLIC_ORIGIN is configured,
+  // otherwise the console adds its own origin, which the browser knows for certain.
+  const inviteBody = (invite: { token: string; expiresAt: Date }) => {
+    const path = `/console/invite/${invite.token}`
+    return {
+      token: invite.token,
+      path,
+      ...(deps.publicOrigin ? { url: `${deps.publicOrigin}${path}` } : {}),
+      expiresAt: invite.expiresAt,
+    }
   }
 
   app.get('/', async (c) => reply(c, await admin.list(actor(c)), (users) => c.json({ users })))
@@ -91,7 +103,7 @@ export function createUsersRouter(deps: UsersRouterDeps): Hono<{ Variables: AppV
     }
 
     return reply(c, await admin.create(actor(c), { email, name, ...(parsed ? { memberships: parsed } : {}) }), ({ user, invite }) =>
-      c.json({ user, invite: inviteBody(c, invite) }, 201),
+      c.json({ user, invite: inviteBody(invite) }, 201),
     )
   })
 
@@ -118,7 +130,7 @@ export function createUsersRouter(deps: UsersRouterDeps): Hono<{ Variables: AppV
   )
 
   app.post('/:id/invite', async (c) =>
-    reply(c, await admin.reinvite(actor(c), c.req.param('id')), ({ user, invite }) => c.json({ user, invite: inviteBody(c, invite) })),
+    reply(c, await admin.reinvite(actor(c), c.req.param('id')), ({ user, invite }) => c.json({ user, invite: inviteBody(invite) })),
   )
 
   return app

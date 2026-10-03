@@ -166,7 +166,7 @@ People sign in with an email and password and get a session cookie. (API keys ar
 - **Cookie:** random token, `HttpOnly`, `SameSite=Strict`, `Secure` whenever the connection is HTTPS. Only a hash of the token is stored. A session ends after `SESSION_IDLE_MINUTES` of inactivity (default 480) or `SESSION_MAX_DAYS` in total (default 7), and when the user is disabled or changes their password.
 - **CSRF:** every `POST` here must carry the header `X-Nexus-Console: 1`, and if the browser sends an `Origin` it must be the console's own (`PUBLIC_ORIGIN`, or the request's origin by default). Set `PUBLIC_ORIGIN` when a proxy rewrites the host.
 - **Throttling:** failed sign-ins are counted three ways, and a locked key is refused for 15 minutes with `429` and `Retry-After` **even with the right password**: 5 failures for one account *from one address* (so a stranger guessing at your email locks only themselves out, not you on another address), 25 for one account from *anywhere* (guessing spread over many addresses), and 30 from one address against any accounts. Unknown emails are counted like real ones. Attempts still being checked count toward the limit, so a burst of parallel guesses cannot exceed it, and a lock is never dropped to make room for new entries (if the table of locks were ever completely full, new keys are refused until one expires). The counters are in memory (per process).
-- **Behind a proxy:** set `TRUST_PROXY` to the number of proxies of yours in front of the server (`true` means 1; `2` for a CDN plus a load balancer). Then `X-Forwarded-For` / `X-Forwarded-Proto` are believed and the client address is the entry that many places from the end of `X-Forwarded-For`. Leave it unset when nothing sits in front: the header is client-controlled.
+- **Behind a proxy:** set `TRUST_PROXY` to the number of proxies of yours in front of the server (`true` means 1; `2` for a CDN plus a load balancer). Then `X-Forwarded-For` / `X-Forwarded-Proto` are believed and the client address is the entry that many places from the end of `X-Forwarded-For`. Leave it unset when nothing sits in front: the header is client-controlled. If a request carries fewer `X-Forwarded-For` entries than that (the number is too high, or the app was reached without going through the proxies), its address is treated as unknown, per-address limits are skipped for it, and a warning is logged once.
 - Failed sign-ins always answer `401 INVALID_CREDENTIALS` with the same body and about the same time, whether or not the account exists.
 
 ### Creating people and inviting them
@@ -187,7 +187,7 @@ After that, people are managed through the API (the console screen comes next):
 | Request | Effect |
 |---|---|
 | `GET /users` | The people you may see: everyone for an operator; for a tenant manager, only people who belong *wholly* to tenants they manage |
-| `POST /users` `{email, name, memberships?}` | Create a person with roles and get their invite link (`invite.url`) back. Shown only once |
+| `POST /users` `{email, name, memberships?}` | Create a person with roles and get their invite back, shown only once: `invite.token`, `invite.path` (`/console/invite/<token>`) and, if `PUBLIC_ORIGIN` is set, an absolute `invite.url` |
 | `GET /users/:id` | One person with their roles |
 | `PATCH /users/:id` `{status}` | Disable (`"disabled"`) or re-enable (`"active"`); disabling ends their sessions |
 | `POST /users/:id/memberships` `{role, tenantId}` · `DELETE /users/:id/memberships/:membershipId` | Give or take away a role |
@@ -196,6 +196,7 @@ After that, people are managed through the API (the console screen comes next):
 
 - **Who may do what:** operators administer anyone; a tenant manager can invite and manage people in their own tenants only, can never grant `operator` or a tenant they do not manage, and cannot see or touch anyone who also belongs elsewhere (those people are simply "not found").
 - **Guard rails:** nobody can disable themselves or take away their own operator role or last role (another administrator does that), and the platform always keeps at least one active operator.
+- **Link origin:** the server never builds a link from request data such as the `Host` header (a spoofed host would end up in a link you then send on). It returns the `path`, and the console adds its own origin; set `PUBLIC_ORIGIN` to also get a ready-made absolute `url`. `PUBLIC_ORIGIN` is normalised to the form browsers send in the `Origin` header (`https://Example.com/` becomes `https://example.com`) and the server refuses to start if it is not an http(s) origin.
 - **Links:** valid for `INVITE_TTL_HOURS` (default 168 = 7 days), usable once, stored only as a hash, and replaced when a new one is issued. Accepting one sets the password and ends the person's other sessions. Guessing links is throttled per client address.
 
 ### Who can do what
