@@ -22,6 +22,17 @@ export const config = {
   apiKeyHmacSecret: process.env['API_KEY_HMAC_SECRET'] ?? '',
   /** Directory with the built operator console, served at /console when it exists. */
   consoleDir: process.env['CONSOLE_DIR'] ?? defaultConsoleDir,
+  /** A signed-in session unused for this long ends. Default: 8 hours. */
+  sessionIdleMs: Number(process.env['SESSION_IDLE_MINUTES'] ?? 480) * 60_000,
+  /** A session ends this long after sign-in however busy it was. Default: 7 days. */
+  sessionMaxMs: Number(process.env['SESSION_MAX_DAYS'] ?? 7) * 86_400_000,
+  /**
+   * The origin the console is served from (for example https://workflow.example.com), used to
+   * check the Origin header of sign-in requests. Set it behind a proxy that rewrites the host.
+   */
+  publicOrigin: process.env['PUBLIC_ORIGIN'] || undefined,
+  /** Believe X-Forwarded-For and X-Forwarded-Proto. Only set this behind a proxy you control. */
+  trustProxy: process.env['TRUST_PROXY'] === 'true',
 }
 
 /**
@@ -34,6 +45,12 @@ export function assertConfigValid(cfg: typeof config) {
     process.exit(1)
   } else if (!cfg.adminApiKey) {
     console.warn('[config] ADMIN_API_KEY is not set — bootstrap key unavailable.')
+  }
+
+  const positive = (n: number) => Number.isFinite(n) && n > 0
+  if (!positive(cfg.sessionIdleMs) || !positive(cfg.sessionMaxMs)) {
+    console.error('[config] SESSION_IDLE_MINUTES and SESSION_MAX_DAYS must be positive numbers. Exiting.')
+    process.exit(1)
   }
 
   if (!cfg.apiKeyHmacSecret && cfg.nodeEnv === 'production') {

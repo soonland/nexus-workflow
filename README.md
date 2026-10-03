@@ -153,6 +153,21 @@ pnpm --filter nexus-workflow-console build
 
 Sign in with the same `ADMIN_API_KEY`. The key stays in that browser tab only (`sessionStorage`). The console page itself is public; every action it takes needs the key. The Docker image builds and serves it at `/console` automatically (set `CONSOLE_DIR` to serve a different build).
 
+### Signing in (people)
+
+People sign in with an email and password and get a session cookie. (API keys are for programs and are unchanged.)
+
+| Request | Effect |
+|---|---|
+| `POST /auth/login` `{email, password}` | Start a session: sets the `nexus_session` cookie, returns the user and their memberships |
+| `GET /auth/me` | The signed-in user and memberships, or `401` |
+| `POST /auth/logout` | End the session and clear the cookie |
+
+- **Cookie:** random token, `HttpOnly`, `SameSite=Strict`, `Secure` whenever the connection is HTTPS. Only a hash of the token is stored. A session ends after `SESSION_IDLE_MINUTES` of inactivity (default 480) or `SESSION_MAX_DAYS` in total (default 7), and when the user is disabled or changes their password.
+- **CSRF:** every `POST` here must carry the header `X-Nexus-Console: 1`, and if the browser sends an `Origin` it must be the console's own (`PUBLIC_ORIGIN`, or the request's origin by default). Set `PUBLIC_ORIGIN` when a proxy rewrites the host.
+- **Throttling:** after 5 failed sign-ins for an account (real or not) or 30 from one address within 15 minutes, further attempts get `429` with `Retry-After` for 15 minutes, even with the right password. The counters are in memory (per process). Set `TRUST_PROXY=true` only behind a proxy you control so the real client address is used.
+- Failed sign-ins always answer `401 INVALID_CREDENTIALS` with the same body and about the same time, whether or not the account exists.
+
 ### Managing tenants (admin API)
 
 The `/tenants` endpoints are for the platform operator and take `Authorization: Bearer $ADMIN_API_KEY` (set `ADMIN_API_KEY` when starting the workflow app). Tenant API keys cannot use them.
