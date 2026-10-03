@@ -129,3 +129,29 @@ export interface Webhook {
   events: string[]
   createdAt: string
 }
+
+export interface InstanceDetail extends InstanceSummary {
+  errorInfo?: { code?: string; message?: string }
+}
+
+export interface InstanceToken {
+  id: string
+  elementId: string
+  elementType: string
+  status: string
+}
+
+/** One entry of an instance's audit trail, as the engine logged it. */
+export interface InstanceEvent {
+  id: string
+  type: string
+  occurredAt: string
+  data: Record<string, unknown>
+}
+
+export interface InstanceView {
+  instance: InstanceDetail
+  /** The elements the instance is at right now. */
+  tokens: InstanceToken[]
+  variables: Record<string, unknown>
+}

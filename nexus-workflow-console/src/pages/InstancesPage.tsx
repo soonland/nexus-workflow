@@ -5,6 +5,7 @@ import {
   Button,
   CircularProgress,
   IconButton,
+  Link,
   MenuItem,
   Snackbar,
   Stack,
@@ -31,7 +32,7 @@ const PAGE_SIZE = 20
 
 type Pending = { kind: 'cancel' | 'restart'; instance: InstanceSummary }
 
-export function InstancesPage({ api, tenantId }: { api: TenantApi; tenantId: string }) {
+export function InstancesPage({ api, tenantId, onOpen }: { api: TenantApi; tenantId: string; onOpen(id: string): void }) {
   const [result, setResult] = useState<Paged<InstanceSummary> | null>(null)
   const [status, setStatus] = useState<InstanceStatus | ''>('')
   const [page, setPage] = useState(0)
@@ -145,9 +146,9 @@ export function InstancesPage({ api, tenantId }: { api: TenantApi; tenantId: str
                 return (
                   <TableRow key={id} hover>
                     <TableCell>
-                      <Typography sx={{ fontFamily: 'monospace' }} title={id}>
+                      <Link component="button" type="button" underline="hover" sx={{ fontFamily: 'monospace' }} title={id} onClick={() => onOpen(id)}>
                         {short(id)}
-                      </Typography>
+                      </Link>
                       {instance.businessKey && (
                         <Typography variant="caption" color="text.secondary">
                           {instance.businessKey}

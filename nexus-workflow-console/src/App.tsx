@@ -8,6 +8,7 @@ import { canManageUsers, describeSession, isOperator } from './auth/roles'
 import { InvitePage, readInviteToken } from './pages/InvitePage'
 import { LoginPage } from './pages/LoginPage'
 import { DefinitionsPage } from './pages/DefinitionsPage'
+import { InstanceDetailPage } from './pages/InstanceDetailPage'
 import { InstancesPage } from './pages/InstancesPage'
 import { TasksPage } from './pages/TasksPage'
 import { WebhooksPage } from './pages/WebhooksPage'
@@ -24,6 +25,8 @@ function Shell() {
     return token
   })
   const [chosen, setChosen] = useState<Screen | null>(null)
+  // The instance being looked at, if any. It belongs to the tenant it was opened in.
+  const [openInstance, setOpenInstance] = useState<{ tenantId: string; id: string } | null>(null)
   const tenant = useTenantContext()
 
   if (inviteToken) return <InvitePage token={inviteToken} onDone={() => setInviteToken(null)} />
@@ -37,13 +40,17 @@ function Shell() {
   if (!session) return <LoginPage />
 
   const screens: Screen[] = [...(tenant.tenantId ? (['definitions', 'instances', 'tasks', 'webhooks'] as const) : []), ...(isOperator(session) ? (['tenants'] as const) : []), ...(canManageUsers(session) ? (['users'] as const) : [])]
+  const currentTenant = tenant.tenantId
   const screen = chosen && screens.includes(chosen) ? chosen : screens[0]
 
   return (
     <AppShell
       screens={screens}
       screen={screen}
-      onSelect={setChosen}
+      onSelect={(next) => {
+        setChosen(next)
+        setOpenInstance(null)
+      }}
       tenantId={tenant.tenantId}
       tenantIds={tenant.tenantIds}
       onSelectTenant={tenant.select}
@@ -51,7 +58,12 @@ function Shell() {
       onSignOut={() => void signOut()}
     >
       {screen === 'definitions' && tenant.api && tenant.tenantId && <DefinitionsPage key={tenant.tenantId} api={tenant.api} tenantId={tenant.tenantId} />}
-      {screen === 'instances' && tenant.api && tenant.tenantId && <InstancesPage key={tenant.tenantId} api={tenant.api} tenantId={tenant.tenantId} />}
+      {screen === 'instances' && tenant.api && tenant.tenantId && openInstance?.tenantId === tenant.tenantId && (
+        <InstanceDetailPage key={openInstance.id} api={tenant.api} instanceId={openInstance.id} onBack={() => setOpenInstance(null)} />
+      )}
+      {screen === 'instances' && tenant.api && currentTenant && openInstance?.tenantId !== currentTenant && (
+        <InstancesPage key={currentTenant} api={tenant.api} tenantId={currentTenant} onOpen={(id) => setOpenInstance({ tenantId: currentTenant, id })} />
+      )}
       {screen === 'tasks' && tenant.api && tenant.tenantId && (
         <TasksPage key={tenant.tenantId} api={tenant.api} tenantId={tenant.tenantId} actor={session.kind === 'user' ? session.user.email : describeSession(session)} />
       )}

@@ -272,6 +272,32 @@ describe('createAdminApi', () => {
       expect([lastCall().init.method, lastCall().url]).toEqual(['DELETE', '/webhooks/w%201'])
     })
 
+    it('reads an instance, its events, and the definition XML as text', async () => {
+      const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch)
+
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ instance: { id: 'i1' }, tokens: [], variables: { a: 1 } }))
+      expect((await tenant.getInstance('i 1')).variables).toEqual({ a: 1 })
+      expect(lastCall().url).toBe('/instances/i%201')
+
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ events: [{ id: 'e1' }] }))
+      expect(await tenant.getInstanceEvents('i1')).toEqual([{ id: 'e1' }])
+      expect(lastCall().url).toBe('/instances/i1/events')
+
+      fetchMock.mockImplementationOnce(async () => new Response('<definitions/>', { status: 200, headers: { 'Content-Type': 'application/xml' } }))
+      expect(await tenant.getDefinitionXml('my flow', 3)).toBe('<definitions/>')
+      expect(lastCall().url).toBe('/definitions/my%20flow/xml?version=3')
+    })
+
+    it('does not mistake a non-JSON answer (a proxy error page, an empty 200) for data', async () => {
+      const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch)
+
+      fetchMock.mockImplementationOnce(async () => new Response('<html>Bad gateway</html>', { status: 200, headers: { 'Content-Type': 'text/html' } }))
+      await expect(tenant.listInstances({ page: 0, pageSize: 20 })).rejects.toBeInstanceOf(SyntaxError)
+
+      fetchMock.mockImplementationOnce(async () => new Response('', { status: 200 }))
+      await expect(tenant.listDefinitions()).rejects.toBeInstanceOf(SyntaxError)
+    })
+
     it('sign the user out on a 401 but not on a 403', async () => {
       const onUnauthorized = vi.fn()
       const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch, { onUnauthorized })
