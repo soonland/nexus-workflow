@@ -227,6 +227,26 @@ The `/tenants` endpoints are for platform operators: a signed-in operator, or `A
 | `DELETE /tenants/:id` | Permanently delete the tenant, its schema and all its data and keys. The tenant is first marked `deleting` (keys rejected, no reactivation), then its workers stop, its schema is dropped and its rows are removed. The `default` tenant is protected (409). If a step fails you get a 500 and the tenant stays `deleting`; run the `DELETE` again (every step can be repeated) |
 | `POST/GET /tenants/:id/keys`, `DELETE /tenants/:id/keys/:keyId` | Create (plaintext shown once), list and revoke keys |
 
+### Audit log
+
+Administrative actions and sign-ins are written to `public.audit_log`, and read with `GET /audit` (newest first).
+
+| Written for | Actions |
+|---|---|
+| Tenants | `tenant.create`, `tenant.suspend`, `tenant.reactivate`, `tenant.rename`, `tenant.delete` |
+| Keys | `key.create`, `key.revoke` (the key's id and name, never the key) |
+| People | `user.create`, `user.disable`, `user.enable`, `membership.add`, `membership.remove`, `invite.create` (also a password reset), `invite.accept` |
+| Signing in | `login.success`, `login.failure` (with the address and why; attempts the throttle refuses are not logged) |
+
+Each entry has the actor (a person, the admin key, a tenant key, or "anonymous" for a failed sign-in), the action, the tenants it is about, a target (a tenant, key or person id) and a few facts. Passwords, invite tokens and plaintext keys are never stored: callers pass only plain facts, and anything whose name suggests a secret is removed before writing. An entry is written after the action succeeded; if writing fails it is reported on the console and the action still stands. Entries have no foreign keys, so they outlive the tenant or person they are about.
+
+`GET /audit` filters: `tenant`, `actor` (a user id, or a kind such as `adminKey`), `action` (exact, or a family such as `key`), `from`, `to` (ISO dates), `page` (from 0) and `pageSize` (1 to 100, default 50).
+- **Operators** (and the admin key) read everything.
+- **Tenant managers** read only entries that name tenants, *all* of which they manage; asking for another tenant is a 403. Sign-ins and other platform-wide entries are operators only.
+- Tenant API keys and people with no admin role get 403.
+
+The log is append-only and has no retention yet: it grows until it is trimmed by hand.
+
 ### Install, migrate & seed
 
 ```bash
