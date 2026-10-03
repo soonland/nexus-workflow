@@ -97,4 +97,37 @@ describe('WebhooksPage', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }))
     expect(await screen.findByText('https://example.com/all')).toBeInTheDocument()
   })
+
+  describe('search and sort', () => {
+    const list = [
+      makeWebhook({ id: 'b', url: 'https://b.example.com/hook', events: ['ProcessInstanceCompleted'], createdAt: '2026-01-02T00:00:00.000Z' }),
+      makeWebhook({ id: 'a', url: 'https://a.example.com/hook', events: [], createdAt: '2026-01-03T00:00:00.000Z' }),
+      makeWebhook({ id: 'c', url: 'https://c.example.com/hook', events: ['TaskCreated', 'TaskCompleted'], createdAt: '2026-01-01T00:00:00.000Z' }),
+    ]
+    const urls = () => screen.getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell')[0]!.textContent)
+
+    it('searches the address and the events', async () => {
+      const { user } = setup(list)
+      await screen.findByText('https://a.example.com/hook')
+      const box = screen.getByRole('searchbox', { name: 'Search webhooks' })
+
+      await user.type(box, 'taskcompleted')
+      expect(urls()).toEqual(['https://c.example.com/hook'])
+
+      await user.clear(box)
+      await user.type(box, 'all events')
+      expect(urls()).toEqual(['https://a.example.com/hook'])
+    })
+
+    it('sorts by address and by date added', async () => {
+      const { user } = setup(list)
+      await screen.findByText('https://a.example.com/hook')
+
+      await user.click(screen.getByRole('button', { name: 'Address' }))
+      expect(urls()).toEqual(['https://a.example.com/hook', 'https://b.example.com/hook', 'https://c.example.com/hook'])
+
+      await user.click(screen.getByRole('button', { name: 'Added' }))
+      expect(urls()).toEqual(['https://c.example.com/hook', 'https://b.example.com/hook', 'https://a.example.com/hook'])
+    })
+  })
 })

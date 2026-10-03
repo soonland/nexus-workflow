@@ -117,6 +117,17 @@ describe('TasksPage', () => {
     await waitFor(() => expect(api.listTasks).toHaveBeenLastCalledWith({ page: 0, pageSize: 20 }))
   })
 
+  it('asks for more entries per page, and says what is showing', async () => {
+    const { api, user } = setup([open], 45)
+    await screen.findByText('Review timesheet')
+    expect(screen.getByText('Showing 1 to 20 of 45 entries')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('combobox', { name: 'Entries per page' }))
+    await user.click(await screen.findByRole('option', { name: '100' }))
+
+    await waitFor(() => expect(api.listTasks).toHaveBeenLastCalledWith({ status: 'open', page: 0, pageSize: 100 }))
+  })
+
   it('shows a message and lets you retry when the list cannot be loaded', async () => {
     const api = makeFakeTenantApi()
     api.listTasks.mockRejectedValueOnce(new ApiError(0, 'Could not reach the workflow API.')).mockResolvedValue({ items: [open], total: 1, page: 0, pageSize: 20 })

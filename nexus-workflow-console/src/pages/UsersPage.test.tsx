@@ -33,9 +33,55 @@ function setup(session: Session, users = [ada, grace, gone]) {
   return { api, user }
 }
 
+const render3 = (users: Parameters<typeof setup>[1]) => setup(operator, users)
+
 const rowOf = async (text: string) => (await screen.findByText(text)).closest('tr')!
 
 describe('UsersPage', () => {
+  describe('search and sort', () => {
+    const names = () => screen.getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell')[0]!.querySelector('p')?.textContent)
+
+    it('searches by name, email, role or status', async () => {
+      const { user } = setup(operator)
+      await screen.findByText('Ada')
+      const box = screen.getByRole('searchbox', { name: 'Search people' })
+
+      await user.type(box, 'globex') // Grace manages globex
+      expect(names()).toEqual(['Grace'])
+
+      await user.clear(box)
+      await user.type(box, 'invited') // Grace has not accepted her invitation
+      expect(names()).toEqual(['Grace'])
+
+      await user.clear(box)
+      await user.type(box, 'DISABLED')
+      expect(names()).toEqual(['Gone'])
+    })
+
+    it('sorts by person, and reverses on a second click', async () => {
+      const { user } = setup(operator)
+      await screen.findByText('Ada')
+
+      await user.click(screen.getByRole('button', { name: 'Person' }))
+      expect(names()).toEqual(['Ada', 'Gone', 'Grace'])
+      await user.click(screen.getByRole('button', { name: 'Person' }))
+      expect(names()).toEqual(['Grace', 'Gone', 'Ada'])
+    })
+
+    it('sorts by last sign-in, with people who never signed in last', async () => {
+      const recent = makeUser({ id: 'r', name: 'Recent', email: 'r@example.com', lastLoginAt: '2026-02-02T00:00:00.000Z' })
+      const old = makeUser({ id: 'o', name: 'Old', email: 'o@example.com', lastLoginAt: '2026-01-01T00:00:00.000Z' })
+      const never = makeUser({ id: 'n', name: 'Never', email: 'n@example.com', lastLoginAt: null })
+      const { user } = render3([never, recent, old])
+      await screen.findByText('Recent')
+
+      await user.click(screen.getByRole('button', { name: 'Last sign-in' }))
+      expect(names()).toEqual(['Old', 'Recent', 'Never'])
+      await user.click(screen.getByRole('button', { name: 'Last sign-in' }))
+      expect(names()).toEqual(['Recent', 'Old', 'Never'])
+    })
+  })
+
   it('lists people with their roles and whether they have signed up', async () => {
     setup(operator)
 
