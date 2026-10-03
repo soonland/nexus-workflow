@@ -24,6 +24,7 @@ import type { TenantApi } from '../api/client'
 import { INSTANCE_STATUSES, type InstanceStatus, type InstanceSummary, type Paged } from '../api/types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { InstanceStatusChip } from '../components/InstanceStatusChip'
+import { PageHeader } from '../components/PageHeader'
 import { formatDate } from '../format'
 
 const PAGE_SIZE = 20
@@ -82,41 +83,31 @@ export function InstancesPage({ api, tenantId }: { api: TenantApi; tenantId: str
 
   return (
     <Box>
-      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Box>
-          <Typography variant="h5" component="h1">
-            Instances
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Running and finished workflows in {tenantId}
-          </Typography>
-        </Box>
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-          <TextField
-            select
-            size="small"
-            label="Status"
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value as InstanceStatus | '')
-              setPage(0)
-            }}
-            sx={{ minWidth: 150 }}
-          >
-            <MenuItem value="">All</MenuItem>
-            {INSTANCE_STATUSES.map((s) => (
-              <MenuItem key={s} value={s}>
-                {s}
-              </MenuItem>
-            ))}
-          </TextField>
-          <Tooltip title="Refresh">
-            <IconButton aria-label="Refresh" onClick={() => void load()}>
-              <RefreshRoundedIcon />
-            </IconButton>
-          </Tooltip>
-        </Stack>
-      </Stack>
+      <PageHeader title="Instances" group="Workflows" subtitle={`Running and finished workflows in ${tenantId}`}>
+        <TextField
+          select
+          size="small"
+          label="Status"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value as InstanceStatus | '')
+            setPage(0)
+          }}
+          sx={{ minWidth: 150 }}
+        >
+          <MenuItem value="">All</MenuItem>
+          {INSTANCE_STATUSES.map((s) => (
+            <MenuItem key={s} value={s}>
+              {s}
+            </MenuItem>
+          ))}
+        </TextField>
+        <Tooltip title="Refresh">
+          <IconButton aria-label="Refresh" onClick={() => void load()}>
+            <RefreshRoundedIcon />
+          </IconButton>
+        </Tooltip>
+      </PageHeader>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} action={<Button onClick={() => void load()}>Retry</Button>}>

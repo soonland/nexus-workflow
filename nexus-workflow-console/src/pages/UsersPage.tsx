@@ -26,6 +26,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { CreateUserDialog } from '../components/CreateUserDialog'
 import { InviteLinkDialog } from '../components/InviteLinkDialog'
 import { MembershipsDialog } from '../components/MembershipsDialog'
+import { PageHeader } from '../components/PageHeader'
 import { formatDate } from '../format'
 
 const roleLabel = (m: Membership) => (m.role === 'operator' ? 'operator' : `manager · ${m.tenantId}`)
@@ -89,21 +90,16 @@ export function UsersPage({ api, session }: { api: AdminApi; session: Session })
 
   return (
     <Box>
-      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h5" component="h1">
-          Users
-        </Typography>
-        <Stack direction="row" spacing={1}>
-          <Tooltip title="Refresh">
-            <IconButton aria-label="Refresh" onClick={() => void load()}>
-              <RefreshRoundedIcon />
-            </IconButton>
-          </Tooltip>
-          <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setCreating(true)}>
-            Invite person
-          </Button>
-        </Stack>
-      </Stack>
+      <PageHeader title="Users" group="People">
+        <Tooltip title="Refresh">
+          <IconButton aria-label="Refresh" onClick={() => void load()}>
+            <RefreshRoundedIcon />
+          </IconButton>
+        </Tooltip>
+        <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setCreating(true)}>
+          Invite person
+        </Button>
+      </PageHeader>
 
       {!operator && (
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

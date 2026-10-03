@@ -28,6 +28,7 @@ import {
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import type { TenantApi } from '../api/client'
 import { TASK_STATUSES, type Paged, type TaskStatus, type UserTask } from '../api/types'
+import { PageHeader } from '../components/PageHeader'
 import { formatDate } from '../format'
 
 const PAGE_SIZE = 20
@@ -114,41 +115,31 @@ export function TasksPage({ api, tenantId, actor }: Props) {
 
   return (
     <Box>
-      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Box>
-          <Typography variant="h5" component="h1">
-            Tasks
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Human tasks in {tenantId}
-          </Typography>
-        </Box>
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-          <TextField
-            select
-            size="small"
-            label="Status"
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value as TaskStatus | '')
-              setPage(0)
-            }}
-            sx={{ minWidth: 150 }}
-          >
-            <MenuItem value="">All</MenuItem>
-            {TASK_STATUSES.map((s) => (
-              <MenuItem key={s} value={s}>
-                {s}
-              </MenuItem>
-            ))}
-          </TextField>
-          <Tooltip title="Refresh">
-            <IconButton aria-label="Refresh" onClick={() => void load()}>
-              <RefreshRoundedIcon />
-            </IconButton>
-          </Tooltip>
-        </Stack>
-      </Stack>
+      <PageHeader title="Tasks" group="Workflows" subtitle={`Human tasks in ${tenantId}`}>
+        <TextField
+          select
+          size="small"
+          label="Status"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value as TaskStatus | '')
+            setPage(0)
+          }}
+          sx={{ minWidth: 150 }}
+        >
+          <MenuItem value="">All</MenuItem>
+          {TASK_STATUSES.map((s) => (
+            <MenuItem key={s} value={s}>
+              {s}
+            </MenuItem>
+          ))}
+        </TextField>
+        <Tooltip title="Refresh">
+          <IconButton aria-label="Refresh" onClick={() => void load()}>
+            <RefreshRoundedIcon />
+          </IconButton>
+        </Tooltip>
+      </PageHeader>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} action={<Button onClick={() => void load()}>Retry</Button>}>
