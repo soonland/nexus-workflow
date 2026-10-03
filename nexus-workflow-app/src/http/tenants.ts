@@ -1,26 +1,17 @@
-import { timingSafeEqual } from 'node:crypto'
-import { Hono } from 'hono'
+import { Hono, type MiddlewareHandler } from 'hono'
 import type postgres from 'postgres'
+import { isAdminKeyHeader } from '../auth/adminKey.js'
 import { TenantStore } from '../db/TenantStore.js'
 import { dropTenantSchema, provisionTenantSchema, VALID_TENANT_ID } from '../db/tenantProvisioner.js'
-
-// ─── Admin auth helper ────────────────────────────────────────────────────────
-
-function checkAdminAuth(authHeader: string | undefined, adminApiKey: string): boolean {
-  if (!authHeader) return false
-  const [scheme, key] = authHeader.split(' ')
-  if (scheme !== 'Bearer' || !key) return false
-  try {
-    return timingSafeEqual(Buffer.from(key), Buffer.from(adminApiKey))
-  } catch {
-    // Buffers of different lengths throw — treat as mismatch
-    return false
-  }
-}
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export interface TenantsRouterOptions {
+  /**
+   * Decides who may use the router. Defaults to the admin key alone (403 for anything else);
+   * the app passes a guard that also accepts operator sessions.
+   */
+  guard?: MiddlewareHandler
   /**
    * Called after a tenant has been marked suspended, and before its schema is dropped when it is
    * deleted. The host uses it to stop the tenant's background workers and release its pools.
@@ -42,12 +33,16 @@ export function createTenantsRouter(
 
   // ─── Admin auth guard ─────────────────────────────────────────────────────
 
-  app.use('*', async (c, next) => {
-    if (!checkAdminAuth(c.req.header('Authorization'), adminApiKey)) {
-      return c.json({ error: 'FORBIDDEN', message: 'Admin API key required' }, 403)
-    }
-    return next()
-  })
+  app.use(
+    '*',
+    options.guard ??
+      (async (c, next) => {
+        if (!isAdminKeyHeader(c.req.header('Authorization'), adminApiKey)) {
+          return c.json({ error: 'FORBIDDEN', message: 'Admin API key required' }, 403)
+        }
+        return next()
+      }),
+  )
 
   // ─── POST /tenants ────────────────────────────────────────────────────────
 
