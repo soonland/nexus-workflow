@@ -6,11 +6,12 @@ import { useTenantContext } from './auth/TenantContext'
 import { canManageUsers, describeSession, isOperator } from './auth/roles'
 import { InvitePage, readInviteToken } from './pages/InvitePage'
 import { LoginPage } from './pages/LoginPage'
-import { TenantOverviewPage } from './pages/TenantOverviewPage'
+import { DefinitionsPage } from './pages/DefinitionsPage'
+import { InstancesPage } from './pages/InstancesPage'
 import { TenantsPage } from './pages/TenantsPage'
 import { UsersPage } from './pages/UsersPage'
 
-type Screen = 'overview' | 'tenants' | 'users'
+type Screen = 'definitions' | 'instances' | 'tenants' | 'users'
 
 function Shell() {
   const { api, session, loading, signOut } = useAuth()
@@ -34,7 +35,7 @@ function Shell() {
   }
   if (!session) return <LoginPage />
 
-  const screens: Screen[] = [...(tenant.tenantId ? (['overview'] as const) : []), ...(isOperator(session) ? (['tenants'] as const) : []), ...(canManageUsers(session) ? (['users'] as const) : [])]
+  const screens: Screen[] = [...(tenant.tenantId ? (['definitions', 'instances'] as const) : []), ...(isOperator(session) ? (['tenants'] as const) : []), ...(canManageUsers(session) ? (['users'] as const) : [])]
   const screen = chosen && screens.includes(chosen) ? chosen : screens[0]
 
   return (
@@ -46,7 +47,8 @@ function Shell() {
           </Typography>
           {screens.length > 1 && screen && (
             <Tabs value={screen} onChange={(_event, value: Screen) => setChosen(value)} sx={{ flexGrow: 1 }}>
-              {screens.includes('overview') && <Tab value="overview" label="Workflows" />}
+              {screens.includes('definitions') && <Tab value="definitions" label="Definitions" />}
+              {screens.includes('instances') && <Tab value="instances" label="Instances" />}
               {screens.includes('tenants') && <Tab value="tenants" label="Tenants" />}
               {screens.includes('users') && <Tab value="users" label="Users" />}
             </Tabs>
@@ -81,7 +83,8 @@ function Shell() {
         </Toolbar>
       </AppBar>
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        {screen === 'overview' && tenant.api && tenant.tenantId && <TenantOverviewPage api={tenant.api} tenantId={tenant.tenantId} />}
+        {screen === 'definitions' && tenant.api && tenant.tenantId && <DefinitionsPage key={tenant.tenantId} api={tenant.api} tenantId={tenant.tenantId} />}
+        {screen === 'instances' && tenant.api && tenant.tenantId && <InstancesPage key={tenant.tenantId} api={tenant.api} tenantId={tenant.tenantId} />}
         {screen === 'tenants' && <TenantsPage api={api} />}
         {screen === 'users' && <UsersPage api={api} session={session} />}
         {screen === undefined && (

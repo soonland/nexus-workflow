@@ -61,7 +61,7 @@ function makeServer(overrides: Partial<Server> = {}) {
       if (!tenant) return jsonResponse({ error: 'TENANT_REQUIRED', message: 'Send the tenant you mean in the X-Tenant header' }, 400)
       const managed = server.signedInAs.memberships.some((m) => m.role === 'tenant_manager' && m.tenantId === tenant)
       if (!managed) return jsonResponse({ error: 'FORBIDDEN', message: 'Not allowed' }, 403)
-      return jsonResponse(Array.from({ length: tenant === 'acme' ? 3 : 1 }, (_, i) => ({ id: `d${i}` })))
+      return jsonResponse(Array.from({ length: tenant === 'acme' ? 3 : 1 }, (_, i) => ({ id: `${tenant}-flow-${i}`, version: 1, name: `Flow ${i}`, deployedAt: '2026-01-01T00:00:00.000Z', isDeployable: true })))
     }
     if (url === '/users') {
       if (usesKey || server.signedInAs) return jsonResponse({ users: [] })
@@ -170,8 +170,9 @@ describe('what each role sees', () => {
     const { fetchImpl, calls } = makeServer({ accounts, signedInAs: accounts['mgr@example.com'] })
     render(<App fetchImpl={fetchImpl} />)
 
-    expect(await screen.findByRole('heading', { name: 'acme' })).toBeInTheDocument()
-    expect(await screen.findByText(/3 workflow definitions/)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Definitions' })).toBeInTheDocument()
+    expect(await screen.findByText('Flow 2')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Instances' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Users' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'Tenants' })).not.toBeInTheDocument()
     expect(calls).not.toHaveBeenCalledWith('/tenants', expect.anything())
@@ -181,7 +182,8 @@ describe('what each role sees', () => {
     render(<App fetchImpl={makeServer({ accounts, signedInAs: accounts['op@example.com'] }).fetchImpl} />)
 
     await screen.findByRole('heading', { name: 'Tenants' })
-    expect(screen.queryByRole('tab', { name: 'Workflows' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Definitions' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Instances' })).not.toBeInTheDocument()
   })
 
   it('someone with no roles is told so', async () => {
@@ -214,7 +216,7 @@ describe('tenant context', () => {
     const { fetchImpl, calls } = makeServer({ accounts, signedInAs: accounts['mgr@example.com'] })
     render(<App fetchImpl={fetchImpl} />)
 
-    await screen.findByText(/3 workflow definitions/)
+    await screen.findByText('Flow 2')
 
     expect(new Set(xTenants(calls))).toEqual(new Set(['acme']))
     expect(screen.getByText('Tenant: acme')).toBeInTheDocument()
@@ -225,25 +227,25 @@ describe('tenant context', () => {
     const user = userEvent.setup()
     const { fetchImpl, calls } = makeServer({ accounts, signedInAs: accounts['multi@example.com'] })
     render(<App fetchImpl={fetchImpl} />)
-    expect(await screen.findByRole('heading', { name: 'acme' })).toBeInTheDocument() // sorted: first is acme
+    expect(await screen.findByText('Workflows deployed in acme')).toBeInTheDocument() // sorted: first is acme
 
     await user.click(screen.getByRole('combobox', { name: 'Tenant' }))
     await user.click(await screen.findByRole('option', { name: 'globex' }))
 
-    expect(await screen.findByRole('heading', { name: 'globex' })).toBeInTheDocument()
-    expect(await screen.findByText(/1 workflow definition deployed/)).toBeInTheDocument()
+    expect(await screen.findByText('Workflows deployed in globex')).toBeInTheDocument()
+    expect(await screen.findByText('globex-flow-0')).toBeInTheDocument()
     expect(xTenants(calls).at(-1)).toBe('globex')
   })
 
   it('remembers the choice for the tab, but not one the person no longer manages', async () => {
     sessionStorage.setItem('nexus-console-tenant', 'globex')
     const { unmount } = render(<App fetchImpl={makeServer({ accounts, signedInAs: accounts['multi@example.com'] }).fetchImpl} />)
-    expect(await screen.findByRole('heading', { name: 'globex' })).toBeInTheDocument()
+    expect(await screen.findByText('Workflows deployed in globex')).toBeInTheDocument()
     unmount()
 
     sessionStorage.setItem('nexus-console-tenant', 'initech')
     render(<App fetchImpl={makeServer({ accounts, signedInAs: accounts['multi@example.com'] }).fetchImpl} />)
-    expect(await screen.findByRole('heading', { name: 'acme' })).toBeInTheDocument()
+    expect(await screen.findByText('Workflows deployed in acme')).toBeInTheDocument()
   })
 })
 
@@ -340,7 +342,7 @@ describe('invitation page', () => {
     await user.type(screen.getByLabelText(/^repeat the password/i), 'a long passphrase')
     await user.click(screen.getByRole('button', { name: /set password/i }))
 
-    expect(await screen.findByRole('heading', { name: 'acme' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Definitions' })).toBeInTheDocument()
     const accept = calls.mock.calls.find(([url]) => url === '/auth/accept-invite')!
     expect(JSON.parse((accept[1] as RequestInit).body as string)).toEqual({ token: 'tok_123', password: 'a long passphrase' })
   })

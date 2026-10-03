@@ -229,6 +229,24 @@ describe('createAdminApi', () => {
       expect(lastCall().headers['X-Nexus-Console']).toBe('1')
     })
 
+    it('reach the definition and instance routes with the right verbs', async () => {
+      fetchMock.mockImplementation(async () => jsonResponse({ instance: { id: 'new-1' }, items: [], total: 0, page: 0, pageSize: 20 }))
+      const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch)
+      const seen = async (call: () => Promise<unknown>) => {
+        await call()
+        return [lastCall().init.method, lastCall().url]
+      }
+
+      expect(await seen(() => tenant.deleteDefinition('my flow'))).toEqual(['DELETE', '/definitions/my%20flow'])
+      expect(await seen(() => tenant.listInstances({ page: 2, pageSize: 20 }))).toEqual(['GET', '/instances?page=2&pageSize=20'])
+      expect(await seen(() => tenant.listInstances({ status: 'active', page: 0, pageSize: 20 }))).toEqual(['GET', '/instances?page=0&pageSize=20&status=active'])
+      expect(await seen(() => tenant.suspendInstance('i1'))).toEqual(['POST', '/instances/i1/suspend'])
+      expect(await seen(() => tenant.resumeInstance('i1'))).toEqual(['POST', '/instances/i1/resume'])
+      expect(await seen(() => tenant.cancelInstance('i1'))).toEqual(['DELETE', '/instances/i1'])
+      expect(await tenant.restartInstance('i1')).toBe('new-1')
+      expect([lastCall().init.method, lastCall().url]).toEqual(['POST', '/instances/i1/restart'])
+    })
+
     it('sign the user out on a 401 but not on a 403', async () => {
       const onUnauthorized = vi.fn()
       const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch, { onUnauthorized })

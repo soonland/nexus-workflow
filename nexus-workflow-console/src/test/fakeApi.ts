@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
-import type { AdminApi } from '../api/client'
-import type { ApiKey, Membership, SessionInfo, Tenant, User, UserWithMemberships } from '../api/types'
+import type { AdminApi, TenantApi } from '../api/client'
+import type { ApiKey, DefinitionSummary, InstanceSummary, Membership, SessionInfo, Tenant, User, UserWithMemberships } from '../api/types'
 
 export function makeTenant(overrides: Partial<Tenant> = {}): Tenant {
   return {
@@ -75,5 +75,33 @@ export function makeFakeApi(overrides: Partial<AdminApi> = {}): { [K in keyof Ad
     inviteInfo: vi.fn(),
     acceptInvite: vi.fn(),
     ...overrides,
+  } as never
+}
+
+export function makeDefinition(overrides: Partial<DefinitionSummary> = {}): DefinitionSummary {
+  return { id: 'approval', version: 1, name: 'Approval', deployedAt: '2026-01-03T00:00:00.000Z', isDeployable: true, ...overrides }
+}
+
+export function makeInstance(overrides: Partial<InstanceSummary> = {}): InstanceSummary {
+  return {
+    id: 'aaaaaaaa-1111-2222-3333-444444444444',
+    definitionId: 'approval',
+    definitionVersion: 1,
+    status: 'active',
+    startedAt: '2026-01-04T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+/** A TenantApi whose every method is a vi.fn() with a sensible default result. */
+export function makeFakeTenantApi(): { [K in keyof TenantApi]: ReturnType<typeof vi.fn> } & TenantApi {
+  return {
+    listDefinitions: vi.fn().mockResolvedValue([]),
+    deleteDefinition: vi.fn().mockResolvedValue(undefined),
+    listInstances: vi.fn().mockResolvedValue({ items: [], total: 0, page: 0, pageSize: 20 }),
+    suspendInstance: vi.fn().mockResolvedValue(undefined),
+    resumeInstance: vi.fn().mockResolvedValue(undefined),
+    cancelInstance: vi.fn().mockResolvedValue(undefined),
+    restartInstance: vi.fn().mockResolvedValue('new-instance'),
   } as never
 }
