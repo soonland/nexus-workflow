@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { ApiError, createAdminApi } from './client'
+import { ApiError, createAdminApi, createTenantApi } from './client'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -214,6 +214,37 @@ describe('createAdminApi', () => {
       fetchMock.mockResolvedValue(jsonResponse({ success: true }))
       await api().logout()
       expect([lastCall().url, lastCall().init.method]).toEqual(['/auth/logout', 'POST'])
+    })
+  })
+
+  describe('tenant calls', () => {
+    it('name the tenant in X-Tenant, along with the CSRF header', async () => {
+      fetchMock.mockImplementation(async () => jsonResponse([{ id: 'd1' }]))
+      const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch)
+
+      expect(await tenant.listDefinitions()).toEqual([{ id: 'd1' }])
+
+      expect(lastCall().url).toBe('/definitions')
+      expect(lastCall().headers['X-Tenant']).toBe('acme')
+      expect(lastCall().headers['X-Nexus-Console']).toBe('1')
+    })
+
+    it('sign the user out on a 401 but not on a 403', async () => {
+      const onUnauthorized = vi.fn()
+      const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch, { onUnauthorized })
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ error: 'FORBIDDEN', message: 'no' }, 403))
+      await expect(tenant.listDefinitions()).rejects.toMatchObject({ status: 403 })
+      expect(onUnauthorized).not.toHaveBeenCalled()
+
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ error: 'UNAUTHENTICATED' }, 401))
+      await expect(tenant.listDefinitions()).rejects.toMatchObject({ status: 401 })
+      expect(onUnauthorized).toHaveBeenCalledOnce()
+    })
+
+    it('never send X-Tenant on operator calls', async () => {
+      fetchMock.mockImplementation(async () => jsonResponse({ tenants: [] }))
+      await api().listTenants()
+      expect(lastCall().headers['X-Tenant']).toBeUndefined()
     })
   })
 })

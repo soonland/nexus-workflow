@@ -73,3 +73,10 @@ export interface InviteInfo {
   name: string
   expiresAt: string
 }
+
+export interface DefinitionSummary {
+  id: string
+  name?: string
+  version?: number
+  isDeployable?: boolean
+}
