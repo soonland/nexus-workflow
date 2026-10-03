@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Alert,
   Box,
@@ -30,11 +30,18 @@ export function DefinitionsPage({ api, tenantId }: { api: TenantApi; tenantId: s
   const [message, setMessage] = useState<{ severity: 'success' | 'error'; text: string } | null>(null)
   const [deleting, setDeleting] = useState<DefinitionSummary | null>(null)
 
+  // Answers can arrive out of order; only the newest request may update the screen
+  const latestRequest = useRef(0)
+
   const load = useCallback(async () => {
+    const request = ++latestRequest.current
     try {
-      setDefinitions(await api.listDefinitions())
+      const loaded = await api.listDefinitions()
+      if (request !== latestRequest.current) return
+      setDefinitions(loaded)
       setError(null)
     } catch (err) {
+      if (request !== latestRequest.current) return
       setError(err instanceof Error ? err.message : 'Could not load the definitions')
     }
   }, [api])
@@ -101,7 +108,7 @@ export function DefinitionsPage({ api, tenantId }: { api: TenantApi; tenantId: s
                   </TableCell>
                 </TableRow>
               )}
-              {(definitions ?? []).map((definition) => (
+              {(definitions ?? []).map((definition, index, all) => (
                 <TableRow key={`${definition.id}@${definition.version}`} hover>
                   <TableCell>
                     <Typography sx={{ fontWeight: 600 }}>{definition.name || definition.id}</Typography>
@@ -113,16 +120,19 @@ export function DefinitionsPage({ api, tenantId }: { api: TenantApi; tenantId: s
                   <TableCell align="right">{definition.version}</TableCell>
                   <TableCell>{formatDate(definition.deployedAt)}</TableCell>
                   <TableCell align="right">
-                    <Tooltip title="Delete all versions">
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => setDeleting(definition)}
-                        aria-label={`Delete ${definition.id} version ${definition.version}`}
-                      >
-                        <DeleteOutlineRoundedIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    {/* Deleting removes every version, so offer it once per definition, not once per version row */}
+                    {all.findIndex((other) => other.id === definition.id) === index && (
+                      <Tooltip title="Delete all versions">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => setDeleting(definition)}
+                          aria-label={`Delete all versions of ${definition.id}`}
+                        >
+                          <DeleteOutlineRoundedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

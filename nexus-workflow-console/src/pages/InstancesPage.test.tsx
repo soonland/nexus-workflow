@@ -124,4 +124,39 @@ describe('InstancesPage', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }))
     expect(await screen.findByText('aaaaaaaa')).toBeInTheDocument()
   })
+
+  it('ignores a slow answer for an earlier filter that arrives after a newer one', async () => {
+    const api = makeFakeTenantApi()
+    let releaseSlow: (value: unknown) => void = () => undefined
+    api.listInstances
+      .mockImplementationOnce(() => new Promise((resolve) => (releaseSlow = resolve))) // the first load, for "all"
+      .mockResolvedValue({ items: [paused], total: 1, page: 0, pageSize: 20 }) // the filtered load
+    const user = userEvent.setup()
+    render(<InstancesPage api={api} tenantId="acme" />)
+
+    await user.click(screen.getByRole('combobox', { name: 'Status' }))
+    await user.click(await screen.findByRole('option', { name: 'suspended' }))
+    await screen.findByText('bbbbbbbb')
+    releaseSlow({ items: [running], total: 1, page: 0, pageSize: 20 }) // the old answer finally arrives
+
+    await waitFor(() => expect(api.listInstances).toHaveBeenCalledTimes(2))
+    expect(screen.getByText('bbbbbbbb')).toBeInTheDocument()
+    expect(screen.queryByText('aaaaaaaa')).not.toBeInTheDocument()
+  })
+
+  it('steps back a page when the last row of the last page goes away', async () => {
+    const api = makeFakeTenantApi()
+    api.listInstances.mockImplementation(async ({ page }: { page: number }) => {
+      if (page === 0) return { items: [running], total: 21, page: 0, pageSize: 20 }
+      return { items: [], total: 20, page, pageSize: 20 } // page 1 no longer exists
+    })
+    const user = userEvent.setup()
+    render(<InstancesPage api={api} tenantId="acme" />)
+    await screen.findByText('aaaaaaaa')
+
+    await user.click(screen.getByRole('button', { name: /next page/i }))
+
+    await waitFor(() => expect(api.listInstances).toHaveBeenLastCalledWith({ page: 0, pageSize: 20 }))
+    expect(await screen.findByText('aaaaaaaa')).toBeInTheDocument()
+  })
 })

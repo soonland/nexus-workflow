@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Alert,
   Box,
@@ -39,11 +39,24 @@ export function InstancesPage({ api, tenantId }: { api: TenantApi; tenantId: str
   const [busyId, setBusyId] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<Pending | null>(null)
 
+  // Answers can arrive out of order; only the newest request may update the screen
+  const latestRequest = useRef(0)
+
   const load = useCallback(async () => {
+    const request = ++latestRequest.current
     try {
-      setResult(await api.listInstances({ ...(status ? { status } : {}), page, pageSize: PAGE_SIZE }))
+      const loaded = await api.listInstances({ ...(status ? { status } : {}), page, pageSize: PAGE_SIZE })
+      if (request !== latestRequest.current) return
+      // The last row of the last page may be gone (cancelled, filtered out): step back, which reloads
+      const lastPage = Math.max(0, Math.ceil(loaded.total / PAGE_SIZE) - 1)
+      if (page > lastPage) {
+        setPage(lastPage)
+        return
+      }
+      setResult(loaded)
       setError(null)
     } catch (err) {
+      if (request !== latestRequest.current) return
       setError(err instanceof Error ? err.message : 'Could not load the instances')
     }
   }, [api, status, page])

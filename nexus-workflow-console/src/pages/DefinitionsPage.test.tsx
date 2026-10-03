@@ -44,7 +44,7 @@ describe('DefinitionsPage', () => {
     const { api, user } = setup()
     await screen.findByText('Approval')
 
-    await user.click(screen.getByRole('button', { name: 'Delete approval version 1' }))
+    await user.click(screen.getByRole('button', { name: 'Delete all versions of approval' }))
     const confirm = screen.getByRole('button', { name: 'Delete definition' })
     expect(confirm).toBeDisabled()
     await user.type(screen.getByLabelText(/type "approval"/i), 'approval')
@@ -59,10 +59,20 @@ describe('DefinitionsPage', () => {
     api.deleteDefinition.mockRejectedValue(new ApiError(409, "Definition 'approval' has 2 pending, active, or suspended instance(s)", 'HAS_ACTIVE_INSTANCES'))
     await screen.findByText('Approval')
 
-    await user.click(screen.getByRole('button', { name: 'Delete approval version 1' }))
+    await user.click(screen.getByRole('button', { name: 'Delete all versions of approval' }))
     await user.type(screen.getByLabelText(/type "approval"/i), 'approval')
     await user.click(screen.getByRole('button', { name: 'Delete definition' }))
 
     expect(await screen.findByText(/has 2 pending, active, or suspended/)).toBeInTheDocument()
+  })
+
+  it('offers one delete per definition, however many versions are listed', async () => {
+    setup([makeDefinition({ version: 1 }), makeDefinition({ version: 2 }), makeDefinition({ id: 'onboarding', name: 'Onboarding' })])
+    await screen.findAllByText('approval')
+
+    expect(screen.getAllByRole('button', { name: /^delete all versions of/i }).map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Delete all versions of approval',
+      'Delete all versions of onboarding',
+    ])
   })
 })
