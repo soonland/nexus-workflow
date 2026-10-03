@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../api/client'
-import type { HistoryEntry, InstanceView } from '../api/types'
+import type { InstanceEvent, InstanceView } from '../api/types'
 import { makeFakeTenantApi, makeInstance } from '../test/fakeApi'
 import { InstanceDetailPage } from './InstanceDetailPage'
 
@@ -26,16 +26,21 @@ const view = (overrides: Partial<InstanceView> = {}): InstanceView => ({
   ...overrides,
 })
 
-const entries: HistoryEntry[] = [
-  { id: 'h1', elementId: 'start', elementType: 'startEvent', status: 'completed', startedAt: '2026-01-04T00:00:00.000Z', completedAt: '2026-01-04T00:00:00.050Z' },
-  { id: 'h2', elementId: 'check', elementType: 'serviceTask', status: 'completed', startedAt: '2026-01-04T00:00:01.000Z', completedAt: '2026-01-04T00:00:03.500Z' },
-  { id: 'h3', elementId: 'notify', elementType: 'serviceTask', status: 'error', startedAt: '2026-01-04T00:00:04.000Z', completedAt: '2026-01-04T00:00:04.100Z' },
+const event = (id: string, type: string, data: Record<string, unknown>, at = '2026-01-04T00:00:00.000Z'): InstanceEvent => ({ id, type, occurredAt: at, data })
+
+// start -> check -> notify (failed), and the instance is now at "review"
+const events: InstanceEvent[] = [
+  event('e1', 'ProcessInstanceStarted', { instanceId: 'i' }),
+  event('e2', 'TokenMoved', { fromElementId: 'start', toElementId: 'check' }),
+  event('e3', 'TokenMoved', { fromElementId: 'check', toElementId: 'notify' }),
+  event('e4', 'ServiceTaskFailed', { elementId: 'notify', error: 'smtp down', attempt: 1 }),
+  event('e5', 'TokenMoved', { fromElementId: 'notify', toElementId: 'review' }),
 ]
 
-function setup(data = view(), history = entries) {
+function setup(data = view(), log = events) {
   const api = makeFakeTenantApi()
   api.getInstance.mockResolvedValue(data)
-  api.getInstanceHistory.mockResolvedValue(history)
+  api.getInstanceEvents.mockResolvedValue(log)
   api.getDefinitionXml.mockResolvedValue('<bpmn/>')
   const onBack = vi.fn()
   const user = userEvent.setup()
@@ -55,17 +60,16 @@ describe('InstanceDetailPage', () => {
     expect(api.getDefinitionXml).toHaveBeenCalledWith('approval', 1)
   })
 
-  it('lists the variables and the timeline with how long each step took', async () => {
+  it('lists the variables and, as history, what happened in words', async () => {
     setup()
     await screen.findByText('order-17')
 
     expect(screen.getByText('amount')).toBeInTheDocument()
     expect(screen.getByText('120')).toBeInTheDocument()
     expect(screen.getByText('{"name":"Ada"}')).toBeInTheDocument()
-    const row = (element: string) => screen.getAllByText(element).find((node) => node.closest('tr'))!.closest('tr')!
-    expect(within(row('check')).getByText('2.5 s')).toBeInTheDocument()
-    expect(within(row('start')).getByText('50 ms')).toBeInTheDocument()
-    expect(within(row('notify')).getByText('error')).toBeInTheDocument()
+    expect(screen.getByText('Instance started')).toBeInTheDocument()
+    expect(screen.getByText('Moved from start to check')).toBeInTheDocument()
+    expect(screen.getByText('Service task failed: smtp down')).toBeInTheDocument()
   })
 
   it('hands the diagram its XML and what to mark: now, passed, failed', async () => {
@@ -78,6 +82,7 @@ describe('InstanceDetailPage', () => {
   })
 
   it('does not call an element "passed" while the instance is still at it', async () => {
+    // the instance went back to "check" (a loop): it is there now, so it is "now", not "passed"
     setup(view({ tokens: [{ id: 'tk', elementId: 'check', elementType: 'serviceTask', status: 'active' }] }))
 
     await screen.findByTestId('diagram')
@@ -89,14 +94,14 @@ describe('InstanceDetailPage', () => {
   it('still shows the timeline, with a notice, when there is no XML for the definition', async () => {
     const api = makeFakeTenantApi()
     api.getInstance.mockResolvedValue(view())
-    api.getInstanceHistory.mockResolvedValue(entries)
+    api.getInstanceEvents.mockResolvedValue(events)
     api.getDefinitionXml.mockRejectedValue(new ApiError(404, 'no stored XML', 'NOT_FOUND'))
     render(<InstanceDetailPage api={api} instanceId="aaaaaaaa-1111" onBack={() => undefined} />)
 
     expect(await screen.findByText(/diagram is not available/i)).toBeInTheDocument()
     expect(screen.queryByTestId('diagram')).not.toBeInTheDocument()
-    expect(screen.getByText('Timeline')).toBeInTheDocument()
-    expect(screen.getByText('notify')).toBeInTheDocument()
+    expect(screen.getByText('History')).toBeInTheDocument()
+    expect(screen.getByText('Instance started')).toBeInTheDocument()
   })
 
   it('swaps the diagram for a notice when it cannot be drawn, and keeps the rest', async () => {
@@ -106,7 +111,7 @@ describe('InstanceDetailPage', () => {
 
     expect(await screen.findByText(/could not be drawn \(bad xml\)/i)).toBeInTheDocument()
     expect(screen.queryByTestId('diagram')).not.toBeInTheDocument()
-    expect(screen.getByText('Timeline')).toBeInTheDocument()
+    expect(screen.getByText('History')).toBeInTheDocument()
   })
 
   it('says so when nothing has happened yet', async () => {
@@ -115,13 +120,13 @@ describe('InstanceDetailPage', () => {
 
     expect(screen.getByText(/not waiting at any element/i)).toBeInTheDocument()
     expect(screen.getByText('No variables.')).toBeInTheDocument()
-    expect(screen.getByText(/nothing has finished yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/nothing has been recorded yet/i)).toBeInTheDocument()
   })
 
   it('shows the error and lets you retry when the instance cannot be loaded', async () => {
     const api = makeFakeTenantApi()
     api.getInstance.mockRejectedValueOnce(new ApiError(404, "Instance 'x' not found", 'NOT_FOUND')).mockResolvedValue(view())
-    api.getInstanceHistory.mockResolvedValue([])
+    api.getInstanceEvents.mockResolvedValue([])
     const user = userEvent.setup()
     render(<InstanceDetailPage api={api} instanceId="aaaaaaaa-1111" onBack={() => undefined} />)
 

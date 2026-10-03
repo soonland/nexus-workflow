@@ -1,7 +1,7 @@
 import type {
   ApiKey,
   DefinitionSummary,
-  HistoryEntry,
+  InstanceEvent,
   InstanceStatus,
   InstanceView,
   InstanceSummary,
@@ -201,7 +201,8 @@ export interface TenantApi {
   restartInstance(id: string): Promise<string>
 
   getInstance(id: string): Promise<InstanceView>
-  getInstanceHistory(id: string): Promise<HistoryEntry[]>
+  /** The instance's audit trail, oldest first. */
+  getInstanceEvents(id: string): Promise<InstanceEvent[]>
   /** The BPMN XML a definition version was deployed from. */
   getDefinitionXml(id: string, version: number): Promise<string>
 
@@ -254,8 +255,8 @@ export function createTenantApi(
     getInstance(id) {
       return request<InstanceView>('GET', instancePath(id))
     },
-    async getInstanceHistory(id) {
-      return (await request<{ history: HistoryEntry[] }>('GET', `${instancePath(id)}/history`)).history
+    async getInstanceEvents(id) {
+      return (await request<{ events: InstanceEvent[] }>('GET', `${instancePath(id)}/events`)).events
     },
     getDefinitionXml(id, version) {
       return request<string>('GET', `/definitions/${encodeURIComponent(id)}/xml?version=${version}`)

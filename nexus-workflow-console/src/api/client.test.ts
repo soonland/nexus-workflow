@@ -272,16 +272,16 @@ describe('createAdminApi', () => {
       expect([lastCall().init.method, lastCall().url]).toEqual(['DELETE', '/webhooks/w%201'])
     })
 
-    it('reads an instance, its history, and the definition XML as text', async () => {
+    it('reads an instance, its events, and the definition XML as text', async () => {
       const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch)
 
       fetchMock.mockImplementationOnce(async () => jsonResponse({ instance: { id: 'i1' }, tokens: [], variables: { a: 1 } }))
       expect((await tenant.getInstance('i 1')).variables).toEqual({ a: 1 })
       expect(lastCall().url).toBe('/instances/i%201')
 
-      fetchMock.mockImplementationOnce(async () => jsonResponse({ history: [{ id: 'h1' }] }))
-      expect(await tenant.getInstanceHistory('i1')).toEqual([{ id: 'h1' }])
-      expect(lastCall().url).toBe('/instances/i1/history')
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ events: [{ id: 'e1' }] }))
+      expect(await tenant.getInstanceEvents('i1')).toEqual([{ id: 'e1' }])
+      expect(lastCall().url).toBe('/instances/i1/events')
 
       fetchMock.mockImplementationOnce(async () => new Response('<definitions/>', { status: 200, headers: { 'Content-Type': 'application/xml' } }))
       expect(await tenant.getDefinitionXml('my flow', 3)).toBe('<definitions/>')

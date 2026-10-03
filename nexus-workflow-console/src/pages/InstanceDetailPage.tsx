@@ -14,7 +14,8 @@ import {
 } from '@mui/material'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 import type { TenantApi } from '../api/client'
-import type { HistoryEntry, InstanceView } from '../api/types'
+import type { InstanceEvent, InstanceView } from '../api/types'
+import { describeEvent, progressMarks } from '../instanceEvents'
 import { InstanceStatusChip } from '../components/InstanceStatusChip'
 import { PageHeader } from '../components/PageHeader'
 import { formatDate } from '../format'
@@ -33,24 +34,18 @@ class DiagramBoundary extends Component<{ children: ReactNode; fallback: ReactNo
   }
 }
 
-const duration = (entry: HistoryEntry) => {
-  const ms = new Date(entry.completedAt).getTime() - new Date(entry.startedAt).getTime()
-  if (!Number.isFinite(ms) || ms < 0) return '—'
-  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`
-}
-
 export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi; instanceId: string; onBack(): void }) {
   const [view, setView] = useState<InstanceView | null>(null)
-  const [history, setHistory] = useState<HistoryEntry[] | null>(null)
+  const [events, setEvents] = useState<InstanceEvent[] | null>(null)
   const [xml, setXml] = useState<string | null | 'unavailable'>(null)
   const [error, setError] = useState<string | null>(null)
   const [diagramError, setDiagramError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const [loaded, entries] = await Promise.all([api.getInstance(instanceId), api.getInstanceHistory(instanceId)])
+      const [loaded, log] = await Promise.all([api.getInstance(instanceId), api.getInstanceEvents(instanceId)])
       setView(loaded)
-      setHistory(entries)
+      setEvents(log)
       setError(null)
       // The diagram is a bonus: if the XML is missing, the rest of the page still stands
       try {
@@ -70,16 +65,7 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
   const onDiagramError = useCallback((message: string) => setDiagramError(message), [])
 
   // What to mark on the diagram: where the instance is, where it has been, where it went wrong
-  const marks = useMemo(() => {
-    const activeIds = [...new Set((view?.tokens ?? []).map((t) => t.elementId))]
-    const entries = history ?? []
-    const failed = (e: HistoryEntry) => e.status !== 'completed'
-    return {
-      activeIds,
-      doneIds: [...new Set(entries.filter((e) => !failed(e)).map((e) => e.elementId))].filter((id) => !activeIds.includes(id)),
-      errorIds: [...new Set(entries.filter(failed).map((e) => e.elementId))],
-    }
-  }, [view, history])
+  const marks = useMemo(() => progressMarks(events ?? [], view?.tokens ?? []), [view, events])
 
   const short = instanceId.slice(0, 8)
   const instance = view?.instance
@@ -136,10 +122,10 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
               Diagram
             </Typography>
             {xml === null && <CircularProgress size={20} aria-label="Loading the diagram" />}
-            {xml === 'unavailable' && <Alert severity="info">The diagram is not available for this definition version. The timeline below still shows what happened.</Alert>}
-            {diagramError && <Alert severity="warning">The diagram could not be drawn ({diagramError}). The timeline below still shows what happened.</Alert>}
+            {xml === 'unavailable' && <Alert severity="info">The diagram is not available for this definition version. The history below still shows what happened.</Alert>}
+            {diagramError && <Alert severity="warning">The diagram could not be drawn ({diagramError}). The history below still shows what happened.</Alert>}
             {xml !== null && xml !== 'unavailable' && !diagramError && (
-              <DiagramBoundary fallback={<Alert severity="warning">The diagram could not be loaded. The timeline below still shows what happened.</Alert>}>
+              <DiagramBoundary fallback={<Alert severity="warning">The diagram could not be loaded. The history below still shows what happened.</Alert>}>
                 <Suspense fallback={<CircularProgress size={20} aria-label="Loading the diagram" />}>
                   <BpmnDiagram xml={xml} {...marks} onError={onDiagramError} />
                 </Suspense>
@@ -206,33 +192,32 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
 
           <Box>
             <Typography variant="subtitle2" gutterBottom>
-              Timeline
+              History
             </Typography>
-            {(history ?? []).length === 0 ? (
+            {(events ?? []).length === 0 ? (
               <Typography variant="body2" color="text.secondary">
-                Nothing has finished yet.
+                Nothing has been recorded yet.
               </Typography>
             ) : (
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Started</TableCell>
+                    <TableCell>Time</TableCell>
+                    <TableCell>What happened</TableCell>
                     <TableCell>Element</TableCell>
-                    <TableCell>Type</TableCell>
-                    <TableCell>Result</TableCell>
-                    <TableCell align="right">Took</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {(history ?? []).map((entry) => (
-                    <TableRow key={entry.id}>
-                      <TableCell>{formatDate(entry.startedAt)}</TableCell>
-                      <TableCell sx={{ fontFamily: 'monospace' }}>{entry.elementId}</TableCell>
-                      <TableCell>{entry.elementType}</TableCell>
-                      <TableCell>{entry.status}</TableCell>
-                      <TableCell align="right">{duration(entry)}</TableCell>
-                    </TableRow>
-                  ))}
+                  {(events ?? []).map((event) => {
+                    const { summary, elementId } = describeEvent(event)
+                    return (
+                      <TableRow key={event.id}>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(event.occurredAt)}</TableCell>
+                        <TableCell>{summary}</TableCell>
+                        <TableCell sx={{ fontFamily: 'monospace' }}>{elementId ?? ''}</TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             )}

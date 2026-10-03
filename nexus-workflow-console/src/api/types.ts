@@ -141,13 +141,12 @@ export interface InstanceToken {
   status: string
 }
 
-export interface HistoryEntry {
+/** One entry of an instance's audit trail, as the engine logged it. */
+export interface InstanceEvent {
   id: string
-  elementId: string
-  elementType: string
-  status: 'completed' | 'cancelled' | 'error'
-  startedAt: string
-  completedAt: string
+  type: string
+  occurredAt: string
+  data: Record<string, unknown>
 }
 
 export interface InstanceView {
