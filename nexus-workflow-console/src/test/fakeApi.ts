@@ -97,6 +97,8 @@ export function makeInstance(overrides: Partial<InstanceSummary> = {}): Instance
 export function makeFakeTenantApi(): { [K in keyof TenantApi]: ReturnType<typeof vi.fn> } & TenantApi {
   return {
     listDefinitions: vi.fn().mockResolvedValue([]),
+    deployDefinition: vi.fn().mockResolvedValue({ id: 'approval', version: 2, name: 'Approval', validationWarnings: [] }),
+    startInstance: vi.fn().mockResolvedValue('new-instance-id'),
     deleteDefinition: vi.fn().mockResolvedValue(undefined),
     listInstances: vi.fn().mockResolvedValue({ items: [], total: 0, page: 0, pageSize: 20 }),
     suspendInstance: vi.fn().mockResolvedValue(undefined),

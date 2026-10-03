@@ -16,11 +16,15 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
+import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
+import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import type { TenantApi } from '../api/client'
 import type { DefinitionSummary } from '../api/types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { DeployDefinitionDialog } from '../components/DeployDefinitionDialog'
+import { StartInstanceDialog } from '../components/StartInstanceDialog'
 import { PageHeader } from '../components/PageHeader'
 import { formatDate } from '../format'
 
@@ -29,6 +33,8 @@ export function DefinitionsPage({ api, tenantId }: { api: TenantApi; tenantId: s
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<{ severity: 'success' | 'error'; text: string } | null>(null)
   const [deleting, setDeleting] = useState<DefinitionSummary | null>(null)
+  const [deploying, setDeploying] = useState(false)
+  const [starting, setStarting] = useState<DefinitionSummary | null>(null)
 
   // Answers can arrive out of order; only the newest request may update the screen
   const latestRequest = useRef(0)
@@ -61,6 +67,10 @@ export function DefinitionsPage({ api, tenantId }: { api: TenantApi; tenantId: s
     await load()
   }
 
+  // The API starts the latest version of a definition, so that is the row that offers "Start"
+  const latestVersion = new Map<string, number>()
+  for (const d of definitions ?? []) latestVersion.set(d.id, Math.max(d.version, latestVersion.get(d.id) ?? 0))
+
   return (
     <Box>
       <PageHeader title="Definitions" group="Workflows" subtitle={`Workflows deployed in ${tenantId}`}>
@@ -69,6 +79,9 @@ export function DefinitionsPage({ api, tenantId }: { api: TenantApi; tenantId: s
             <RefreshRoundedIcon />
           </IconButton>
         </Tooltip>
+        <Button variant="contained" startIcon={<CloudUploadRoundedIcon />} onClick={() => setDeploying(true)}>
+          Deploy definition
+        </Button>
       </PageHeader>
 
       {error && (
@@ -112,6 +125,12 @@ export function DefinitionsPage({ api, tenantId }: { api: TenantApi; tenantId: s
                   <TableCell align="right">{definition.version}</TableCell>
                   <TableCell>{formatDate(definition.deployedAt)}</TableCell>
                   <TableCell align="right">
+                    {/* Starting uses the latest version, so offer it on that row only (and not for definitions that cannot be started) */}
+                    {definition.isDeployable && definition.version === latestVersion.get(definition.id) && (
+                      <Button size="small" startIcon={<PlayArrowRoundedIcon />} onClick={() => setStarting(definition)} aria-label={`Start ${definition.id}`}>
+                        Start
+                      </Button>
+                    )}
                     {/* Deleting removes every version, so offer it once per definition, not once per version row */}
                     {all.findIndex((other) => other.id === definition.id) === index && (
                       <Tooltip title="Delete all versions">
@@ -132,6 +151,27 @@ export function DefinitionsPage({ api, tenantId }: { api: TenantApi; tenantId: s
           </Table>
         </TableContainer>
       )}
+
+      <DeployDefinitionDialog
+        open={deploying}
+        api={api}
+        onClose={() => setDeploying(false)}
+        onDeployed={(result) => {
+          setDeploying(false)
+          setMessage({ severity: 'success', text: `Deployed ${result.id} v${result.version}` })
+          void load()
+        }}
+      />
+
+      <StartInstanceDialog
+        definition={starting}
+        api={api}
+        onClose={() => setStarting(null)}
+        onStarted={(instanceId, definition) => {
+          setStarting(null)
+          setMessage({ severity: 'success', text: `Started instance ${instanceId.slice(0, 8)} of ${definition.id}` })
+        }}
+      />
 
       <ConfirmDialog
         open={deleting !== null}

@@ -91,6 +91,14 @@ export interface DefinitionSummary {
   isDeployable: boolean
 }
 
+export interface DeployResult {
+  id: string
+  version: number
+  name: string
+  /** Things the parser noticed that do not stop the deploy. */
+  validationWarnings: Array<string | { message?: string }>
+}
+
 export type InstanceStatus = 'pending' | 'active' | 'suspended' | 'completed' | 'terminated'
 export const INSTANCE_STATUSES: InstanceStatus[] = ['pending', 'active', 'suspended', 'completed', 'terminated']
 

@@ -1,6 +1,7 @@
 import type {
   ApiKey,
   DefinitionSummary,
+  DeployResult,
   InstanceEvent,
   InstanceStatus,
   InstanceView,
@@ -25,6 +26,8 @@ export class ApiError extends Error {
     readonly status: number,
     message: string,
     readonly code?: string,
+    /** What the server listed as wrong (for example the problems found in a definition). */
+    readonly details: string[] = [],
   ) {
     super(message)
     this.name = 'ApiError'
@@ -123,25 +126,34 @@ export function createAdminApi(
     },
     async me() {
       try {
-        return await request<SessionInfo>('GET', '/auth/me', undefined, false)
+        return await request<SessionInfo>('GET', '/auth/me', undefined, { authenticated: false })
       } catch (err) {
         if (err instanceof ApiError && err.status === 401) return null
         throw err
       }
     },
     login(email, password) {
-      return request<SessionInfo>('POST', '/auth/login', { email, password }, false)
+      return request<SessionInfo>('POST', '/auth/login', { email, password }, { authenticated: false })
     },
     async logout() {
-      await request('POST', '/auth/logout', undefined, false)
+      await request('POST', '/auth/logout', undefined, { authenticated: false })
     },
     inviteInfo(token) {
-      return request<InviteInfo>('POST', '/auth/invite-info', { token }, false)
+      return request<InviteInfo>('POST', '/auth/invite-info', { token }, { authenticated: false })
     },
     acceptInvite(token, password) {
-      return request<SessionInfo>('POST', '/auth/accept-invite', { token, password }, false)
+      return request<SessionInfo>('POST', '/auth/accept-invite', { token, password }, { authenticated: false })
     },
   }
+}
+
+interface RequestOptions {
+  /** False for calls made before signing in: a 401 then is not "the session ended". */
+  authenticated?: boolean
+  /** How to read the answer. JSON unless the caller says otherwise (the BPMN XML is the one text answer). */
+  responseType?: 'json' | 'text'
+  /** How to send `body`: JSON-encoded, or as it is (a string) labelled as BPMN XML. */
+  bodyType?: 'json' | 'xml'
 }
 
 export function makeRequest(
@@ -150,20 +162,25 @@ export function makeRequest(
   options: AdminApiOptions,
   extraHeaders: Record<string, string> = {},
 ) {
-  return async function request<T>(method: string, path: string, body?: unknown, authenticated = true, responseType: 'json' | 'text' = 'json'): Promise<T> {
+  return async function request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    { authenticated = true, responseType = 'json', bodyType = 'json' }: RequestOptions = {},
+  ): Promise<T> {
     // The server refuses state-changing calls made with a session cookie unless they carry this
     // header (a page on another site cannot add it), so it goes on every call.
     const headers: Record<string, string> = { 'X-Nexus-Console': '1', ...extraHeaders }
     const key = getKey()
     if (key) headers['Authorization'] = `Bearer ${key}`
-    if (body !== undefined) headers['Content-Type'] = 'application/json'
+    if (body !== undefined) headers['Content-Type'] = bodyType === 'xml' ? 'application/xml' : 'application/json'
 
     let response: Response
     try {
       response = await fetchImpl(path, {
         method,
         headers,
-        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        ...(body !== undefined ? { body: bodyType === 'xml' ? String(body) : JSON.stringify(body) } : {}),
       })
     } catch {
       throw new ApiError(0, 'Could not reach the workflow API. Is nexus-workflow-app running?')
@@ -174,16 +191,39 @@ export function makeRequest(
       throw await toApiError(response)
     }
     if (response.status === 204) return undefined as T // e.g. deleting a webhook: nothing to parse
-    // JSON unless the caller says otherwise (the BPMN XML is the one text answer)
     if (responseType === 'text') return (await response.text()) as T
     return (await response.json()) as T
   }
 }
 
+interface ErrorBody {
+  error?: string
+  message?: string
+  /** A list of problems (a definition that failed validation). */
+  details?: unknown
+  /** Request-body problems, as the validation layer reports them. */
+  issues?: { formErrors?: string[]; fieldErrors?: Record<string, string[]> }
+}
+
+/** One line per problem, from whichever of the server's error shapes carries them. */
+function problemsOf(body: ErrorBody): string[] {
+  const lines: string[] = []
+  if (Array.isArray(body.details)) {
+    for (const item of body.details) {
+      if (typeof item === 'string') lines.push(item)
+      else if (item && typeof item === 'object' && typeof (item as { message?: unknown }).message === 'string') lines.push((item as { message: string }).message)
+    }
+  }
+  lines.push(...(body.issues?.formErrors ?? []))
+  for (const [field, messages] of Object.entries(body.issues?.fieldErrors ?? {})) lines.push(...messages.map((m) => `${field}: ${m}`))
+  return lines
+}
+
 async function toApiError(response: Response): Promise<ApiError> {
   try {
-    const body = (await response.json()) as { error?: string; message?: string }
-    return new ApiError(response.status, body.message ?? `Request failed (${response.status})`, body.error)
+    const body = (await response.json()) as ErrorBody
+    const details = problemsOf(body)
+    return new ApiError(response.status, body.message ?? details[0] ?? `Request failed (${response.status})`, body.error, details)
   } catch {
     return new ApiError(response.status, `Request failed (${response.status})`)
   }
@@ -191,6 +231,10 @@ async function toApiError(response: Response): Promise<ApiError> {
 
 export interface TenantApi {
   listDefinitions(): Promise<DefinitionSummary[]>
+  /** Uploads BPMN XML. The answer says what was deployed and any warnings; bad XML throws with the details. */
+  deployDefinition(xml: string): Promise<DeployResult>
+  /** Starts an instance of the latest version of a definition; returns the new instance's id. */
+  startInstance(definitionId: string, input: { businessKey?: string; variables?: Record<string, unknown> }): Promise<string>
   /** Deletes every version of the definition; refused while it has running instances. */
   deleteDefinition(id: string): Promise<void>
   listInstances(query: { status?: InstanceStatus; page: number; pageSize: number }): Promise<Paged<InstanceSummary>>
@@ -235,6 +279,13 @@ export function createTenantApi(
     listDefinitions() {
       return request<DefinitionSummary[]>('GET', '/definitions')
     },
+    deployDefinition(xml) {
+      return request<DeployResult>('POST', '/definitions', xml, { bodyType: 'xml' })
+    },
+    async startInstance(definitionId, input) {
+      const started = await request<{ instance: { id: string } }>('POST', `/definitions/${encodeURIComponent(definitionId)}/instances`, input)
+      return started.instance.id
+    },
     async deleteDefinition(id) {
       await request('DELETE', `/definitions/${encodeURIComponent(id)}`)
     },
@@ -259,7 +310,7 @@ export function createTenantApi(
       return (await request<{ events: InstanceEvent[] }>('GET', `${instancePath(id)}/events`)).events
     },
     getDefinitionXml(id, version) {
-      return request<string>('GET', `/definitions/${encodeURIComponent(id)}/xml?version=${version}`, undefined, true, 'text')
+      return request<string>('GET', `/definitions/${encodeURIComponent(id)}/xml?version=${version}`, undefined, { responseType: 'text' })
     },
     listTasks({ status, page, pageSize }) {
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })

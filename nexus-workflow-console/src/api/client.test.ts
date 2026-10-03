@@ -298,6 +298,52 @@ describe('createAdminApi', () => {
       await expect(tenant.listDefinitions()).rejects.toBeInstanceOf(SyntaxError)
     })
 
+    it('deploys a definition by sending the XML as it is, labelled as XML', async () => {
+      const result = { id: 'approval', version: 2, name: 'Approval', validationWarnings: [] }
+      fetchMock.mockImplementation(async () => jsonResponse(result, 201))
+      const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch)
+
+      expect(await tenant.deployDefinition('<bpmn:definitions>"quoted"</bpmn:definitions>')).toEqual(result)
+
+      expect([lastCall().init.method, lastCall().url]).toEqual(['POST', '/definitions'])
+      expect(lastCall().headers['Content-Type']).toBe('application/xml')
+      expect(lastCall().init.body).toBe('<bpmn:definitions>"quoted"</bpmn:definitions>') // not JSON-encoded
+    })
+
+    it('starts an instance of a definition and returns the new instance id', async () => {
+      fetchMock.mockImplementation(async () => jsonResponse({ instance: { id: 'new-1' }, tokens: [] }, 201))
+      const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch)
+
+      expect(await tenant.startInstance('my flow', { businessKey: 'order-1', variables: { amount: 5 } })).toBe('new-1')
+
+      expect([lastCall().init.method, lastCall().url]).toEqual(['POST', '/definitions/my%20flow/instances'])
+      expect(JSON.parse(lastCall().init.body as string)).toEqual({ businessKey: 'order-1', variables: { amount: 5 } })
+    })
+
+    it('carries the list of problems the server found, in whichever shape it sends them', async () => {
+      const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch)
+
+      fetchMock.mockImplementationOnce(async () =>
+        jsonResponse({ error: 'VALIDATION_FAILED', message: 'Process definition has validation errors', details: [{ message: 'No start event' }, 'Unreachable task'] }, 422),
+      )
+      await expect(tenant.deployDefinition('<x/>')).rejects.toMatchObject({
+        status: 422,
+        code: 'VALIDATION_FAILED',
+        message: 'Process definition has validation errors',
+        details: ['No start event', 'Unreachable task'],
+      })
+
+      // request-body problems have no message of their own, only issues
+      fetchMock.mockImplementationOnce(async () =>
+        jsonResponse({ error: 'VALIDATION_ERROR', issues: { formErrors: ['Request body is not valid JSON'], fieldErrors: { businessKey: ['Expected string'] } } }, 400),
+      )
+      await expect(tenant.startInstance('p', {})).rejects.toMatchObject({
+        status: 400,
+        message: 'Request body is not valid JSON',
+        details: ['Request body is not valid JSON', 'businessKey: Expected string'],
+      })
+    })
+
     it('sign the user out on a 401 but not on a 403', async () => {
       const onUnauthorized = vi.fn()
       const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch, { onUnauthorized })
