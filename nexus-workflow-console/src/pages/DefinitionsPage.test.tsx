@@ -75,4 +75,46 @@ describe('DefinitionsPage', () => {
       'Delete all versions of onboarding',
     ])
   })
+
+  describe('deploying and starting', () => {
+    it('deploys a definition from the header and reloads the list', async () => {
+      const { api, user } = setup()
+      await screen.findByText('Approval')
+
+      await user.click(screen.getByRole('button', { name: /deploy definition/i }))
+      await user.click(screen.getByLabelText('BPMN XML'))
+      await user.paste('<bpmn:definitions/>')
+      await user.click(screen.getByRole('button', { name: 'Deploy' }))
+      await user.click(await screen.findByRole('button', { name: 'Done' }))
+
+      await waitFor(() => expect(api.deployDefinition).toHaveBeenCalledWith('<bpmn:definitions/>'))
+      await waitFor(() => expect(api.listDefinitions).toHaveBeenCalledTimes(2))
+      expect(await screen.findByText('Deployed approval v2')).toBeInTheDocument()
+    })
+
+    it('starts an instance from a definition row and says which one', async () => {
+      const { api, user } = setup()
+      await screen.findByText('Approval')
+
+      await user.click(screen.getByRole('button', { name: 'Start approval' }))
+      await user.click(screen.getByRole('button', { name: 'Start instance' }))
+
+      await waitFor(() => expect(api.startInstance).toHaveBeenCalledWith('approval', {}))
+      expect(await screen.findByText('Started instance new-inst of approval')).toBeInTheDocument()
+    })
+
+    it('offers Start on the latest version only, and never for a definition that cannot be started', async () => {
+      setup([
+        makeDefinition({ id: 'approval', version: 1 }),
+        makeDefinition({ id: 'approval', version: 3 }),
+        makeDefinition({ id: 'approval', version: 2 }),
+        makeDefinition({ id: 'library', name: 'Library', version: 1, isDeployable: false }),
+      ])
+      await screen.findAllByText('approval')
+
+      const starts = screen.getAllByRole('button', { name: /^start /i })
+      expect(starts).toHaveLength(1)
+      expect(within(starts[0]!.closest('tr')!).getByText('3')).toBeInTheDocument() // the version 3 row
+    })
+  })
 })

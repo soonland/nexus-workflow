@@ -30,6 +30,7 @@ import type { TenantApi } from '../api/client'
 import { TASK_STATUSES, type Paged, type TaskStatus, type UserTask } from '../api/types'
 import { PageHeader } from '../components/PageHeader'
 import { formatDate } from '../format'
+import { parseJsonObject } from '../jsonObject'
 
 const PAGE_SIZE = 20
 
@@ -98,17 +99,12 @@ export function TasksPage({ api, tenantId, actor }: Props) {
   function submitCompletion() {
     const task = completing
     if (!task) return
-    let output: Record<string, unknown> | undefined
-    if (variables.trim() !== '') {
-      try {
-        const parsed: unknown = JSON.parse(variables)
-        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('not an object')
-        output = parsed as Record<string, unknown>
-      } catch {
-        setVariablesError('The output variables must be a JSON object, for example {"approved": true}.')
-        return
-      }
+    const parsed = parseJsonObject(variables)
+    if (!parsed.ok) {
+      setVariablesError('The output variables must be a JSON object, for example {"approved": true}.')
+      return
     }
+    const output = parsed.value
     closeCompleting()
     void run(task, () => api.completeTask(task.id, actor, output), `Completed "${task.name}"`)
   }
