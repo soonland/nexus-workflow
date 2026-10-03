@@ -50,6 +50,16 @@ export class UserInputError extends Error {
   }
 }
 
+/** The change would leave the platform without an active operator. */
+export class LastOperatorError extends UserInputError {
+  constructor() {
+    super('The platform needs at least one active operator')
+    this.name = 'LastOperatorError'
+  }
+}
+
+export type UserWithMemberships = User & { memberships: Membership[] }
+
 export class EmailTakenError extends UserInputError {
   constructor() {
     super('A user with this email already exists')
@@ -65,6 +75,26 @@ const USER_COLUMNS = `
 `
 
 const MEMBERSHIP_COLUMNS = `id, user_id AS "userId", role, tenant_id AS "tenantId", created_at AS "createdAt"`
+
+// Changes that could remove the last operator take this lock, so two of them racing cannot both
+// look at "there are two operators" and each remove one.
+const OPERATOR_LOCK_KEY = 7_313_001
+
+/** Throws unless the user is not an active operator, or is one of at least two. Call under the lock. */
+async function assertNotLastOperator(tx: postgres.Sql, userId: string): Promise<void> {
+  const [row] = await tx<{ isActiveOperator: boolean; activeOperators: number }[]>`
+    SELECT
+      EXISTS (
+        SELECT 1 FROM public.memberships m JOIN public.users u ON u.id = m.user_id
+        WHERE m.user_id = ${userId} AND m.role = 'operator' AND u.status = 'active'
+      ) AS "isActiveOperator",
+      (
+        SELECT count(*)::int FROM public.memberships m JOIN public.users u ON u.id = m.user_id
+        WHERE m.role = 'operator' AND u.status = 'active'
+      ) AS "activeOperators"
+  `
+  if (row?.isActiveOperator && row.activeOperators <= 1) throw new LastOperatorError()
+}
 
 function isPgError(err: unknown, code: string): err is { code: string; constraint_name?: string } {
   return typeof err === 'object' && err !== null && (err as { code?: unknown }).code === code
@@ -141,15 +171,88 @@ export class UserStore {
     })
   }
 
-  /** Disabling also ends all of the user's sessions. False if the user does not exist. */
+  /**
+   * Disabling also ends all of the user's sessions. Disabling the last active operator is
+   * refused (LastOperatorError). False if the user does not exist.
+   */
   async setStatus(userId: string, status: UserStatus): Promise<boolean> {
     return this.sql.begin(async (txRaw) => {
       const tx = txRaw as unknown as postgres.Sql
+      if (status === 'disabled') {
+        await tx`SELECT pg_advisory_xact_lock(${OPERATOR_LOCK_KEY})`
+        await assertNotLastOperator(tx, userId)
+      }
       const rows = await tx`UPDATE public.users SET status = ${status} WHERE id = ${userId} RETURNING id`
       if (rows.length === 0) return false
       if (status === 'disabled') await tx`DELETE FROM public.sessions WHERE user_id = ${userId}`
       return true
     })
+  }
+
+  /** Removes a user and everything that hangs off them (memberships, sessions, invites). */
+  async deleteUser(userId: string): Promise<boolean> {
+    const rows = await this.sql`DELETE FROM public.users WHERE id = ${userId} RETURNING id`
+    return rows.length > 0
+  }
+
+  async tenantExists(tenantId: string): Promise<boolean> {
+    const rows = await this.sql`SELECT 1 FROM public.tenants WHERE id = ${tenantId}`
+    return rows.length > 0
+  }
+
+  // ─── Listing ───────────────────────────────────────────────────────────────
+
+  /**
+   * Users with their memberships, oldest first. With `withinTenants`, only the users that belong
+   * wholly inside those tenants: they have a membership, and every membership is a tenant manager
+   * role in one of them. That is the set a tenant manager may see and administer; anyone who also
+   * holds another tenant or the operator role is out of their reach.
+   */
+  async listWithMemberships(filter: { withinTenants?: string[] } = {}): Promise<UserWithMemberships[]> {
+    const within = filter.withinTenants
+    if (within && within.length === 0) return []
+
+    const users = within
+      ? await this.sql<User[]>`
+          SELECT ${this.sql.unsafe(USER_COLUMNS)} FROM public.users u
+          WHERE ${this.withinTenantsPredicate(within)}
+          ORDER BY created_at ASC, id ASC`
+      : await this.sql<User[]>`SELECT ${this.sql.unsafe(USER_COLUMNS)} FROM public.users ORDER BY created_at ASC, id ASC`
+    return this.attachMemberships(users)
+  }
+
+  async getWithMemberships(userId: string): Promise<UserWithMemberships | null> {
+    const user = await this.findById(userId)
+    return user ? (await this.attachMemberships([user]))[0] ?? null : null
+  }
+
+  /** Whether the user belongs wholly inside the given tenants (see listWithMemberships). */
+  async isWithinTenants(userId: string, tenantIds: string[]): Promise<boolean> {
+    if (tenantIds.length === 0) return false
+    const rows = await this.sql`
+      SELECT 1 FROM public.users u WHERE u.id = ${userId} AND ${this.withinTenantsPredicate(tenantIds)}`
+    return rows.length > 0
+  }
+
+  private withinTenantsPredicate(tenantIds: string[]) {
+    return this.sql`
+      EXISTS (SELECT 1 FROM public.memberships m WHERE m.user_id = u.id)
+      AND NOT EXISTS (
+        SELECT 1 FROM public.memberships m
+        WHERE m.user_id = u.id
+          AND NOT (m.role = 'tenant_manager' AND m.tenant_id = ANY(${this.sql.array(tenantIds)}))
+      )`
+  }
+
+  private async attachMemberships(users: User[]): Promise<UserWithMemberships[]> {
+    if (users.length === 0) return []
+    const memberships = await this.sql<Membership[]>`
+      SELECT ${this.sql.unsafe(MEMBERSHIP_COLUMNS)} FROM public.memberships
+      WHERE user_id = ANY(${this.sql.array(users.map((u) => u.id))})
+      ORDER BY created_at ASC, id ASC`
+    const byUser = new Map<string, Membership[]>()
+    for (const m of memberships) byUser.set(m.userId, [...(byUser.get(m.userId) ?? []), m])
+    return users.map((user) => ({ ...user, memberships: byUser.get(user.id) ?? [] }))
   }
 
   // ─── Memberships ───────────────────────────────────────────────────────────
@@ -186,10 +289,21 @@ export class UserStore {
     }
   }
 
-  /** Removes one of the user's memberships. False if it does not exist or belongs to someone else. */
+  /**
+   * Removes one of the user's memberships. Removing the operator role of the last active
+   * operator is refused (LastOperatorError). False if it does not exist or belongs to someone else.
+   */
   async removeMembership(userId: string, membershipId: string): Promise<boolean> {
-    const rows = await this.sql`DELETE FROM public.memberships WHERE id = ${membershipId} AND user_id = ${userId} RETURNING id`
-    return rows.length > 0
+    return this.sql.begin(async (txRaw) => {
+      const tx = txRaw as unknown as postgres.Sql
+      await tx`SELECT pg_advisory_xact_lock(${OPERATOR_LOCK_KEY})`
+      const found = await tx<{ role: MembershipRole }[]>`
+        SELECT role FROM public.memberships WHERE id = ${membershipId} AND user_id = ${userId}`
+      if (!found[0]) return false
+      if (found[0].role === 'operator') await assertNotLastOperator(tx, userId)
+      const rows = await tx`DELETE FROM public.memberships WHERE id = ${membershipId} AND user_id = ${userId} RETURNING id`
+      return rows.length > 0
+    })
   }
 
   async listMemberships(userId: string): Promise<Membership[]> {

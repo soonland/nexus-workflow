@@ -12,11 +12,14 @@ import { createAdminRouter } from './http/admin.js'
 import { createEventsRouter } from './http/events.js'
 import { createObservabilityRouter } from './http/observability.js'
 import { createWebhooksRouter } from './http/webhooks.js'
+import { UserAdmin } from './auth/UserAdmin.js'
+import { InviteStore } from './db/InviteStore.js'
 import { createAuthRouter } from './http/auth.js'
+import { createUsersRouter } from './http/users.js'
 import { mountConsole } from './http/console.js'
 import { createTenantsRouter } from './http/tenants.js'
 import { createAuthMiddleware, type AppVariables } from './http/middleware/auth.js'
-import { createOperatorGuard } from './http/middleware/operator.js'
+import { createOperatorGuard, createPeopleAdminGuard } from './http/middleware/operator.js'
 import { PostgresWebhookStore } from './webhooks/WebhookStore.js'
 import { WebhookDispatcher } from './webhooks/WebhookDispatcher.js'
 import { PostgresEventLog } from './db/EventLog.js'
@@ -113,9 +116,11 @@ const sessionStore = new SessionStore(authSql, {
   idleMs: config.sessionIdleMs,
   maxMs: config.sessionMaxMs,
 })
+const inviteStore = new InviteStore(authSql, { hmacSecret: config.apiKeyHmacSecret, ttlMs: config.inviteTtlMs })
 app.route('/auth', createAuthRouter({
   users: userStore,
   sessions: sessionStore,
+  invites: inviteStore,
   hasher: new PasswordHasher(),
   accountIpThrottle: new LoginThrottle({ maxFailures: 5, windowMs: 15 * MINUTE_MS, lockMs: 15 * MINUTE_MS }),
   accountThrottle: new LoginThrottle({ maxFailures: 25, windowMs: 15 * MINUTE_MS, lockMs: 15 * MINUTE_MS }),
@@ -131,6 +136,19 @@ const purgeSessions = () =>
 void purgeSessions()
 const sessionPurgeTimer = setInterval(() => void purgeSessions(), 10 * MINUTE_MS)
 sessionPurgeTimer.unref()
+
+// People: operators administer everyone, tenant managers only their own tenants' people (UserAdmin
+// holds the rules). Same credentials as /tenants, but tenant managers are let in too.
+app.route('/users', createUsersRouter({
+  admin: new UserAdmin(userStore, inviteStore),
+  guard: createPeopleAdminGuard({
+    adminApiKey: config.adminApiKey,
+    sessions: sessionStore,
+    users: userStore,
+    publicOrigin: config.publicOrigin,
+  }),
+  publicOrigin: config.publicOrigin,
+}))
 
 // /tenants is for platform operators: a signed-in operator, or the admin key (break-glass). Tenant
 // API keys and tenant managers are refused.
