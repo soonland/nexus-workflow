@@ -7,7 +7,6 @@ import {
   CircularProgress,
   IconButton,
   Snackbar,
-  Stack,
   Table,
   TableBody,
   TableCell,
@@ -22,6 +21,7 @@ import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import type { TenantApi } from '../api/client'
 import type { DefinitionSummary } from '../api/types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { PageHeader } from '../components/PageHeader'
 import { formatDate } from '../format'
 
 export function DefinitionsPage({ api, tenantId }: { api: TenantApi; tenantId: string }) {
@@ -63,21 +63,13 @@ export function DefinitionsPage({ api, tenantId }: { api: TenantApi; tenantId: s
 
   return (
     <Box>
-      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Box>
-          <Typography variant="h5" component="h1">
-            Definitions
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Workflows deployed in {tenantId}
-          </Typography>
-        </Box>
+      <PageHeader title="Definitions" group="Workflows" subtitle={`Workflows deployed in ${tenantId}`}>
         <Tooltip title="Refresh">
           <IconButton aria-label="Refresh" onClick={() => void load()}>
             <RefreshRoundedIcon />
           </IconButton>
         </Tooltip>
-      </Stack>
+      </PageHeader>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} action={<Button onClick={() => void load()}>Retry</Button>}>

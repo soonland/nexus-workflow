@@ -28,6 +28,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { CreateTenantDialog } from '../components/CreateTenantDialog'
 import { KeysDrawer } from '../components/KeysDrawer'
 import { StatusChip } from '../components/StatusChip'
+import { PageHeader } from '../components/PageHeader'
 import { formatDate } from '../format'
 
 /** Owns pre-multi-tenancy data; the API refuses to delete it. */
@@ -80,21 +81,16 @@ export function TenantsPage({ api }: { api: AdminApi }) {
 
   return (
     <Box>
-      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h5" component="h1">
-          Tenants
-        </Typography>
-        <Stack direction="row" spacing={1}>
-          <Tooltip title="Refresh">
-            <IconButton aria-label="Refresh" onClick={() => void load()}>
-              <RefreshRoundedIcon />
-            </IconButton>
-          </Tooltip>
-          <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setCreating(true)}>
-            New tenant
-          </Button>
-        </Stack>
-      </Stack>
+      <PageHeader title="Tenants" group="Platform">
+        <Tooltip title="Refresh">
+          <IconButton aria-label="Refresh" onClick={() => void load()}>
+            <RefreshRoundedIcon />
+          </IconButton>
+        </Tooltip>
+        <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setCreating(true)}>
+          New tenant
+        </Button>
+      </PageHeader>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} action={<Button onClick={() => void load()}>Retry</Button>}>

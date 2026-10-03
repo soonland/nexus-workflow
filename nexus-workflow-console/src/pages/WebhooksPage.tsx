@@ -28,6 +28,7 @@ import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import type { TenantApi } from '../api/client'
 import type { Webhook } from '../api/types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { PageHeader } from '../components/PageHeader'
 import { formatDate } from '../format'
 
 export function WebhooksPage({ api, tenantId }: { api: TenantApi; tenantId: string }) {
@@ -98,26 +99,16 @@ export function WebhooksPage({ api, tenantId }: { api: TenantApi; tenantId: stri
 
   return (
     <Box>
-      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Box>
-          <Typography variant="h5" component="h1">
-            Webhooks
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Addresses called when workflow events happen in {tenantId}
-          </Typography>
-        </Box>
-        <Stack direction="row" spacing={1}>
-          <Tooltip title="Refresh">
-            <IconButton aria-label="Refresh" onClick={() => void load()}>
-              <RefreshRoundedIcon />
-            </IconButton>
-          </Tooltip>
-          <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setCreating(true)}>
-            Add webhook
-          </Button>
-        </Stack>
-      </Stack>
+      <PageHeader title="Webhooks" group="Workflows" subtitle={`Addresses called when workflow events happen in ${tenantId}`}>
+        <Tooltip title="Refresh">
+          <IconButton aria-label="Refresh" onClick={() => void load()}>
+            <RefreshRoundedIcon />
+          </IconButton>
+        </Tooltip>
+        <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setCreating(true)}>
+          Add webhook
+        </Button>
+      </PageHeader>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} action={<Button onClick={() => void load()}>Retry</Button>}>

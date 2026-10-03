@@ -162,7 +162,7 @@ describe('what each role sees', () => {
     render(<App fetchImpl={makeServer({ accounts, signedInAs: accounts['op@example.com'] }).fetchImpl} />)
 
     expect(await screen.findByRole('heading', { name: 'Tenants' })).toBeInTheDocument()
-    await user.click(screen.getByRole('tab', { name: 'Users' }))
+    await user.click(screen.getByRole('button', { name: 'Users' }))
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
   })
 
@@ -172,8 +172,8 @@ describe('what each role sees', () => {
 
     expect(await screen.findByRole('heading', { name: 'Definitions' })).toBeInTheDocument()
     expect(await screen.findByText('Flow 2')).toBeInTheDocument()
-    for (const tab of ['Instances', 'Tasks', 'Webhooks', 'Users']) expect(screen.getByRole('tab', { name: tab })).toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'Tenants' })).not.toBeInTheDocument()
+    for (const tab of ['Instances', 'Tasks', 'Webhooks', 'Users']) expect(screen.getByRole('button', { name: tab })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Tenants' })).not.toBeInTheDocument()
     expect(calls).not.toHaveBeenCalledWith('/tenants', expect.anything())
   })
 
@@ -181,8 +181,8 @@ describe('what each role sees', () => {
     render(<App fetchImpl={makeServer({ accounts, signedInAs: accounts['op@example.com'] }).fetchImpl} />)
 
     await screen.findByRole('heading', { name: 'Tenants' })
-    expect(screen.queryByRole('tab', { name: 'Definitions' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'Instances' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Definitions' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Instances' })).not.toBeInTheDocument()
   })
 
   it('someone with no roles is told so', async () => {
@@ -279,7 +279,7 @@ describe('admin key (break-glass)', () => {
     await useKey(user, 'right-key')
 
     expect(await screen.findByText('Acme Corp')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Users' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Users' })).toBeInTheDocument()
     expect(sessionStorage.getItem('nexus-console-admin-key')).toBe('right-key')
   })
 
