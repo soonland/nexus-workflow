@@ -114,6 +114,18 @@ describe('InstanceDetailPage', () => {
     expect(screen.getByText('History')).toBeInTheDocument()
   })
 
+  it('tries the diagram again on refresh after it failed to draw', async () => {
+    const { api, user } = setup()
+    await user.click(await screen.findByRole('button', { name: 'break the diagram' }))
+    expect(await screen.findByText(/could not be drawn/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+
+    expect(await screen.findByTestId('diagram')).toBeInTheDocument()
+    expect(screen.queryByText(/could not be drawn/i)).not.toBeInTheDocument()
+    expect(api.getInstance).toHaveBeenCalledTimes(2)
+  })
+
   it('says so when nothing has happened yet', async () => {
     setup(view({ tokens: [], variables: {} }), [])
     await screen.findByText('order-17')

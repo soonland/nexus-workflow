@@ -4,19 +4,23 @@ import {
   Box,
   Button,
   CircularProgress,
+  IconButton,
   Stack,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
 } from '@mui/material'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
+import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import type { TenantApi } from '../api/client'
 import type { InstanceEvent, InstanceView } from '../api/types'
 import { describeEvent, progressMarks } from '../instanceEvents'
 import { InstanceStatusChip } from '../components/InstanceStatusChip'
+import { MARK_COLORS } from '../components/diagramMarks'
 import { PageHeader } from '../components/PageHeader'
 import { formatDate } from '../format'
 
@@ -47,6 +51,9 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
       setView(loaded)
       setEvents(log)
       setError(null)
+      // Try the diagram again after an earlier failure. The drawing that is showing stays until the
+      // XML arrives (and is not redrawn if it is the same), so a refresh keeps the reader's zoom.
+      setDiagramError(null)
       // The diagram is a bonus: if the XML is missing, the rest of the page still stands
       try {
         setXml(await api.getDefinitionXml(loaded.instance.definitionId, loaded.instance.definitionVersion))
@@ -73,6 +80,11 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
   return (
     <Box>
       <PageHeader title={`Instance ${short}`} group="Workflows / Instances" {...(instance ? { subtitle: `${instance.definitionId} v${instance.definitionVersion}` } : {})}>
+        <Tooltip title="Refresh">
+          <IconButton aria-label="Refresh" onClick={() => void load()}>
+            <RefreshRoundedIcon />
+          </IconButton>
+        </Tooltip>
         <Button startIcon={<ArrowBackRoundedIcon />} onClick={onBack}>
           Back to instances
         </Button>
@@ -132,9 +144,9 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
               </DiagramBoundary>
             )}
             <Stack direction="row" spacing={2} sx={{ mt: 0.5 }}>
-              <Typography variant="caption" sx={{ color: '#1e88e5' }}>● now</Typography>
-              <Typography variant="caption" sx={{ color: '#43a047' }}>● passed</Typography>
-              <Typography variant="caption" sx={{ color: '#e53935' }}>● cancelled or failed</Typography>
+              <Typography variant="caption" sx={{ color: `${MARK_COLORS.active}.main` }}>● now</Typography>
+              <Typography variant="caption" sx={{ color: `${MARK_COLORS.done}.main` }}>● passed</Typography>
+              <Typography variant="caption" sx={{ color: `${MARK_COLORS.error}.main` }}>● cancelled or failed</Typography>
             </Stack>
           </Box>
 

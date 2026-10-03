@@ -150,7 +150,7 @@ export function makeRequest(
   options: AdminApiOptions,
   extraHeaders: Record<string, string> = {},
 ) {
-  return async function request<T>(method: string, path: string, body?: unknown, authenticated = true): Promise<T> {
+  return async function request<T>(method: string, path: string, body?: unknown, authenticated = true, responseType: 'json' | 'text' = 'json'): Promise<T> {
     // The server refuses state-changing calls made with a session cookie unless they carry this
     // header (a page on another site cannot add it), so it goes on every call.
     const headers: Record<string, string> = { 'X-Nexus-Console': '1', ...extraHeaders }
@@ -174,8 +174,8 @@ export function makeRequest(
       throw await toApiError(response)
     }
     if (response.status === 204) return undefined as T // e.g. deleting a webhook: nothing to parse
-    // The BPMN XML comes back as text, everything else as JSON
-    if (!(response.headers.get('Content-Type') ?? '').includes('json')) return (await response.text()) as T
+    // JSON unless the caller says otherwise (the BPMN XML is the one text answer)
+    if (responseType === 'text') return (await response.text()) as T
     return (await response.json()) as T
   }
 }
@@ -259,7 +259,7 @@ export function createTenantApi(
       return (await request<{ events: InstanceEvent[] }>('GET', `${instancePath(id)}/events`)).events
     },
     getDefinitionXml(id, version) {
-      return request<string>('GET', `/definitions/${encodeURIComponent(id)}/xml?version=${version}`)
+      return request<string>('GET', `/definitions/${encodeURIComponent(id)}/xml?version=${version}`, undefined, true, 'text')
     },
     listTasks({ status, page, pageSize }) {
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
