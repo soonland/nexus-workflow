@@ -33,14 +33,22 @@ export function readSessionToken(c: Context): string | null {
 }
 
 /**
- * The caller's address, for throttling and for the session record. Behind a proxy we are told
- * to trust, the proxy appends the real client address, so the last X-Forwarded-For entry is the
- * one to use (earlier entries are whatever the client claimed).
+ * The caller's address, for throttling and for the session record.
+ *
+ * `trustedProxies` is how many proxies of yours sit in front of this server (0 = none, and the
+ * X-Forwarded-For header, which anyone can send, is ignored). Each trusted proxy appends the
+ * address it received the request from, so the client is the entry `trustedProxies` places from
+ * the end: with one proxy that is the last entry, behind a CDN plus a load balancer it is the
+ * second to last. Anything earlier is whatever the client claimed.
  */
-export function clientIp(c: Context, trustProxy: boolean): string {
-  if (trustProxy) {
-    const forwarded = c.req.header('x-forwarded-for')?.split(',').at(-1)?.trim()
-    if (forwarded) return forwarded
+export function clientIp(c: Context, trustedProxies: number): string {
+  if (trustedProxies > 0) {
+    const entries = (c.req.header('x-forwarded-for') ?? '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry !== '')
+    const client = entries[entries.length - trustedProxies]
+    if (client) return client
   }
   try {
     return getConnInfo(c).remote.address ?? 'unknown'

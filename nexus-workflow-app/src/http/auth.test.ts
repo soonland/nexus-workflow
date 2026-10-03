@@ -47,13 +47,38 @@ describe('auth HTTP API (Postgres)', () => {
         users,
         sessions,
         hasher,
-        accountThrottle: new LoginThrottle({ maxFailures: 3, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE, now: () => now }),
+        accountIpThrottle: new LoginThrottle({ maxFailures: 3, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE, now: () => now }),
+        accountThrottle: new LoginThrottle({ maxFailures: 8, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE, now: () => now }),
         ipThrottle: new LoginThrottle({ maxFailures: 10, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE, now: () => now }),
         sessionMaxAgeSeconds: 24 * 60 * 60,
-        trustProxy: false,
+        trustedProxies: 0,
       }),
     )
   })
+
+  /** An app behind `proxies` trusted proxies, so each request can claim its own client address. */
+  function appBehindProxy(proxies = 1, ipLimit = 100) {
+    const proxied = new Hono()
+    proxied.route(
+      '/auth',
+      createAuthRouter({
+        users, sessions, hasher,
+        accountIpThrottle: new LoginThrottle({ maxFailures: 3, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE, now: () => now }),
+        accountThrottle: new LoginThrottle({ maxFailures: 8, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE, now: () => now }),
+        ipThrottle: new LoginThrottle({ maxFailures: ipLimit, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE, now: () => now }),
+        sessionMaxAgeSeconds: 3600,
+        trustedProxies: proxies,
+      }),
+    )
+    return (ip: string, body: unknown) =>
+      proxied.fetch(
+        new Request(url('/auth/login'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Nexus-Console': '1', Origin: 'http://localhost', 'X-Forwarded-For': ip },
+          body: JSON.stringify(body),
+        }),
+      )
+  }
 
   // ─── helpers ───────────────────────────────────────────────────────────────
 
@@ -132,10 +157,11 @@ describe('auth HTTP API (Postgres)', () => {
         '/auth',
         createAuthRouter({
           users, sessions, hasher,
-          accountThrottle: new LoginThrottle({ maxFailures: 3, windowMs: MINUTE, lockMs: MINUTE }),
+          accountIpThrottle: new LoginThrottle({ maxFailures: 3, windowMs: MINUTE, lockMs: MINUTE }),
+          accountThrottle: new LoginThrottle({ maxFailures: 8, windowMs: MINUTE, lockMs: MINUTE }),
           ipThrottle: new LoginThrottle({ maxFailures: 10, windowMs: MINUTE, lockMs: MINUTE }),
           sessionMaxAgeSeconds: 3600,
-          trustProxy: true,
+          trustedProxies: 1,
         }),
       )
       const behindProxy = await proxied.fetch(
@@ -247,12 +273,103 @@ describe('auth HTTP API (Postgres)', () => {
       expect((await login({ email: email('ada'), password: PASSWORD })).status).toBe(200)
     })
 
+    it('a stranger guessing at an account only locks themselves out, not the real user on another address', async () => {
+      const loginFrom = appBehindProxy()
+      for (let i = 0; i < 3; i++) expect((await loginFrom('198.51.100.66', { email: email('ada'), password: 'wrong password!!' })).status).toBe(401)
+
+      expect((await loginFrom('198.51.100.66', { email: email('ada'), password: PASSWORD })).status).toBe(429) // the guesser
+      expect((await loginFrom('203.0.113.5', { email: email('ada'), password: PASSWORD })).status).toBe(200) // the owner
+    })
+
+    it('guessing spread over many addresses still locks the account for everyone', async () => {
+      const loginFrom = appBehindProxy()
+      for (let i = 0; i < 8; i++) await loginFrom(`198.51.100.${i + 1}`, { email: email('ada'), password: 'wrong password!!' })
+
+      const owner = await loginFrom('203.0.113.5', { email: email('ada'), password: PASSWORD })
+
+      expect(owner.status).toBe(429)
+      expect(await owner.json()).toMatchObject({ error: 'TOO_MANY_ATTEMPTS' })
+    })
+
+    it('a success from an address clears that address\'s failures for the account, not the account-wide count', async () => {
+      const loginFrom = appBehindProxy()
+      await loginFrom('203.0.113.5', { email: email('ada'), password: 'wrong password!!' })
+      await loginFrom('203.0.113.5', { email: email('ada'), password: 'wrong password!!' })
+      expect((await loginFrom('203.0.113.5', { email: email('ada'), password: PASSWORD })).status).toBe(200)
+
+      // two more failures from the same address start from zero (limit 3), so it is not locked yet
+      await loginFrom('203.0.113.5', { email: email('ada'), password: 'wrong password!!' })
+      await loginFrom('203.0.113.5', { email: email('ada'), password: 'wrong password!!' })
+      expect((await loginFrom('203.0.113.5', { email: email('ada'), password: PASSWORD })).status).toBe(200)
+    })
+
     it('locks an IP address that fails against many accounts', async () => {
-      for (let i = 0; i < 10; i++) await login({ email: email(`victim${i}`), password: 'guess number one' })
+      const loginFrom = appBehindProxy(1, 10)
+      for (let i = 0; i < 10; i++) await loginFrom('198.51.100.66', { email: email(`victim${i}`), password: 'guess number one' })
 
-      const res = await login({ email: email('ada'), password: PASSWORD })
+      expect((await loginFrom('198.51.100.66', { email: email('ada'), password: PASSWORD })).status).toBe(429)
+      expect((await loginFrom('203.0.113.5', { email: email('ada'), password: PASSWORD })).status).toBe(200) // other addresses unaffected
+    })
 
-      expect(res.status).toBe(429)
+    it('does not put every client with an unknown address into one shared bucket', async () => {
+      // No connection info (and no trusted proxy header): attempts against many accounts must not
+      // add up on a shared "unknown" address and lock everybody out.
+      for (let i = 0; i < 15; i++) await login({ email: email(`stranger${i}`), password: 'guess number one' })
+
+      expect((await login({ email: email('ada'), password: PASSWORD })).status).toBe(200)
+    })
+
+    it('lets only as many parallel guesses through as the limit allows, not the whole burst', async () => {
+      const loginFrom = appBehindProxy()
+
+      const answers = await Promise.all(
+        Array.from({ length: 12 }, () => loginFrom('198.51.100.66', { email: email('ada'), password: 'wrong password!!' })),
+      )
+
+      const statuses = answers.map((r) => r.status)
+      expect(statuses.filter((s) => s === 401)).toHaveLength(3) // the pair limit
+      expect(statuses.filter((s) => s === 429)).toHaveLength(9)
+    })
+
+    it('a parallel burst against many accounts from one address is capped by the address limit too', async () => {
+      const loginFrom = appBehindProxy(1, 5)
+
+      const answers = await Promise.all(
+        Array.from({ length: 12 }, (_, i) => loginFrom('198.51.100.66', { email: email(`burst${i}`), password: 'wrong password!!' })),
+      )
+
+      expect(answers.filter((r) => r.status === 401)).toHaveLength(5)
+    })
+
+    it('a request that is let in but ends in success does not count against the account or address', async () => {
+      const loginFrom = appBehindProxy(1, 3)
+      for (let i = 0; i < 6; i++) expect((await loginFrom('203.0.113.5', { email: email('ada'), password: PASSWORD })).status).toBe(200)
+    })
+
+    it('does not count a failure of the server itself (the database being down) against the account', async () => {
+      const broken = new Hono()
+      broken.route(
+        '/auth',
+        createAuthRouter({
+          users: { findCredentialsByEmail: async () => { throw new Error('database down') } } as unknown as UserStore,
+          sessions, hasher,
+          accountIpThrottle: new LoginThrottle({ maxFailures: 2, windowMs: MINUTE, lockMs: MINUTE }),
+          accountThrottle: new LoginThrottle({ maxFailures: 2, windowMs: MINUTE, lockMs: MINUTE }),
+          ipThrottle: new LoginThrottle({ maxFailures: 2, windowMs: MINUTE, lockMs: MINUTE }),
+          sessionMaxAgeSeconds: 3600,
+          trustedProxies: 0,
+        }),
+      )
+      const attempt = () => broken.fetch(new Request(url('/auth/login'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...SAME_SITE },
+        body: JSON.stringify({ email: email('ada'), password: PASSWORD }),
+      }))
+
+      const statuses: number[] = []
+      for (let i = 0; i < 5; i++) statuses.push((await attempt()).status)
+
+      expect(statuses).toEqual([500, 500, 500, 500, 500]) // never 429: errors are not guesses
     })
   })
 

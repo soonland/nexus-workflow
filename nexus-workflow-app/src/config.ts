@@ -7,6 +7,12 @@ const nodeEnv = process.env['NODE_ENV'] ?? 'development'
 // sibling package, which is right both for `tsx src/main.ts` and for the compiled dist/main.js.
 const defaultConsoleDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../nexus-workflow-console/dist')
 
+function parseTrustedProxies(value: string | undefined): number {
+  if (!value || value === 'false') return 0
+  if (value === 'true') return 1
+  return /^\d+$/.test(value) ? Number(value) : Number.NaN
+}
+
 export const config = {
   port: Number(process.env['PORT'] ?? 3000),
   databaseUrl: process.env['DATABASE_URL'] ?? 'postgres://nexus:nexus@localhost:5433/nexus_workflow',
@@ -31,8 +37,11 @@ export const config = {
    * check the Origin header of sign-in requests. Set it behind a proxy that rewrites the host.
    */
   publicOrigin: process.env['PUBLIC_ORIGIN'] || undefined,
-  /** Believe X-Forwarded-For and X-Forwarded-Proto. Only set this behind a proxy you control. */
-  trustProxy: process.env['TRUST_PROXY'] === 'true',
+  /**
+   * How many proxies of yours sit in front of this server: 0 (default), `true` (= 1) or a number.
+   * Above 0, X-Forwarded-For / X-Forwarded-Proto are believed. Only set it behind proxies you control.
+   */
+  trustedProxies: parseTrustedProxies(process.env['TRUST_PROXY']),
 }
 
 /**
@@ -45,6 +54,11 @@ export function assertConfigValid(cfg: typeof config) {
     process.exit(1)
   } else if (!cfg.adminApiKey) {
     console.warn('[config] ADMIN_API_KEY is not set — bootstrap key unavailable.')
+  }
+
+  if (Number.isNaN(cfg.trustedProxies)) {
+    console.error('[config] TRUST_PROXY must be true, false or the number of proxies in front of this server. Exiting.')
+    process.exit(1)
   }
 
   const positive = (n: number) => Number.isFinite(n) && n > 0

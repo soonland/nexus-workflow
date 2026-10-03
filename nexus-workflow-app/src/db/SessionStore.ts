@@ -3,7 +3,12 @@ import type postgres from 'postgres'
 import type { User } from './UserStore.js'
 
 export interface SessionStoreOptions {
-  /** Keys the hash that is stored in place of the token (use API_KEY_HMAC_SECRET). */
+  /**
+   * Keys the hash that is stored in place of the token (use API_KEY_HMAC_SECRET, required in
+   * production). Tokens are 256 random bits, so they cannot be guessed or recovered from their
+   * hash whatever the key is; the secret is defence in depth, and an empty one (development only)
+   * does not weaken the sessions.
+   */
   hmacSecret: string
   /** A session unused for this long ends. */
   idleMs: number

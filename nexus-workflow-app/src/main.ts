@@ -100,11 +100,11 @@ if (mountConsole(app, config.consoleDir)) {
 } else {
   console.log('operator console not built (pnpm --filter nexus-workflow-console build) — /console is not served')
 }
-// /tenants is protected by the admin API key, not the DB-backed tenant key
 // ─── Sign-in for people ───────────────────────────────────────────────────────
 // Public routes (they authenticate themselves with a password / the session cookie), so they sit
-// before the API-key middleware below. Failed sign-ins are throttled per account (unknown emails
-// count too) and per client address.
+// before the API-key middleware below. Failed sign-ins are throttled per account from one address
+// (so a stranger guessing cannot lock the real owner out), per account overall (guessing spread over
+// many addresses) and per address; unknown emails count too.
 const MINUTE_MS = 60_000
 const userStore = new UserStore(authSql)
 const sessionStore = new SessionStore(authSql, {
@@ -116,10 +116,11 @@ app.route('/auth', createAuthRouter({
   users: userStore,
   sessions: sessionStore,
   hasher: new PasswordHasher(),
-  accountThrottle: new LoginThrottle({ maxFailures: 5, windowMs: 15 * MINUTE_MS, lockMs: 15 * MINUTE_MS }),
+  accountIpThrottle: new LoginThrottle({ maxFailures: 5, windowMs: 15 * MINUTE_MS, lockMs: 15 * MINUTE_MS }),
+  accountThrottle: new LoginThrottle({ maxFailures: 25, windowMs: 15 * MINUTE_MS, lockMs: 15 * MINUTE_MS }),
   ipThrottle: new LoginThrottle({ maxFailures: 30, windowMs: 15 * MINUTE_MS, lockMs: 15 * MINUTE_MS }),
   sessionMaxAgeSeconds: Math.floor(config.sessionMaxMs / 1000),
-  trustProxy: config.trustProxy,
+  trustedProxies: config.trustedProxies,
   publicOrigin: config.publicOrigin,
 }))
 
@@ -130,6 +131,7 @@ void purgeSessions()
 const sessionPurgeTimer = setInterval(() => void purgeSessions(), 10 * MINUTE_MS)
 sessionPurgeTimer.unref()
 
+// /tenants is protected by the admin API key, not the DB-backed tenant key
 app.route('/tenants', createTenantsRouter(authSql, config.apiKeyHmacSecret, config.adminApiKey, {
   // A suspended or deleted tenant must not keep background workers or connection pools alive
   // (a deleted tenant's schema is dropped right after this returns).
