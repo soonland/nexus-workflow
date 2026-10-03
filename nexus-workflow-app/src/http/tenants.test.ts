@@ -799,6 +799,26 @@ describe('tenants HTTP API', () => {
         error.mockRestore()
       })
 
+      it('counts at most five tenants at a time, and keeps the order', async () => {
+        mockStore.listTenants.mockResolvedValue(Array.from({ length: 12 }, (_, i) => ({ ...makeTenant({ id: `t${i}` }), activeKeyCount: 0 })))
+        let running = 0
+        let peak = 0
+        readCounts.mockImplementation(async () => {
+          running++
+          peak = Math.max(peak, running)
+          await new Promise((resolve) => setTimeout(resolve, 5))
+          running--
+          return COUNTS
+        })
+
+        const body = await (await get(app, '/tenants?counts=true', AUTH)).json()
+
+        expect(peak).toBeLessThanOrEqual(5)
+        expect(peak).toBeGreaterThan(1) // it does run them side by side
+        expect(body.tenants.map((t: { id: string }) => t.id)).toEqual(Array.from({ length: 12 }, (_, i) => `t${i}`))
+        expect(readCounts).toHaveBeenCalledTimes(12)
+      })
+
       it('is off for any other value', async () => {
         const body = await (await get(app, '/tenants?counts=yes', AUTH)).json()
 

@@ -51,6 +51,20 @@ describe('readTenantCounts (Postgres)', () => {
     expect(Object.keys(JSON.parse(json) as object).sort()).toEqual(['instances', 'pendingTasks'])
   })
 
+  it('gives up on a tenant that is too slow to count, instead of tying up a connection', async () => {
+    // a lock held by another connection makes the count wait; the statement timeout ends the wait
+    const holder = await sql.reserve()
+    await holder.unsafe('BEGIN')
+    await holder.unsafe(`LOCK TABLE "tenant_${tenantId}".instances IN ACCESS EXCLUSIVE MODE`)
+    try {
+      await expect(readTenantCounts(sql, tenantId, 200)).rejects.toThrow(/statement timeout/i)
+    } finally {
+      await holder.unsafe('ROLLBACK')
+      holder.release()
+    }
+    expect((await readTenantCounts(sql, tenantId)).pendingTasks).toBe(3) // fine again afterwards
+  })
+
   it('refuses a tenant id that could escape the schema name', async () => {
     await expect(readTenantCounts(sql, 'x"; drop schema public; --')).rejects.toThrow(/invalid tenantId/i)
   })
