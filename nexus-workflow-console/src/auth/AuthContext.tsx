@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ApiError, createAdminApi, type AdminApi } from '../api/client'
+import { ApiError, createAdminApi, createTenantApi, type AdminApi, type AdminApiOptions, type TenantApi } from '../api/client'
 import type { SessionInfo } from '../api/types'
 import type { Session } from './roles'
 
@@ -31,6 +31,8 @@ const KEY_REJECTED_MESSAGE = 'The admin key was rejected. Check that it matches 
 
 interface AuthValue {
   api: AdminApi
+  /** An API client for one tenant: every call it makes names that tenant in `X-Tenant`. */
+  tenantApi(tenantId: string): TenantApi
   /** Null when nobody is signed in. */
   session: Session | null
   /** True while the console is asking the server whether a session already exists. */
@@ -65,18 +67,23 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
     setSession(next)
   }, [])
 
-  const api = useMemo(
-    () =>
-      createAdminApi(() => keyRef.current, fetchImpl, {
-        // The server stopped accepting what we hold: drop it instead of staying "signed in"
-        onUnauthorized: () => {
-          const current = sessionRef.current
-          if (current === null) return
-          store(null)
-          setSignedOutReason(current.kind === 'adminKey' ? STALE_KEY_MESSAGE : EXPIRED_SESSION_MESSAGE)
-        },
-      }),
-    [fetchImpl, store],
+  const apiOptions = useMemo<AdminApiOptions>(
+    () => ({
+      // The server stopped accepting what we hold: drop it instead of staying "signed in"
+      onUnauthorized: () => {
+        const current = sessionRef.current
+        if (current === null) return
+        store(null)
+        setSignedOutReason(current.kind === 'adminKey' ? STALE_KEY_MESSAGE : EXPIRED_SESSION_MESSAGE)
+      },
+    }),
+    [store],
+  )
+
+  const api = useMemo(() => createAdminApi(() => keyRef.current, fetchImpl, apiOptions), [fetchImpl, apiOptions])
+  const tenantApi = useCallback(
+    (tenantId: string) => createTenantApi(tenantId, () => keyRef.current, fetchImpl, apiOptions),
+    [fetchImpl, apiOptions],
   )
 
   // Pick up a session from an earlier visit
@@ -141,8 +148,8 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
   }, [api, store])
 
   const value = useMemo(
-    () => ({ api, session, loading, signedOutReason, signInWithPassword, signInWithAdminKey, completeInvite, signOut }),
-    [api, session, loading, signedOutReason, signInWithPassword, signInWithAdminKey, completeInvite, signOut],
+    () => ({ api, tenantApi, session, loading, signedOutReason, signInWithPassword, signInWithAdminKey, completeInvite, signOut }),
+    [api, tenantApi, session, loading, signedOutReason, signInWithPassword, signInWithAdminKey, completeInvite, signOut],
   )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

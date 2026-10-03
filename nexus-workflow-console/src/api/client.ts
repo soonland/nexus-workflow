@@ -1,5 +1,6 @@
 import type {
   ApiKey,
+  DefinitionSummary,
   CreatedKey,
   Invite,
   InviteInfo,
@@ -67,31 +68,7 @@ export function createAdminApi(
   fetchImpl: typeof fetch = fetch,
   options: AdminApiOptions = {},
 ): AdminApi {
-  async function request<T>(method: string, path: string, body?: unknown, authenticated = true): Promise<T> {
-    // The server refuses state-changing calls made with a session cookie unless they carry this
-    // header (a page on another site cannot add it), so it goes on every call.
-    const headers: Record<string, string> = { 'X-Nexus-Console': '1' }
-    const key = getKey()
-    if (key) headers['Authorization'] = `Bearer ${key}`
-    if (body !== undefined) headers['Content-Type'] = 'application/json'
-
-    let response: Response
-    try {
-      response = await fetchImpl(path, {
-        method,
-        headers,
-        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-      })
-    } catch {
-      throw new ApiError(0, 'Could not reach the workflow API. Is nexus-workflow-app running?')
-    }
-
-    if (!response.ok) {
-      if (response.status === 401 && authenticated) options.onUnauthorized?.()
-      throw await toApiError(response)
-    }
-    return (await response.json()) as T
-  }
+  const request = makeRequest(getKey, fetchImpl, options)
 
   const tenantPath = (id: string) => `/tenants/${encodeURIComponent(id)}`
   const userPath = (id: string) => `/users/${encodeURIComponent(id)}`
@@ -159,11 +136,67 @@ export function createAdminApi(
   }
 }
 
+export function makeRequest(
+  getKey: () => string | null,
+  fetchImpl: typeof fetch,
+  options: AdminApiOptions,
+  extraHeaders: Record<string, string> = {},
+) {
+  return async function request<T>(method: string, path: string, body?: unknown, authenticated = true): Promise<T> {
+    // The server refuses state-changing calls made with a session cookie unless they carry this
+    // header (a page on another site cannot add it), so it goes on every call.
+    const headers: Record<string, string> = { 'X-Nexus-Console': '1', ...extraHeaders }
+    const key = getKey()
+    if (key) headers['Authorization'] = `Bearer ${key}`
+    if (body !== undefined) headers['Content-Type'] = 'application/json'
+
+    let response: Response
+    try {
+      response = await fetchImpl(path, {
+        method,
+        headers,
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      })
+    } catch {
+      throw new ApiError(0, 'Could not reach the workflow API. Is nexus-workflow-app running?')
+    }
+
+    if (!response.ok) {
+      if (response.status === 401 && authenticated) options.onUnauthorized?.()
+      throw await toApiError(response)
+    }
+    return (await response.json()) as T
+  }
+}
+
 async function toApiError(response: Response): Promise<ApiError> {
   try {
     const body = (await response.json()) as { error?: string; message?: string }
     return new ApiError(response.status, body.message ?? `Request failed (${response.status})`, body.error)
   } catch {
     return new ApiError(response.status, `Request failed (${response.status})`)
+  }
+}
+
+export interface TenantApi {
+  listDefinitions(): Promise<DefinitionSummary[]>
+}
+
+/**
+ * Client for the tenant endpoints (definitions, instances, ...). Every call names the tenant it is
+ * for in `X-Tenant`: a tenant manager's session is not tied to one tenant, so the server needs to
+ * be told, and checks that the person manages it.
+ */
+export function createTenantApi(
+  tenantId: string,
+  getKey: () => string | null,
+  fetchImpl: typeof fetch = fetch,
+  options: AdminApiOptions = {},
+): TenantApi {
+  const request = makeRequest(getKey, fetchImpl, options, { 'X-Tenant': tenantId })
+  return {
+    listDefinitions() {
+      return request<DefinitionSummary[]>('GET', '/definitions')
+    },
   }
 }

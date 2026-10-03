@@ -55,6 +55,14 @@ function makeServer(overrides: Partial<Server> = {}) {
       if (wrongKey) return jsonResponse({ error: 'FORBIDDEN', message: 'Admin API key required' }, 403)
       return server.signedInAs ? jsonResponse({ error: 'FORBIDDEN', message: 'Operator access required' }, 403) : jsonResponse({ error: 'UNAUTHENTICATED' }, 401)
     }
+    if (url === '/definitions') {
+      const tenant = headers['X-Tenant']
+      if (!server.signedInAs) return jsonResponse({ error: 'UNAUTHENTICATED' }, 401)
+      if (!tenant) return jsonResponse({ error: 'TENANT_REQUIRED', message: 'Send the tenant you mean in the X-Tenant header' }, 400)
+      const managed = server.signedInAs.memberships.some((m) => m.role === 'tenant_manager' && m.tenantId === tenant)
+      if (!managed) return jsonResponse({ error: 'FORBIDDEN', message: 'Not allowed' }, 403)
+      return jsonResponse(Array.from({ length: tenant === 'acme' ? 3 : 1 }, (_, i) => ({ id: `d${i}` })))
+    }
     if (url === '/users') {
       if (usesKey || server.signedInAs) return jsonResponse({ users: [] })
       return jsonResponse({ error: 'UNAUTHENTICATED' }, 401)
@@ -67,6 +75,7 @@ function makeServer(overrides: Partial<Server> = {}) {
 const accounts = {
   'op@example.com': operatorSession(),
   'mgr@example.com': managerSession('acme'),
+  'multi@example.com': managerSession('globex', 'acme'),
   'new@example.com': { ...managerSession(), memberships: [] } as SessionInfo,
 }
 
@@ -157,14 +166,22 @@ describe('what each role sees', () => {
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
   })
 
-  it('a tenant manager gets the Users screen only, with no way to reach the tenants', async () => {
+  it('a tenant manager gets their tenant and the Users screen, with no way to reach the tenants list', async () => {
     const { fetchImpl, calls } = makeServer({ accounts, signedInAs: accounts['mgr@example.com'] })
     render(<App fetchImpl={fetchImpl} />)
 
-    expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'acme' })).toBeInTheDocument()
+    expect(await screen.findByText(/3 workflow definitions/)).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Users' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'Tenants' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Tenants' })).not.toBeInTheDocument()
     expect(calls).not.toHaveBeenCalledWith('/tenants', expect.anything())
+  })
+
+  it('an operator who manages no tenant gets no tenant screens', async () => {
+    render(<App fetchImpl={makeServer({ accounts, signedInAs: accounts['op@example.com'] }).fetchImpl} />)
+
+    await screen.findByRole('heading', { name: 'Tenants' })
+    expect(screen.queryByRole('tab', { name: 'Workflows' })).not.toBeInTheDocument()
   })
 
   it('someone with no roles is told so', async () => {
@@ -186,6 +203,47 @@ describe('what each role sees', () => {
 
     expect(await screen.findByText('Operator access required')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument()
+  })
+})
+
+describe('tenant context', () => {
+  const xTenants = (calls: ReturnType<typeof makeServer>['calls']) =>
+    calls.mock.calls.filter(([url]) => url === '/definitions').map(([, init]) => (init?.headers as Record<string, string>)['X-Tenant'])
+
+  it('names the tenant on every tenant call, and shows no switcher for a single tenant', async () => {
+    const { fetchImpl, calls } = makeServer({ accounts, signedInAs: accounts['mgr@example.com'] })
+    render(<App fetchImpl={fetchImpl} />)
+
+    await screen.findByText(/3 workflow definitions/)
+
+    expect(new Set(xTenants(calls))).toEqual(new Set(['acme']))
+    expect(screen.getByText('Tenant: acme')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Tenant' })).not.toBeInTheDocument()
+  })
+
+  it('offers a switcher for several tenants, and switching changes what every request names', async () => {
+    const user = userEvent.setup()
+    const { fetchImpl, calls } = makeServer({ accounts, signedInAs: accounts['multi@example.com'] })
+    render(<App fetchImpl={fetchImpl} />)
+    expect(await screen.findByRole('heading', { name: 'acme' })).toBeInTheDocument() // sorted: first is acme
+
+    await user.click(screen.getByRole('combobox', { name: 'Tenant' }))
+    await user.click(await screen.findByRole('option', { name: 'globex' }))
+
+    expect(await screen.findByRole('heading', { name: 'globex' })).toBeInTheDocument()
+    expect(await screen.findByText(/1 workflow definition deployed/)).toBeInTheDocument()
+    expect(xTenants(calls).at(-1)).toBe('globex')
+  })
+
+  it('remembers the choice for the tab, but not one the person no longer manages', async () => {
+    sessionStorage.setItem('nexus-console-tenant', 'globex')
+    const { unmount } = render(<App fetchImpl={makeServer({ accounts, signedInAs: accounts['multi@example.com'] }).fetchImpl} />)
+    expect(await screen.findByRole('heading', { name: 'globex' })).toBeInTheDocument()
+    unmount()
+
+    sessionStorage.setItem('nexus-console-tenant', 'initech')
+    render(<App fetchImpl={makeServer({ accounts, signedInAs: accounts['multi@example.com'] }).fetchImpl} />)
+    expect(await screen.findByRole('heading', { name: 'acme' })).toBeInTheDocument()
   })
 })
 
@@ -282,7 +340,7 @@ describe('invitation page', () => {
     await user.type(screen.getByLabelText(/^repeat the password/i), 'a long passphrase')
     await user.click(screen.getByRole('button', { name: /set password/i }))
 
-    expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'acme' })).toBeInTheDocument()
     const accept = calls.mock.calls.find(([url]) => url === '/auth/accept-invite')!
     expect(JSON.parse((accept[1] as RequestInit).body as string)).toEqual({ token: 'tok_123', password: 'a long passphrase' })
   })

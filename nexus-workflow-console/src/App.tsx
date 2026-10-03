@@ -1,14 +1,16 @@
 import { useState } from 'react'
-import { AppBar, Box, Button, CircularProgress, Container, CssBaseline, Tab, Tabs, Toolbar, Typography } from '@mui/material'
+import { AppBar, Box, Button, CircularProgress, Container, CssBaseline, MenuItem, Select, Tab, Tabs, Toolbar, Typography } from '@mui/material'
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
 import { AuthProvider, useAuth } from './auth/AuthContext'
+import { useTenantContext } from './auth/TenantContext'
 import { canManageUsers, describeSession, isOperator } from './auth/roles'
 import { InvitePage, readInviteToken } from './pages/InvitePage'
 import { LoginPage } from './pages/LoginPage'
+import { TenantOverviewPage } from './pages/TenantOverviewPage'
 import { TenantsPage } from './pages/TenantsPage'
 import { UsersPage } from './pages/UsersPage'
 
-type Screen = 'tenants' | 'users'
+type Screen = 'overview' | 'tenants' | 'users'
 
 function Shell() {
   const { api, session, loading, signOut } = useAuth()
@@ -20,6 +22,7 @@ function Shell() {
     return token
   })
   const [chosen, setChosen] = useState<Screen | null>(null)
+  const tenant = useTenantContext()
 
   if (inviteToken) return <InvitePage token={inviteToken} onDone={() => setInviteToken(null)} />
   if (loading) {
@@ -31,7 +34,7 @@ function Shell() {
   }
   if (!session) return <LoginPage />
 
-  const screens: Screen[] = [...(isOperator(session) ? (['tenants'] as const) : []), ...(canManageUsers(session) ? (['users'] as const) : [])]
+  const screens: Screen[] = [...(tenant.tenantId ? (['overview'] as const) : []), ...(isOperator(session) ? (['tenants'] as const) : []), ...(canManageUsers(session) ? (['users'] as const) : [])]
   const screen = chosen && screens.includes(chosen) ? chosen : screens[0]
 
   return (
@@ -43,11 +46,32 @@ function Shell() {
           </Typography>
           {screens.length > 1 && screen && (
             <Tabs value={screen} onChange={(_event, value: Screen) => setChosen(value)} sx={{ flexGrow: 1 }}>
-              <Tab value="tenants" label="Tenants" />
-              <Tab value="users" label="Users" />
+              {screens.includes('overview') && <Tab value="overview" label="Workflows" />}
+              {screens.includes('tenants') && <Tab value="tenants" label="Tenants" />}
+              {screens.includes('users') && <Tab value="users" label="Users" />}
             </Tabs>
           )}
           <Box sx={{ flexGrow: 1 }} />
+          {tenant.tenantId && (
+            <Box sx={{ mr: 2 }}>
+              {tenant.tenantIds.length > 1 ? (
+                <Select
+                  size="small"
+                  value={tenant.tenantId}
+                  onChange={(e) => tenant.select(e.target.value)}
+                  slotProps={{ input: { 'aria-label': 'Tenant' } }}
+                >
+                  {tenant.tenantIds.map((id) => (
+                    <MenuItem key={id} value={id}>
+                      {id}
+                    </MenuItem>
+                  ))}
+                </Select>
+              ) : (
+                <Typography variant="body2">Tenant: {tenant.tenantId}</Typography>
+              )}
+            </Box>
+          )}
           <Typography variant="body2" color="text.secondary" sx={{ mr: 2 }}>
             {describeSession(session)}
           </Typography>
@@ -57,6 +81,7 @@ function Shell() {
         </Toolbar>
       </AppBar>
       <Container maxWidth="lg" sx={{ py: 4 }}>
+        {screen === 'overview' && tenant.api && tenant.tenantId && <TenantOverviewPage api={tenant.api} tenantId={tenant.tenantId} />}
         {screen === 'tenants' && <TenantsPage api={api} />}
         {screen === 'users' && <UsersPage api={api} session={session} />}
         {screen === undefined && (
