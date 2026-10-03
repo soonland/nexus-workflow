@@ -62,7 +62,7 @@ export function AppShell({ screens, screen, onSelect, tenantId, tenantIds, onSel
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      <AppBar position="fixed" elevation={0} sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: '#0b1b2e' }}>
+      <AppBar position="fixed" elevation={0} sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: 'chrome.main' }}>
         <Toolbar variant="dense" sx={{ minHeight: 44 }}>
           <IconButton color="inherit" edge="start" aria-label="Toggle navigation" onClick={() => setOpen(!open)} sx={{ mr: 1 }}>
             <MenuRoundedIcon />

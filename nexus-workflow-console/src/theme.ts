@@ -2,10 +2,21 @@ import { createTheme } from '@mui/material'
 
 export const SIDEBAR_WIDTH = 216
 
+declare module '@mui/material/styles' {
+  interface Palette {
+    /** The dark surface of the top bar (and any future dark chrome). */
+    chrome: { main: string }
+  }
+  interface PaletteOptions {
+    chrome?: { main: string }
+  }
+}
+
 /** A restrained, dense look for a tool people work in all day: small type, compact tables. */
 export const theme = createTheme({
   palette: {
     primary: { main: '#1e88e5' },
+    chrome: { main: '#0b1b2e' },
     background: { default: '#f3f5f8' },
     text: { primary: '#1c2b3a', secondary: '#5b6b7b' },
   },
