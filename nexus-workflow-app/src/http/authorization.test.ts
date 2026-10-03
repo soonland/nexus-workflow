@@ -127,6 +127,14 @@ describe('authorization (Postgres)', () => {
       expect(await status('/tenants', call_)).toBe(403)
     })
 
+    it('keeps the per-tenant numbers (?counts=true) to operators too', async () => {
+      expect(await status('/tenants?counts=true', { session: 'managerA', tenant: tenantA })).toBe(403)
+      expect(await status('/tenants?counts=true', { session: 'norole' })).toBe(403)
+      expect(await status('/tenants?counts=true', { bearer: keyOfA })).toBe(403)
+      expect(await status('/tenants?counts=true')).toBe(401)
+      expect(await status('/tenants?counts=true', { session: 'operator' })).toBe(200)
+    })
+
     it('treats a dead session as not signed in (401), not as forbidden', async () => {
       expect(await status('/tenants', { session: 'x'.repeat(43) })).toBe(401)
     })

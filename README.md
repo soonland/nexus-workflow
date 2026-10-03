@@ -221,7 +221,7 @@ The `/tenants` endpoints are for platform operators: a signed-in operator, or `A
 
 | Request | Effect |
 |---|---|
-| `GET /tenants` | List tenants with status and number of active keys |
+| `GET /tenants` | List tenants with status and number of active keys. Add `?counts=true` for how busy each is (instances by status, unfinished tasks): numbers only, never process content; `counts` is `null` for a tenant that is being deleted |
 | `POST /tenants` `{id, name}` | Create a tenant and provision its schema |
 | `PATCH /tenants/:id` `{status?, name?}` | Suspend (`"suspended"`), reactivate (`"active"`) or rename. Suspending rejects the tenant's keys and stops its background workers. A tenant that is being deleted cannot be changed (409) |
 | `DELETE /tenants/:id` | Permanently delete the tenant, its schema and all its data and keys. The tenant is first marked `deleting` (keys rejected, no reactivation), then its workers stop, its schema is dropped and its rows are removed. The `default` tenant is protected (409). If a step fails you get a 500 and the tenant stays `deleting`; run the `DELETE` again (every step can be repeated) |

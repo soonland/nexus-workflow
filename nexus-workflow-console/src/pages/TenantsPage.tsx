@@ -31,6 +31,9 @@ import { StatusChip } from '../components/StatusChip'
 import { PageHeader } from '../components/PageHeader'
 import { formatDate } from '../format'
 
+/** A number for a table cell, or a dash where it is not known (a tenant being deleted). */
+const count = (n: number | undefined) => (n === undefined ? '—' : n)
+
 /** Owns pre-multi-tenancy data; the API refuses to delete it. */
 const PROTECTED_TENANT_ID = 'default'
 
@@ -110,6 +113,9 @@ export function TenantsPage({ api }: { api: AdminApi }) {
                 <TableCell>Tenant</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Active keys</TableCell>
+                <TableCell align="right">Running</TableCell>
+                <TableCell align="right">Suspended</TableCell>
+                <TableCell align="right">Open tasks</TableCell>
                 <TableCell>Created</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -117,7 +123,7 @@ export function TenantsPage({ api }: { api: AdminApi }) {
             <TableBody>
               {(tenants ?? []).length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ color: 'text.secondary', py: 4 }}>
+                  <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 4 }}>
                     No tenants yet
                   </TableCell>
                 </TableRow>
@@ -137,6 +143,9 @@ export function TenantsPage({ api }: { api: AdminApi }) {
                       <StatusChip status={tenant.status} />
                     </TableCell>
                     <TableCell align="right">{tenant.activeKeyCount}</TableCell>
+                    <TableCell align="right">{count(tenant.counts?.instances.active)}</TableCell>
+                    <TableCell align="right">{count(tenant.counts?.instances.suspended)}</TableCell>
+                    <TableCell align="right">{count(tenant.counts?.pendingTasks)}</TableCell>
                     <TableCell>{formatDate(tenant.createdAt)}</TableCell>
                     <TableCell align="right">
                       <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>

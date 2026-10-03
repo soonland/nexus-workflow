@@ -2,6 +2,7 @@ import { Hono, type MiddlewareHandler } from 'hono'
 import type postgres from 'postgres'
 import { isAdminKeyHeader } from '../auth/adminKey.js'
 import { TenantStore } from '../db/TenantStore.js'
+import { readTenantCounts, type TenantCounts } from '../db/tenantCounts.js'
 import { dropTenantSchema, provisionTenantSchema, VALID_TENANT_ID } from '../db/tenantProvisioner.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -17,6 +18,8 @@ export interface TenantsRouterOptions {
    * deleted. The host uses it to stop the tenant's background workers and release its pools.
    */
   onTenantDeactivating?: (tenantId: string) => void | Promise<void>
+  /** How the per-tenant numbers of `GET /tenants?counts=true` are read. Tests replace it. */
+  readCounts?: (tenantId: string) => Promise<TenantCounts>
 }
 
 /** The tenant that owns pre-multi-tenancy data; deleting it would take the platform's history with it. */
@@ -110,9 +113,26 @@ export function createTenantsRouter(
 
   // ─── GET /tenants ─────────────────────────────────────────────────────────
 
+  // With `?counts=true` each tenant also carries how busy it is (instances by status, unfinished
+  // tasks): numbers only, never process content. `counts` is null where it cannot be read, e.g.
+  // a tenant that is being deleted.
   app.get('/', async (c) => {
     const tenants = await store.listTenants()
-    return c.json({ tenants })
+    if (c.req.query('counts') !== 'true') return c.json({ tenants })
+
+    const readCounts = options.readCounts ?? ((tenantId: string) => readTenantCounts(sql, tenantId))
+    const withCounts = await Promise.all(
+      tenants.map(async (tenant) => {
+        if (tenant.status === 'deleting') return { ...tenant, counts: null }
+        try {
+          return { ...tenant, counts: await readCounts(tenant.id) }
+        } catch (err) {
+          console.error(`[tenants] could not count tenant '${tenant.id}':`, err)
+          return { ...tenant, counts: null }
+        }
+      }),
+    )
+    return c.json({ tenants: withCounts })
   })
 
   // ─── GET /tenants/:id ─────────────────────────────────────────────────────

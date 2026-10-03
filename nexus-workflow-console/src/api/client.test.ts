@@ -28,7 +28,7 @@ describe('createAdminApi', () => {
     const tenants = [{ id: 'a', name: 'A', status: 'active', createdAt: 'x', activeKeyCount: 1 }]
     fetchMock.mockResolvedValue(jsonResponse({ tenants }))
     expect(await api().listTenants()).toEqual(tenants)
-    expect(lastCall().url).toBe('/tenants')
+    expect(lastCall().url).toBe('/tenants?counts=true') // with how busy each tenant is
   })
 
   it('createTenant POSTs id and name', async () => {

@@ -746,6 +746,65 @@ describe('tenants HTTP API', () => {
       const body = await res.json()
       expect(body.tenants.map((t: { id: string }) => t.id)).toEqual(['a', 'b'])
       expect(body.tenants[0]).toMatchObject({ status: 'active', activeKeyCount: 2 })
+      expect(body.tenants[0]).not.toHaveProperty('counts') // only on request
+    })
+
+    describe('?counts=true', () => {
+      const COUNTS = { instances: { pending: 0, active: 3, suspended: 1, completed: 9, terminated: 2 }, pendingTasks: 4 }
+      let readCounts: ReturnType<typeof vi.fn>
+
+      beforeEach(() => {
+        readCounts = vi.fn().mockResolvedValue(COUNTS)
+        app = new Hono()
+        app.route('/tenants', createTenantsRouter(vi.fn() as unknown as postgres.Sql, 'test-secret', ADMIN_KEY, { onTenantDeactivating, readCounts }))
+        mockStore.listTenants.mockResolvedValue([
+          { ...makeTenant({ id: 'a' }), activeKeyCount: 1 },
+          { ...makeTenant({ id: 'b', status: 'suspended' }), activeKeyCount: 0 },
+          { ...makeTenant({ id: 'c', status: 'deleting' }), activeKeyCount: 0 },
+        ])
+      })
+
+      it('403 without the admin key', async () => {
+        expect((await get(app, '/tenants?counts=true')).status).toBe(403)
+        expect(readCounts).not.toHaveBeenCalled()
+      })
+
+      it('adds the numbers to each tenant, including suspended ones', async () => {
+        const body = await (await get(app, '/tenants?counts=true', AUTH)).json()
+
+        expect(body.tenants[0]).toMatchObject({ id: 'a', activeKeyCount: 1, counts: COUNTS })
+        expect(body.tenants[1]).toMatchObject({ id: 'b', counts: COUNTS })
+      })
+
+      it('does not read a tenant that is being deleted (its schema may be gone)', async () => {
+        const body = await (await get(app, '/tenants?counts=true', AUTH)).json()
+
+        expect(body.tenants[2]).toMatchObject({ id: 'c', counts: null })
+        expect(readCounts).not.toHaveBeenCalledWith('c')
+      })
+
+      it('gives null for a tenant that cannot be read, and still lists the others', async () => {
+        const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        readCounts.mockImplementation(async (id: string) => {
+          if (id === 'a') throw new Error('schema missing')
+          return COUNTS
+        })
+
+        const res = await get(app, '/tenants?counts=true', AUTH)
+
+        expect(res.status).toBe(200)
+        const body = await res.json()
+        expect(body.tenants[0]).toMatchObject({ id: 'a', counts: null })
+        expect(body.tenants[1]).toMatchObject({ id: 'b', counts: COUNTS })
+        error.mockRestore()
+      })
+
+      it('is off for any other value', async () => {
+        const body = await (await get(app, '/tenants?counts=yes', AUTH)).json()
+
+        expect(body.tenants[0]).not.toHaveProperty('counts')
+        expect(readCounts).not.toHaveBeenCalled()
+      })
     })
   })
 
