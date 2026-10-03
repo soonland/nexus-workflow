@@ -15,7 +15,8 @@ pnpm test          # Vitest + Testing Library (jsdom)
 ## How it fits together
 
 - **Served by the API.** `nexus-workflow-app` serves `dist/` at `/console` (`src/http/console.ts`), on the same origin as the API, so the app calls `/tenants` with relative URLs and needs no CORS. `CONSOLE_DIR` overrides the location. The Docker image builds and ships it.
-- **Auth = the admin key.** `AuthProvider` verifies a typed-in key with `GET /tenants` and keeps it in `sessionStorage` (this tab only). It is sent as `Authorization: Bearer <key>`. The admin key can manage tenants and keys but cannot read tenant data.
+- **Auth = people, with the admin key as break-glass.** People sign in with email and password; the server sets an HttpOnly session cookie, so the page keeps nothing (`AuthProvider` asks `GET /auth/me` on load). `src/auth/roles.ts` turns the memberships into what to show: operators get Tenants + Users, tenant managers get Users (scoped by the server to their tenants). The admin key (behind "Advanced" on the sign-in page) is still verified with `GET /tenants`, kept in `sessionStorage` and sent as `Authorization: Bearer`. Every request carries `X-Nexus-Console: 1` (the server's CSRF check). Only a 401 signs the user out; a 403 is just "not allowed".
+- **Invitations.** `/console/invite/<token>` is a client-side route (no router library): `Shell` reads the token, removes it from the address bar at once and shows `InvitePage`. The token only ever travels in POST bodies.
 - **`src/api/client.ts`** is the only place that talks to the API; components take an `AdminApi` so tests pass a fake (`src/test/fakeApi.ts`) instead of mocking `fetch`.
 
 ## Conventions

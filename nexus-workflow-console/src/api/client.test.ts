@@ -88,9 +88,22 @@ describe('createAdminApi', () => {
     expect(error).toMatchObject({ status: 409, code: 'CONFLICT', message: "Tenant 'acme' already exists" })
   })
 
-  it('explains a 403 as an invalid admin key', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ error: 'FORBIDDEN', message: 'Admin API key required' }, 403))
-    await expect(api().listTenants()).rejects.toMatchObject({ status: 403, message: expect.stringMatching(/admin key/i) })
+  it('passes on the server\'s own message for a 403', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'FORBIDDEN', message: 'Operator access required' }, 403))
+    await expect(api().listTenants()).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN', message: 'Operator access required' })
+  })
+
+  it('sends the CSRF header on every request, so session calls are accepted by the server', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ tenants: [] }))
+    await api().listTenants()
+    expect(lastCall().headers['X-Nexus-Console']).toBe('1')
+  })
+
+  it('sends no Authorization header when it holds no admin key (the session cookie does the work)', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ users: [] }))
+    await createAdminApi(() => null, fetchMock as unknown as typeof fetch).listUsers()
+    expect(lastCall().headers['Authorization']).toBeUndefined()
+    expect(lastCall().url).toBe('/users')
   })
 
   it('still throws a useful ApiError when the body is not JSON', async () => {
@@ -119,16 +132,16 @@ describe('createAdminApi', () => {
       return { a, onUnauthorized }
     }
 
-    it.each([401, 403])('is called when the API answers %i, and the error is still thrown', async (status) => {
-      fetchMock.mockImplementation(async () => jsonResponse({ error: 'X', message: 'nope' }, status))
+    it('is called when the API answers 401, and the error is still thrown', async () => {
+      fetchMock.mockImplementation(async () => jsonResponse({ error: 'X', message: 'nope' }, 401))
       const { a, onUnauthorized } = withCallback()
 
-      await expect(a.listTenants()).rejects.toMatchObject({ status })
+      await expect(a.listTenants()).rejects.toMatchObject({ status: 401 })
 
       expect(onUnauthorized).toHaveBeenCalledOnce()
     })
 
-    it.each([404, 409, 500])('is not called for a %i', async (status) => {
+    it.each([403, 404, 409, 500])('is not called for a %i', async (status) => {
       fetchMock.mockImplementation(async () => jsonResponse({ error: 'X', message: 'nope' }, status))
       const { a, onUnauthorized } = withCallback()
 
@@ -144,6 +157,63 @@ describe('createAdminApi', () => {
       await expect(a.listTenants()).rejects.toMatchObject({ status: 0 })
 
       expect(onUnauthorized).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('people and sessions', () => {
+    const body = () => JSON.parse(lastCall().init.body as string)
+
+    it('createUser POSTs the person and returns the user with the invitation', async () => {
+      const reply = { user: { id: 'u1' }, invite: { token: 't', path: '/console/invite/t', expiresAt: 'x' } }
+      fetchMock.mockResolvedValue(jsonResponse(reply, 201))
+      const result = await api().createUser({ email: 'a@b.c', name: 'A', memberships: [{ role: 'tenant_manager', tenantId: 'acme' }] })
+      expect(lastCall().url).toBe('/users')
+      expect(body()).toEqual({ email: 'a@b.c', name: 'A', memberships: [{ role: 'tenant_manager', tenantId: 'acme' }] })
+      expect(result.invite.path).toBe('/console/invite/t')
+    })
+
+    it('setUserStatus, addMembership, removeMembership and reinviteUser hit the right routes', async () => {
+      fetchMock.mockImplementation(async () => jsonResponse({ success: true, invite: { token: 't' } }))
+      await api().setUserStatus('u 1', 'disabled')
+      expect([lastCall().url, lastCall().init.method, body()]).toEqual(['/users/u%201', 'PATCH', { status: 'disabled' }])
+      await api().addMembership('u1', { role: 'operator' })
+      expect([lastCall().url, lastCall().init.method, body()]).toEqual(['/users/u1/memberships', 'POST', { role: 'operator' }])
+      await api().removeMembership('u1', 'm1')
+      expect([lastCall().url, lastCall().init.method]).toEqual(['/users/u1/memberships/m1', 'DELETE'])
+      expect((await api().reinviteUser('u1')).token).toBe('t')
+      expect([lastCall().url, lastCall().init.method]).toEqual(['/users/u1/invite', 'POST'])
+    })
+
+    it('login POSTs the credentials, and a wrong password does not count as a session ending', async () => {
+      const onUnauthorized = vi.fn()
+      const a = createAdminApi(() => null, fetchMock as unknown as typeof fetch, { onUnauthorized })
+      fetchMock.mockResolvedValue(jsonResponse({ error: 'INVALID_CREDENTIALS', message: 'Invalid email or password' }, 401))
+
+      await expect(a.login('a@b.c', 'wrong')).rejects.toMatchObject({ status: 401, message: 'Invalid email or password' })
+
+      expect([lastCall().url, body()]).toEqual(['/auth/login', { email: 'a@b.c', password: 'wrong' }])
+      expect(onUnauthorized).not.toHaveBeenCalled()
+    })
+
+    it('me() answers null when there is no session, and the error for anything else', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'UNAUTHENTICATED', message: 'Not signed in' }, 401))
+      expect(await api().me()).toBeNull()
+      fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'X', message: 'boom' }, 500))
+      await expect(api().me()).rejects.toMatchObject({ status: 500 })
+    })
+
+    it('inviteInfo and acceptInvite POST the token in the body, never in the URL', async () => {
+      fetchMock.mockImplementation(async () => jsonResponse({ email: 'a@b.c', name: 'A', expiresAt: 'x' }))
+      await api().inviteInfo('secret-token')
+      expect([lastCall().url, body()]).toEqual(['/auth/invite-info', { token: 'secret-token' }])
+      await api().acceptInvite('secret-token', 'pw')
+      expect([lastCall().url, body()]).toEqual(['/auth/accept-invite', { token: 'secret-token', password: 'pw' }])
+    })
+
+    it('logout POSTs to /auth/logout', async () => {
+      fetchMock.mockResolvedValue(jsonResponse({ success: true }))
+      await api().logout()
+      expect([lastCall().url, lastCall().init.method]).toEqual(['/auth/logout', 'POST'])
     })
   })
 })
