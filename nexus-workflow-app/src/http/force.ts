@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { execute, RuntimeError, type EngineCommand, type EventBus, type ExecutionEvent, type ForcedAction, type StateStore, type Token } from 'nexus-workflow-core'
 import { auditActorOf } from '../auth/auditActor.js'
+import { canUseTenant } from '../auth/principal.js'
 import type { AuditLog } from '../db/AuditLog.js'
 import { buildUserTaskCreationOps, computeStoreOps, loadEngineState, normalizeVariables } from './engineHelpers.js'
 import type { AppVariables } from './middleware/auth.js'
@@ -44,6 +45,12 @@ export function createForceRouter(
     const principal = c.get('principal')
     if (!principal || principal.kind !== 'user') {
       return c.json({ error: 'FORBIDDEN', message: 'Forcing a step needs a signed-in person: it is recorded against them' }, 403)
+    }
+
+    // The tenant middleware already admits only this tenant's managers; checked again here so the
+    // route stays safe wherever it is mounted (an operator, or a manager of another tenant, is refused)
+    if (!canUseTenant(principal, c.get('tenantId'))) {
+      return c.json({ error: 'FORBIDDEN', message: 'Forcing a step needs a manager role in this tenant' }, 403)
     }
 
     let body: unknown

@@ -197,6 +197,18 @@ describe('POST /instances/:id/force', () => {
       await untouched(instanceId)
     })
 
+    it('403 for a person who does not manage this tenant: an operator, or a manager of another one', async () => {
+      const { instanceId, tokenId } = await start('service-proc')
+      const operator: Principal = { ...person('op@example.com'), memberships: [{ id: 'm', userId: 'u', role: 'operator', tenantId: null, createdAt: new Date() }] }
+      const elsewhere: Principal = { ...person('other@example.com'), memberships: [{ id: 'm', userId: 'u', role: 'tenant_manager', tenantId: 'globex', createdAt: new Date() }] }
+
+      for (const who of [operator, elsewhere]) {
+        principal = who
+        expect((await force(instanceId, { action: 'completeServiceTask', tokenId, reason: 'why' })).status).toBe(403)
+      }
+      await untouched(instanceId)
+    })
+
     it('404 for an instance that is not there', async () => {
       expect((await force('nope', { action: 'fireTimer', tokenId: 't', reason: 'why' })).status).toBe(404)
     })
