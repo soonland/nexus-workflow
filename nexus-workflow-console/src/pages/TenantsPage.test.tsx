@@ -286,48 +286,88 @@ describe('TenantsPage', () => {
       await waitFor(() => expect(api.createKey).toHaveBeenCalledWith('acme', 'erp', 'tenant_manager'))
     })
 
-    it('shows each key\'s role', async () => {
+    it('shows each key\'s role as text, with an Edit button, and no select until you edit', async () => {
       const { api, user } = setup()
       api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'worker', role: 'service' }), makeKey({ id: 'k2', name: 'erp', role: 'tenant_manager' })])
       await screen.findByText('Acme Corp')
 
       await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
 
-      expect(await screen.findByRole('combobox', { name: 'Role of key worker' })).toHaveTextContent('Service')
-      expect(screen.getByRole('combobox', { name: 'Role of key erp' })).toHaveTextContent('Tenant manager')
+      const worker = (await screen.findByText('worker')).closest('tr')!
+      const erp = screen.getByText('erp').closest('tr')!
+      expect(within(worker).getByText('Service')).toBeInTheDocument()
+      expect(within(erp).getByText('Tenant manager')).toBeInTheDocument()
+      expect(screen.queryByRole('combobox', { name: /role of key/i })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Edit key worker' })).toBeInTheDocument()
     })
 
-    it('raises a key after confirmation, keeping its secret, and reloads the keys', async () => {
+    it('edits a role: the row becomes a select, shows what changes, and saves with the same secret', async () => {
       const { api, user } = setup()
       api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'erp', role: 'service' })])
       await screen.findByText('Acme Corp')
       await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
 
-      await user.click(await screen.findByRole('combobox', { name: 'Role of key erp' }))
+      await user.click(await screen.findByRole('button', { name: 'Edit key erp' }))
+      expect(screen.getByRole('button', { name: 'Save the role of key erp' })).toBeDisabled() // nothing changed yet
+      await user.click(screen.getByRole('combobox', { name: 'Role of key erp' }))
       await user.click(await screen.findByRole('option', { name: 'Tenant manager' }))
+      expect(screen.getByText(/everything in this tenant, including webhooks and the administrative commands/i)).toBeInTheDocument()
       expect(screen.getByText(/its secret does not change/i)).toBeInTheDocument()
       expect(api.setKeyRole).not.toHaveBeenCalled()
-      await user.click(screen.getByRole('button', { name: 'Raise to tenant manager' }))
+      await user.click(screen.getByRole('button', { name: 'Save the role of key erp' }))
 
       await waitFor(() => expect(api.setKeyRole).toHaveBeenCalledWith('acme', 'k1', 'tenant_manager'))
       await waitFor(() => expect(api.listKeys).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Role of key erp' })).not.toBeInTheDocument()) // back to text
     })
 
-    it('warns what a lowered key will lose, and changes nothing if you back out', async () => {
+    it('warns what a lowered key will lose, and changes nothing on Cancel', async () => {
       const { api, user } = setup()
       api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'erp', role: 'tenant_manager' })])
       await screen.findByText('Acme Corp')
       await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
 
-      await user.click(await screen.findByRole('combobox', { name: 'Role of key erp' }))
+      await user.click(await screen.findByRole('button', { name: 'Edit key erp' }))
+      await user.click(screen.getByRole('combobox', { name: 'Role of key erp' }))
       await user.click(await screen.findByRole('option', { name: 'Service' }))
-      expect(screen.getByText(/will lose webhooks, metrics and the administrative commands/i)).toBeInTheDocument()
-      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(screen.getByText(/will lose webhooks, metrics and the administrative commands straight away/i)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Cancel editing key erp' }))
 
       expect(api.setKeyRole).not.toHaveBeenCalled()
+      expect(screen.queryByRole('combobox', { name: 'Role of key erp' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Edit key erp' })).toBeInTheDocument()
     })
 
-    it('a revoked key shows its role as text and cannot be changed', async () => {
+    it('edits one key at a time: opening another row closes the first', async () => {
+      const { api, user } = setup()
+      api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'one', role: 'service' }), makeKey({ id: 'k2', name: 'two', role: 'service' })])
+      await screen.findByText('Acme Corp')
+      await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
+
+      await user.click(await screen.findByRole('button', { name: 'Edit key one' }))
+      await user.click(screen.getByRole('button', { name: 'Edit key two' }))
+
+      expect(screen.queryByRole('combobox', { name: 'Role of key one' })).not.toBeInTheDocument()
+      expect(screen.getByRole('combobox', { name: 'Role of key two' })).toBeInTheDocument()
+    })
+
+    it('shows the server\'s refusal and stays in edit mode so nothing typed is lost', async () => {
+      const { api, user } = setup()
+      api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'erp', role: 'service' })])
+      api.setKeyRole.mockRejectedValue(new ApiError(404, "Key 'k1' not found or revoked", 'NOT_FOUND'))
+      await screen.findByText('Acme Corp')
+      await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
+      await user.click(await screen.findByRole('button', { name: 'Edit key erp' }))
+      await user.click(screen.getByRole('combobox', { name: 'Role of key erp' }))
+      await user.click(await screen.findByRole('option', { name: 'Tenant manager' }))
+
+      await user.click(screen.getByRole('button', { name: 'Save the role of key erp' }))
+
+      expect(await screen.findByText(/not found or revoked/)).toBeInTheDocument()
+      expect(screen.getByRole('combobox', { name: 'Role of key erp' })).toBeInTheDocument()
+    })
+
+    it('a revoked key shows its role as text and cannot be edited', async () => {
       const { api, user } = setup()
       api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'old', role: 'tenant_manager', revokedAt: '2026-02-01T00:00:00.000Z' })])
       await screen.findByText('Acme Corp')
@@ -335,7 +375,7 @@ describe('TenantsPage', () => {
       await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
 
       expect(await screen.findByText('Tenant manager', { selector: 'td' })).toBeInTheDocument()
-      expect(screen.queryByRole('combobox', { name: 'Role of key old' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Edit key old' })).not.toBeInTheDocument()
     })
 
     it('revokes a key after confirmation', async () => {

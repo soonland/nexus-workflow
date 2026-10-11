@@ -55,7 +55,9 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
   const [error, setError] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
   const [newRole, setNewRole] = useState<KeyRole>('service')
-  const [changing, setChanging] = useState<{ key: ApiKey; role: KeyRole } | null>(null)
+  // The key whose role is being edited, and the role chosen so far. One row at a time.
+  const [editing, setEditing] = useState<{ keyId: string; role: KeyRole } | null>(null)
+  const [saving, setSaving] = useState(false)
   const [creating, setCreating] = useState(false)
   const [created, setCreated] = useState<string | null>(null)
   const [revoking, setRevoking] = useState<ApiKey | null>(null)
@@ -76,6 +78,7 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
     setError(null)
     setNewName('')
     setNewRole('service')
+    setEditing(null)
     void load()
   }, [load])
 
@@ -109,14 +112,18 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
     }
   }
 
-  async function changeRole(key: ApiKey, role: KeyRole) {
+  async function saveRole(key: ApiKey, role: KeyRole) {
     if (!tenantId) return
-    setChanging(null)
+    setSaving(true)
+    setError(null)
     try {
       await api.setKeyRole(tenantId, key.id, role)
+      setEditing(null)
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not change the key\'s role')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -225,23 +232,33 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
                   <TableRow key={key.id} sx={key.revokedAt ? { opacity: 0.6 } : undefined}>
                     <TableCell>{key.name}</TableCell>
                     <TableCell>
-                      {key.revokedAt ? (
-                        ROLE_HELP[key.role]?.label ?? key.role
+                      {editing?.keyId === key.id ? (
+                        <>
+                          <TextField
+                            select
+                            size="small"
+                            value={editing.role}
+                            onChange={(e) => setEditing({ keyId: key.id, role: e.target.value as KeyRole })}
+                            disabled={saving}
+                            slotProps={{ htmlInput: { 'aria-label': `Role of key ${key.name}` } }}
+                            sx={{ minWidth: 150 }}
+                          >
+                            {(Object.keys(ROLE_HELP) as KeyRole[]).map((role) => (
+                              <MenuItem key={role} value={role}>
+                                {ROLE_HELP[role].label}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                          {editing.role !== key.role && (
+                            <Typography variant="caption" color={editing.role === 'service' ? 'warning.main' : 'text.secondary'} sx={{ display: 'block', mt: 0.5 }}>
+                              {editing.role === 'tenant_manager'
+                                ? 'It will be able to do everything in this tenant, including webhooks and the administrative commands. Its secret does not change.'
+                                : 'It will lose webhooks, metrics and the administrative commands straight away: a program using them gets 403. Its secret does not change.'}
+                            </Typography>
+                          )}
+                        </>
                       ) : (
-                        <TextField
-                          select
-                          size="small"
-                          value={key.role}
-                          onChange={(e) => setChanging({ key, role: e.target.value as KeyRole })}
-                          slotProps={{ htmlInput: { 'aria-label': `Role of key ${key.name}` } }}
-                          sx={{ minWidth: 150 }}
-                        >
-                          {(Object.keys(ROLE_HELP) as KeyRole[]).map((role) => (
-                            <MenuItem key={role} value={role}>
-                              {ROLE_HELP[role].label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
+                        (ROLE_HELP[key.role]?.label ?? key.role)
                       )}
                     </TableCell>
                     <TableCell>{formatDate(key.createdAt)}</TableCell>
@@ -249,10 +266,30 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
                     <TableCell align="right">
                       {key.revokedAt ? (
                         <Chip size="small" label="revoked" variant="outlined" />
+                      ) : editing?.keyId === key.id ? (
+                        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            disabled={saving || editing.role === key.role}
+                            onClick={() => void saveRole(key, editing.role)}
+                            aria-label={`Save the role of key ${key.name}`}
+                          >
+                            {saving ? 'Saving…' : 'Save'}
+                          </Button>
+                          <Button size="small" disabled={saving} onClick={() => setEditing(null)} aria-label={`Cancel editing key ${key.name}`}>
+                            Cancel
+                          </Button>
+                        </Stack>
                       ) : (
-                        <Button size="small" color="error" onClick={() => setRevoking(key)} aria-label={`Revoke key ${key.name}`}>
-                          Revoke
-                        </Button>
+                        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+                          <Button size="small" onClick={() => setEditing({ keyId: key.id, role: key.role })} aria-label={`Edit key ${key.name}`}>
+                            Edit
+                          </Button>
+                          <Button size="small" color="error" onClick={() => setRevoking(key)} aria-label={`Revoke key ${key.name}`}>
+                            Revoke
+                          </Button>
+                        </Stack>
                       )}
                     </TableCell>
                   </TableRow>
@@ -282,27 +319,6 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
           </Button>
         </DialogActions>
       </Dialog>
-
-      <ConfirmDialog
-        open={changing !== null}
-        title={changing?.role === 'tenant_manager' ? 'Give this key more access?' : 'Give this key less access?'}
-        confirmLabel={changing?.role === 'tenant_manager' ? 'Raise to tenant manager' : 'Lower to service'}
-        destructive={changing?.role === 'service'}
-        onConfirm={() => changing && void changeRole(changing.key, changing.role)}
-        onCancel={() => setChanging(null)}
-      >
-        {changing?.role === 'tenant_manager' ? (
-          <>
-            The key “{changing.key.name}” will be able to do everything in this tenant, including webhooks and the administrative
-            commands. Its secret does not change.
-          </>
-        ) : (
-          <>
-            The key “{changing?.key.name}” will lose webhooks, metrics and the administrative commands (cancel, suspend, resume,
-            restart, delete a definition) straight away: a program that uses them will get 403. Its secret does not change.
-          </>
-        )}
-      </ConfirmDialog>
 
       <ConfirmDialog
         open={revoking !== null}
