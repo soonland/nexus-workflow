@@ -127,6 +127,19 @@ describe('AuditPage', () => {
       })
     })
 
+    it('includes the whole minute chosen as the end of the range', async () => {
+      const { api, user } = setup(operator)
+      await screen.findByText('Suspended tenant acme')
+
+      await user.type(screen.getByLabelText('To'), '2026-03-01T10:30')
+
+      await waitFor(() => {
+        const last = api.listAudit.mock.calls.at(-1)![0] as { to?: string }
+        // 10:30 means up to 10:30:59.999, so an entry at 10:30:20 is not left out
+        expect(last.to).toBe(new Date(new Date('2026-03-01T10:30').getTime() + 59_999).toISOString())
+      })
+    })
+
     it('says nothing matches when a filter finds nothing', async () => {
       const { api, user } = setup(operator)
       await screen.findByText('Suspended tenant acme')
@@ -137,6 +150,30 @@ describe('AuditPage', () => {
 
       expect(await screen.findByText('Nothing matches these filters')).toBeInTheDocument()
     })
+  })
+
+  it('drops an old error as soon as it steps back from a page that no longer exists', async () => {
+    const api = makeFakeApi()
+    api.listTenants.mockResolvedValue([])
+    api.listAudit
+      .mockResolvedValueOnce({ entries: [suspend], total: 45, page: 0, pageSize: 20 }) // first load
+      .mockResolvedValueOnce({ entries: [suspend], total: 45, page: 1, pageSize: 20 }) // next page
+      .mockRejectedValueOnce(new ApiError(500, 'Boom', 'INTERNAL')) // a failed refresh
+      .mockResolvedValueOnce({ entries: [], total: 5, page: 1, pageSize: 20 }) // retry: page 1 is gone, only one page left
+      .mockReturnValue(new Promise(() => undefined)) // the reload after stepping back is still in flight
+    const user = userEvent.setup()
+    render(<AuditPage api={api} session={operator} />)
+    await screen.findByText('Suspended tenant acme')
+    await user.click(screen.getByRole('button', { name: /next page/i }))
+    await waitFor(() => expect(api.listAudit).toHaveBeenCalledTimes(2))
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+    expect(await screen.findByText('Boom')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+
+    // the alert goes at once, not when the reload finally answers (it never does here)
+    await waitFor(() => expect(screen.queryByText('Boom')).not.toBeInTheDocument())
+    expect(api.listAudit).toHaveBeenLastCalledWith({ page: 0, pageSize: 20 })
   })
 
   describe('as a tenant manager', () => {

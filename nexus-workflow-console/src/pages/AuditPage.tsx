@@ -29,11 +29,16 @@ import { ListFooter, ListToolbar } from '../list/ListControls'
 
 const KIND_LABEL = { user: '', adminKey: 'admin key', apiKey: 'API key', anonymous: 'not signed in' } as const
 
-/** A `datetime-local` value as an ISO date, or undefined if it is empty or not a date. */
-const toIso = (local: string): string | undefined => {
+/**
+ * A `datetime-local` value as an ISO date, or undefined if it is empty or not a date. The field has
+ * minute precision, so as an upper bound it means "to the end of that minute": entries recorded
+ * later in the minute (10:30:20 for "to 10:30") are included.
+ */
+const toIso = (local: string, endOfMinute = false): string | undefined => {
   if (!local) return undefined
   const date = new Date(local)
-  return Number.isNaN(date.getTime()) ? undefined : date.toISOString()
+  if (Number.isNaN(date.getTime())) return undefined
+  return new Date(date.getTime() + (endOfMinute ? 60_000 - 1 : 0)).toISOString()
 }
 
 /** The value, but only after it has stopped changing for a moment (so typing does not ask for every letter). */
@@ -76,7 +81,7 @@ export function AuditPage({ api, session }: { api: AdminApi; session: Session })
     const request = ++latestRequest.current
     try {
       const fromIso = toIso(from)
-      const toIsoDate = toIso(to)
+      const toIsoDate = toIso(to, true)
       const loaded = await api.listAudit({
         page,
         pageSize,
@@ -89,6 +94,7 @@ export function AuditPage({ api, session }: { api: AdminApi; session: Session })
       if (request !== latestRequest.current) return
       const lastPage = Math.max(0, Math.ceil(loaded.total / pageSize) - 1)
       if (page > lastPage) {
+        setError(null) // the reload this triggers shows the real page; do not keep an old alert meanwhile
         setPage(lastPage)
         return
       }
