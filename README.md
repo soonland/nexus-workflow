@@ -237,6 +237,7 @@ Administrative actions and sign-ins are written to `public.audit_log`, and read 
 | Keys | `key.create`, `key.revoke` (the key's id and name, never the key) |
 | People | `user.create`, `user.disable`, `user.enable`, `membership.add`, `membership.remove`, `invite.create` (also a password reset), `invite.accept` |
 | Signing in | `login.success`, `login.failure` (with the address and why; attempts the throttle refuses are not logged) |
+| Forced steps | `step.force` (which step, the reason, and for a task on whose behalf; see below) |
 
 Each entry has the actor (a person, the admin key, a tenant key, or "anonymous" for a failed sign-in), the action, the tenants it is about, a target (a tenant, key or person id) and a few facts. Passwords, invite tokens and plaintext keys are never stored: callers pass only plain facts, and anything whose name suggests a secret is removed before writing. An entry is written after the action succeeded; if writing fails it is reported on the console and the action still stands. Entries have no foreign keys, so they outlive the tenant or person they are about.
 
@@ -246,6 +247,22 @@ Each entry has the actor (a person, the admin key, a tenant key, or "anonymous" 
 - Tenant API keys and people with no admin role get 403.
 
 The log is append-only and has no retention yet: it grows until it is trimmed by hand.
+
+### Forcing a stuck step
+
+`POST /instances/:id/force` lets a **signed-in tenant manager** push a stuck step along by hand. Body: `{ action, tokenId, reason, outputVariables?, error? }`.
+
+| `action` | For a step that is | Does |
+|---|---|---|
+| `completeServiceTask` | a service task waiting for its worker | completes it (optional `outputVariables`) |
+| `failServiceTask` | a service task waiting for its worker | fails it (`error: {code?, message?}`; the reason is the message by default), so a boundary event can catch it or the instance is suspended |
+| `fireTimer` | a timer or timer boundary event | fires it now |
+| `completeUserTask` | an open or claimed task | completes it as the person calling, recording the assignee as `onBehalfOf` |
+
+- A **reason** (1 to 500 characters) is required. Tenant API keys are refused (403): the reason has to be attributed to a person.
+- The step must still be what the instance is waiting at: if it has moved on, the answer is 409 `STEP_NOT_CURRENT` and nothing happens. An action that does not fit the step is 422 `WRONG_STEP_KIND`.
+- It is the ordinary engine command plus accountability: the cycle carries a `StepForced` event (event log, webhooks, Redis stream), the step's history entry has `forced: {action, by, reason, onBehalfOf?}`, and the audit log gets a `step.force` entry.
+- There is still no way to move an instance to an arbitrary element (see #430).
 
 ### Install, migrate & seed
 

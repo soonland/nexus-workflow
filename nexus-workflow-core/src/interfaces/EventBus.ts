@@ -1,4 +1,4 @@
-import type { BpmnElementType, WaitCondition } from '../model/types.js'
+import type { BpmnElementType, ForcedAction, WaitCondition } from '../model/types.js'
 
 // ─── Execution Events ─────────────────────────────────────────────────────────
 
@@ -36,6 +36,8 @@ export type ExecutionEvent =
   | { type: 'SubProcessStarted'; instanceId: string; tokenId: string; elementId: string }
   | { type: 'SubProcessCompleted'; instanceId: string; tokenId: string; elementId: string }
   | { type: 'TransactionCancelled'; instanceId: string; tokenId: string; elementId: string; compensatedActivities: string[] }
+  /** A person pushed a stuck step along by hand, with the reason they gave. Written by the app, not the engine. */
+  | { type: 'StepForced'; instanceId: string; tokenId: string; elementId: string; action: ForcedAction; forcedBy: string; reason: string; onBehalfOf?: string }
 
 export type ExecutionEventType = ExecutionEvent['type']
 

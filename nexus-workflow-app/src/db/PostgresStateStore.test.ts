@@ -869,6 +869,27 @@ describe.skipIf(!hasDb)('PostgresStateStore', () => {
       expect(ids).toContain('hist-3')
     })
 
+    it('a step that was forced keeps who, why and on whose behalf when read back', async () => {
+      const entry = makeHistoryEntry({
+        id: 'hist-forced',
+        instanceId: 'inst-forced',
+        elementId: 'review',
+        forced: { action: 'completeUserTask', by: 'manager@example.com', reason: 'Ada is on leave', onBehalfOf: 'ada@example.com' },
+      })
+
+      await store.appendHistory(entry)
+
+      const [read] = await store.getHistory('inst-forced')
+      expect(read?.forced).toEqual({ action: 'completeUserTask', by: 'manager@example.com', reason: 'Ada is on leave', onBehalfOf: 'ada@example.com' })
+    })
+
+    it('a step that was not forced has no forced field', async () => {
+      await store.appendHistory(makeHistoryEntry({ id: 'hist-plain', instanceId: 'inst-plain' }))
+
+      const [read] = await store.getHistory('inst-plain')
+      expect(read).not.toHaveProperty('forced')
+    })
+
     it('writing the same step twice leaves one entry (a retried cycle changes nothing)', async () => {
       const entry = makeHistoryEntry({ id: 'hist-dup', instanceId: 'inst-dup', elementId: 'task-1' })
 

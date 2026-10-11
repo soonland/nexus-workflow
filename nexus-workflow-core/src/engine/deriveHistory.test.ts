@@ -171,6 +171,28 @@ describe('deriveHistory', () => {
     expect(summary(entries)).toEqual(['task_1:error'])
   })
 
+  it('tags a step a person forced with who, why and on whose behalf', () => {
+    const def = buildUserTaskDefinition()
+    const [started] = run(def, [{ command: { type: 'StartProcess' }, atSecond: 1 }])
+    const tokenId = waitingToken(started!.state).id
+    clock = 9
+    const done = execute(def, { type: 'CompleteUserTask', tokenId, completedBy: 'manager@example.com' }, started!.state, options)
+
+    const entries = deriveHistory(started!.state, done.newState, [
+      ...done.events,
+      { type: 'StepForced', instanceId: done.newState.instance.id, tokenId, elementId: 'task_1', action: 'completeUserTask', forcedBy: 'manager@example.com', reason: 'Ada is on leave', onBehalfOf: 'ada@example.com' },
+    ])
+
+    const task = entries.find((e) => e.elementId === 'task_1')!
+    expect(task.forced).toEqual({ action: 'completeUserTask', by: 'manager@example.com', reason: 'Ada is on leave', onBehalfOf: 'ada@example.com' })
+    expect(entries.filter((e) => e.forced)).toHaveLength(1) // only that step, not the end event after it
+  })
+
+  it('does not tag a step that was not forced', () => {
+    const [cycle] = run(buildSimpleSequenceDefinition(), [{ command: { type: 'StartProcess' }, atSecond: 1 }])
+    expect(cycle!.entries.every((e) => !('forced' in e))).toBe(true)
+  })
+
   it('writes nothing for a cycle in which nothing finished (suspending)', () => {
     const def = buildUserTaskDefinition()
     const cycles = run(def, [

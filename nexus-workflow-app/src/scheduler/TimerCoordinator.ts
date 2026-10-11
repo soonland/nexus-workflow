@@ -7,6 +7,7 @@ import { parseTimerExpression } from './parseTimerExpression.js'
  *
  * 1. `TokenWaiting` (timer type) → parse timer expression → `scheduler.schedule()`
  * 2. `TokenCancelled`            → `scheduler.cancel(tokenId)` (no-op if not a timer)
+ *    `StepForced` (fireTimer)   → `scheduler.cancel(tokenId)` (a person fired it by hand)
  * 3. `scheduler.onTimerFired`    → `execute(FireTimer)` → persist → emit events
  */
 export class TimerCoordinator {
@@ -32,6 +33,14 @@ export class TimerCoordinator {
     this.unsubscribers.push(
       this.eventBus.subscribeToType('TokenCancelled', (event) => {
         // Cancel any scheduled timer for this token (no-op if none exists)
+        return this.scheduler.cancel(event.tokenId)
+      }),
+    )
+
+    this.unsubscribers.push(
+      this.eventBus.subscribeToType('StepForced', (event) => {
+        // A timer that was fired by hand must not fire again when it falls due
+        if (event.action !== 'fireTimer') return
         return this.scheduler.cancel(event.tokenId)
       }),
     )
