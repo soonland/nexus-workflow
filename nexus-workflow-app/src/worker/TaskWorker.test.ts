@@ -286,6 +286,22 @@ describe('TaskWorker', () => {
       expect(instance!.status).toBe('completed')
     })
 
+    it('the step the worker finishes is written to the history, with how long it was waiting', async () => {
+      const worker = new TaskWorker(store, eventBus)
+      worker.register(makeSuccessHandler())
+      worker.start()
+
+      await seedDefinition(store, SERVICE_TASK_BPMN)
+      const { instanceId } = await startInstance(store, eventBus, 'svc-proc')
+      await new Promise(r => setTimeout(r, 10))
+
+      const history = await store.getHistory(instanceId)
+      const service = history.find((e) => e.elementId === 'svc-1')
+      expect(service).toMatchObject({ status: 'completed', elementType: 'serviceTask' })
+      expect(service!.completedAt.getTime()).toBeGreaterThanOrEqual(service!.startedAt.getTime())
+      expect(history.map((e) => e.elementId)).toContain('end-1')
+    })
+
     it('outputVariables from handler are applied to the instance scope', async () => {
       const worker = new TaskWorker(store, eventBus)
       worker.register(makeSuccessHandler('my-handler', {

@@ -193,6 +193,21 @@ describe('TimerCoordinator', () => {
       expect(after!.status).toBe('completed')
     })
 
+    it('the timer that fired is written to the history, with the time it waited', async () => {
+      coordinator.start()
+      await seedDefinition(store, INTERMEDIATE_TIMER_BPMN)
+      const { instanceId } = await startInstance(store, eventBus, 'timer-proc')
+
+      vi.advanceTimersByTime(ADVANCE_PAST_5M)
+      await inMemoryScheduler.tickDue()
+
+      const history = await store.getHistory(instanceId)
+      const timer = history.find((e) => e.elementId === 'timer-1')
+      expect(timer).toMatchObject({ status: 'completed', elementType: 'intermediateCatchEvent' })
+      expect(timer!.completedAt.getTime() - timer!.startedAt.getTime()).toBeGreaterThanOrEqual(5 * 60 * 1000)
+      expect(history.map((e) => e.elementId)).toContain('end-1')
+    })
+
     it('TimerFired event is emitted after the timer fires', async () => {
       const emitted: ExecutionEvent[] = []
       eventBus.subscribe(e => { emitted.push(e) })

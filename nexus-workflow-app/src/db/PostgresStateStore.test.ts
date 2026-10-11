@@ -869,6 +869,28 @@ describe.skipIf(!hasDb)('PostgresStateStore', () => {
       expect(ids).toContain('hist-3')
     })
 
+    it('writing the same step twice leaves one entry (a retried cycle changes nothing)', async () => {
+      const entry = makeHistoryEntry({ id: 'hist-dup', instanceId: 'inst-dup', elementId: 'task-1' })
+
+      await store.appendHistory(entry)
+      await store.appendHistory({ ...entry, status: 'cancelled' }) // a second write does not replace or fail
+
+      const history = await store.getHistory('inst-dup')
+      expect(history).toHaveLength(1)
+      expect(history[0]?.status).toBe(entry.status)
+    })
+
+    it('orders steps that started at the same moment by when they finished', async () => {
+      const at = new Date('2024-01-01T00:00:00.000Z')
+      await store.appendHistory(makeHistoryEntry({ id: 'zz', instanceId: 'inst-tie', elementId: 'second', startedAt: at, completedAt: new Date('2024-01-01T00:00:05.000Z') }))
+      await store.appendHistory(makeHistoryEntry({ id: 'aa', instanceId: 'inst-tie', elementId: 'third', startedAt: at, completedAt: new Date('2024-01-01T00:00:09.000Z') }))
+      await store.appendHistory(makeHistoryEntry({ id: 'mm', instanceId: 'inst-tie', elementId: 'first', startedAt: at, completedAt: new Date('2024-01-01T00:00:01.000Z') }))
+
+      const history = await store.getHistory('inst-tie')
+
+      expect(history.map((e) => e.elementId)).toEqual(['first', 'second', 'third'])
+    })
+
     it('getHistory returns empty array for unknown instance', async () => {
       const history = await store.getHistory('inst-nonexistent')
       expect(history).toEqual([])

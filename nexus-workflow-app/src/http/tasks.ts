@@ -103,7 +103,7 @@ export function createTasksRouter(storeFactory: (tenantId: string) => StateStore
 
     const completedTask = { ...task, status: 'completed' as const, completedAt: new Date() }
     const ops = [
-      ...computeStoreOps(false, state, result.newState),
+      ...computeStoreOps(false, state, result.newState, result.events),
       ...buildUserTaskCreationOps(result.events, definition, result.newState),
       { op: 'updateUserTask' as const, task: completedTask },
     ]

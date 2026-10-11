@@ -20,4 +20,6 @@ export { InMemoryScheduler } from './adapters/InMemoryScheduler.js'
 
 // Engine
 export { execute } from './engine/ExecutionEngine.js'
+export { deriveHistory, MAX_SNAPSHOT_BYTES } from './engine/deriveHistory.js'
+export type { DeriveHistoryOptions } from './engine/deriveHistory.js'
 export type { EngineState, EngineCommand, EngineResult, ExecuteOptions } from './engine/ExecutionEngine.js'

@@ -59,7 +59,7 @@ export function createInstancesRouter(storeFactory: (tenantId: string) => StateS
     }
 
     const ops = [
-      ...computeStoreOps(true, null, result.newState),
+      ...computeStoreOps(true, null, result.newState, result.events),
       ...buildUserTaskCreationOps(result.events, definition, result.newState),
     ]
     await store.executeTransaction(ops)
@@ -144,7 +144,7 @@ export function createInstancesRouter(storeFactory: (tenantId: string) => StateS
     }
 
     const ops = [
-      ...computeStoreOps(false, state, result.newState),
+      ...computeStoreOps(false, state, result.newState, result.events),
       ...buildUserTaskCreationOps(result.events, definition, result.newState),
     ]
     await store.executeTransaction(ops)
@@ -187,7 +187,7 @@ export function createInstancesRouter(storeFactory: (tenantId: string) => StateS
     }))
 
     const ops = [
-      ...computeStoreOps(false, state, result.newState),
+      ...computeStoreOps(false, state, result.newState, result.events),
       ...buildUserTaskCreationOps(result.events, definition, result.newState),
       ...cancelOps,
     ]
