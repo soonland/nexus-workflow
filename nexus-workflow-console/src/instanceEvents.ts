@@ -1,4 +1,5 @@
-import type { HistoryEntry, InstanceEvent, InstanceToken } from './api/types'
+import type { ForcedAction, HistoryEntry, InstanceEvent, InstanceToken } from './api/types'
+import { describeForcedAction } from './forceActions'
 
 const text = (value: unknown): string | undefined => (typeof value === 'string' && value !== '' ? value : undefined)
 
@@ -9,6 +10,13 @@ export function describeEvent(event: InstanceEvent): { summary: string; elementI
   const at = (summary: string, elementId = element) => (elementId ? { summary, elementId } : { summary })
 
   switch (event.type) {
+    case 'StepForced': {
+      const by = text(d['forcedBy']) ?? 'Someone'
+      const action = text(d['action']) as ForcedAction | undefined
+      const behalf = text(d['onBehalfOf'])
+      const reason = text(d['reason'])
+      return at(`${by} ${action ? describeForcedAction(action) : 'pushed a step along'}${behalf ? ` for ${behalf}` : ''}${reason ? `: “${reason}”` : ''}`)
+    }
     case 'ProcessInstanceStarted':
       return { summary: 'Instance started' }
     case 'ProcessInstanceCompleted':

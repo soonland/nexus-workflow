@@ -5,6 +5,18 @@ import { describeEvent, historyMarks, progressMarks } from './instanceEvents'
 const event = (type: string, data: Record<string, unknown> = {}): InstanceEvent => ({ id: type, type, occurredAt: '2026-01-04T00:00:00.000Z', data })
 const token = (elementId: string): InstanceToken => ({ id: elementId, elementId, elementType: 'userTask', status: 'active' })
 
+describe('describeEvent: forced steps', () => {
+  it('says who pushed what along, for whom and why, and which element', () => {
+    const forced = event('StepForced', { forcedBy: 'manager@example.com', action: 'completeUserTask', onBehalfOf: 'ada@example.com', reason: 'Ada is on leave', elementId: 'review' })
+
+    expect(describeEvent(forced)).toEqual({ summary: 'manager@example.com completed a task for ada@example.com: “Ada is on leave”', elementId: 'review' })
+  })
+
+  it('copes with a bare event', () => {
+    expect(describeEvent(event('StepForced', {})).summary).toBe('Someone pushed a step along')
+  })
+})
+
 describe('describeEvent', () => {
   it('puts the common events in words, with the element they are about', () => {
     expect(describeEvent(event('ProcessInstanceStarted'))).toEqual({ summary: 'Instance started' })

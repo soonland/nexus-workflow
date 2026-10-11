@@ -107,6 +107,7 @@ export function makeFakeTenantApi(): { [K in keyof TenantApi]: ReturnType<typeof
     cancelInstance: vi.fn().mockResolvedValue(undefined),
     restartInstance: vi.fn().mockResolvedValue('new-instance'),
     getInstance: vi.fn(),
+    forceStep: vi.fn().mockResolvedValue(undefined),
     getInstanceHistory: vi.fn().mockResolvedValue([]),
     getInstanceEvents: vi.fn().mockResolvedValue([]),
     getDefinitionXml: vi.fn().mockResolvedValue('<definitions/>'),

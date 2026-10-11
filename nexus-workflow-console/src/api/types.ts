@@ -156,6 +156,20 @@ export interface InstanceToken {
   elementId: string
   elementType: string
   status: string
+  /** What a waiting token is waiting for. */
+  waitingFor?: { type: string }
+}
+
+/** The ways a person can push a stuck step along. */
+export type ForcedAction = 'completeServiceTask' | 'failServiceTask' | 'fireTimer' | 'completeUserTask'
+
+/** Set on a step that a person pushed along by hand. */
+export interface ForcedStep {
+  action: ForcedAction
+  by: string
+  reason: string
+  /** For a task: the person it was assigned to. */
+  onBehalfOf?: string
 }
 
 /** One finished step of an instance: when it arrived at an element, when it left, and how it went. */
@@ -169,6 +183,7 @@ export interface HistoryEntry {
   completedAt: string
   /** The variables as they stood when the step finished; left out for very large ones. */
   variablesSnapshot?: Record<string, { type: string; value: unknown }>
+  forced?: ForcedStep
 }
 
 /** One entry of an instance's audit trail, as the engine logged it. */

@@ -22,6 +22,8 @@ describe('describeAudit', () => {
     [entry('invite.create', { email: 'ada@example.com', reset: false }, 'u1'), 'Issued a new invitation for ada@example.com'],
     [entry('invite.create', { email: 'ada@example.com', reset: true }, 'u1'), 'Issued a new invitation (password reset) for ada@example.com'],
     [entry('invite.accept', {}, 'u1'), 'Accepted their invitation'],
+    [entry('step.force', { elementId: 'send', reason: 'mail server down', step: 'completeServiceTask' }, 'inst-1'), 'Pushed step send along by hand: “mail server down”'],
+    [entry('step.force', { elementId: 'review', reason: 'on leave', onBehalfOf: 'ada@example.com' }, 'inst-1'), 'Pushed step review along by hand for ada@example.com: “on leave”'],
     [entry('login.success'), 'Signed in'],
     [entry('login.failure', { reason: 'bad credentials' }), 'Failed sign-in (bad credentials)'],
   ])('puts %# in words', (item, sentence) => {
