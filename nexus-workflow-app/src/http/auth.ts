@@ -4,6 +4,7 @@ import type { BeginResult, LoginThrottle } from '../auth/LoginThrottle.js'
 import { PasswordPolicyError, type PasswordHasher } from '../auth/PasswordHasher.js'
 import { clearSessionCookie, clientIp, readSessionToken, setSessionCookie } from '../auth/sessionCookie.js'
 import type { AuditLog } from '../db/AuditLog.js'
+import type { OperatorKey } from '../db/OperatorKeyStore.js'
 import type { ApiKeyPublic } from '../db/TenantStore.js'
 import type { InviteStore } from '../db/InviteStore.js'
 import type { SessionStore } from '../db/SessionStore.js'
@@ -15,7 +16,9 @@ export interface AuthRouterDeps {
    * Describes the credential sent as `Authorization: Bearer ...` for GET /me: the admin key, or a
    * tenant API key (null when it is neither, or no longer valid).
    */
-  describeBearer?: (token: string) => Promise<{ kind: 'adminKey' } | { kind: 'apiKey'; key: ApiKeyPublic } | null>
+  describeBearer?: (
+    token: string,
+  ) => Promise<{ kind: 'adminKey' } | { kind: 'apiKey'; key: ApiKeyPublic } | { kind: 'operatorKey'; key: OperatorKey } | null>
   /** Sign-ins and failed sign-ins are written here. */
   audit?: AuditLog
   users: UserStore
@@ -275,6 +278,10 @@ export function createAuthRouter(deps: AuthRouterDeps): Hono {
       const described = scheme === 'Bearer' && bearer && deps.describeBearer ? await deps.describeBearer(bearer) : null
       if (!described) return c.json({ error: 'UNAUTHENTICATED', message: 'Not signed in' }, 401)
       if (described.kind === 'adminKey') return c.json({ adminKey: true, role: 'operator' })
+      if (described.kind === 'operatorKey') {
+        const { id, name, createdBy, createdAt, expiresAt } = described.key
+        return c.json({ operatorKey: { id, name, createdBy, createdAt, expiresAt }, role: 'operator' })
+      }
       const { id, name, tenantId, role, createdBy, createdAt } = described.key
       return c.json({ apiKey: { id, name, tenantId, role, createdBy, createdAt } })
     }

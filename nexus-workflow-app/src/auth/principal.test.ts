@@ -17,7 +17,8 @@ const managerOfA = asUser(membership('tenant_manager', 'a'))
 const managerOfAandB = asUser(membership('tenant_manager', 'a'), membership('tenant_manager', 'b'))
 const both = asUser(membership('operator', null), membership('tenant_manager', 'a'))
 const noRoles = asUser()
-const apiKeyOfA: Principal = { kind: 'apiKey', tenantId: 'a' }
+const apiKeyOfA: Principal = { kind: 'apiKey', tenantId: 'a', keyId: 'k1', keyName: 'worker', role: 'service' }
+const operatorKey: Principal = { kind: 'operatorKey', keyId: 'ok1', keyName: 'ci' }
 const adminKey: Principal = { kind: 'adminKey' }
 
 describe('isOperator', () => {
@@ -25,6 +26,7 @@ describe('isOperator', () => {
     ['an operator user', operator, true],
     ['a user who is both operator and manager', both, true],
     ['the admin key (break-glass)', adminKey, true],
+    ['an operator key', operatorKey, true],
     ['a tenant manager', managerOfA, false],
     ['a user without roles', noRoles, false],
     ['a tenant API key', apiKeyOfA, false],
@@ -40,6 +42,7 @@ describe('managedTenantIds', () => {
     expect(managedTenantIds(operator)).toEqual([])
     expect(managedTenantIds(apiKeyOfA)).toEqual([])
     expect(managedTenantIds(adminKey)).toEqual([])
+    expect(managedTenantIds(operatorKey)).toEqual([])
   })
 })
 
@@ -58,6 +61,7 @@ describe('canUseTenant (access to a tenant\'s own data)', () => {
   it('does NOT open any tenant to an operator: running the platform is not reading its customers\' data', () => {
     expect(canUseTenant(operator, 'a')).toBe(false)
     expect(canUseTenant(adminKey, 'a')).toBe(false)
+    expect(canUseTenant(operatorKey, 'a')).toBe(false) // an operator key never opens a tenant's data
   })
 
   it('an operator who is also a manager only gets the tenants they manage', () => {

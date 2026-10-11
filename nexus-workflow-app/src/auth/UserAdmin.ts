@@ -26,6 +26,15 @@ export type Outcome<T> = { ok: true; value: T } | Failure
 const fail = (error: FailureKind, message: string): Failure => ({ ok: false, error, message })
 const ok = <T>(value: T): Outcome<T> => ({ ok: true, value })
 
+/**
+ * What an operator *key* may not do to people: reach platform administration through them. A key that
+ * could grant the operator role, or take over an operator's account by re-issuing their invite, would
+ * make itself a person with operator access and so outlive being revoked (it could also mint keys as
+ * that person). Everything that does not hand out operator access stays available to keys, so a
+ * provisioning program can still create and offboard the people of tenants.
+ */
+const KEY_CANNOT_ESCALATE = 'An operator key cannot grant the operator role or reset an operator\'s access: do that as a signed-in operator'
+
 // ─── Requests ─────────────────────────────────────────────────────────────────
 
 export interface MembershipRequest {
@@ -46,8 +55,10 @@ export interface Invited {
 }
 
 interface Scope {
-  /** The signed-in user acting, or null for the admin key. */
+  /** The signed-in user acting, or null for a key. */
   actorUserId: string | null
+  /** An operator key (not a person, not the admin key): see `KEY_CANNOT_ESCALATE`. */
+  viaOperatorKey: boolean
   operator: boolean
   /** Tenants a non-operator may administer people in. */
   managed: string[]
@@ -104,6 +115,7 @@ export class UserAdmin {
       const denied = memberships.find((m) => !this.mayGrant(scope, m))
       if (denied) return fail('FORBIDDEN', 'Tenant managers can only grant a manager role in tenants they manage')
     }
+    if (scope.viaOperatorKey && memberships.some((m) => m.role === 'operator')) return fail('FORBIDDEN', KEY_CANNOT_ESCALATE)
     for (const membership of memberships) {
       const invalid = await this.validateMembership(membership)
       if (invalid) return invalid
@@ -167,6 +179,7 @@ export class UserAdmin {
     if (!scope.operator && !this.mayGrant(scope, request)) {
       return fail('FORBIDDEN', 'Tenant managers can only grant a manager role in tenants they manage')
     }
+    if (scope.viaOperatorKey && request.role === 'operator') return fail('FORBIDDEN', KEY_CANNOT_ESCALATE)
     const invalid = await this.validateMembership(request)
     if (invalid) return invalid
 
@@ -224,6 +237,8 @@ export class UserAdmin {
     const target = await this.reach(scope, userId)
     if (!target.ok) return target
     if (target.value.status !== 'active') return fail('CONFLICT', 'Enable the account before inviting the person again')
+    // A new invite is how an account is taken over: not an operator's, and not by a key
+    if (scope.viaOperatorKey && target.value.memberships.some((m) => m.role === 'operator')) return fail('FORBIDDEN', KEY_CANNOT_ESCALATE)
 
     const invite = await this.invites.create(userId, scope.actorUserId)
     await this.audit?.record({
@@ -244,7 +259,7 @@ export class UserAdmin {
     const operator = isOperator(actor)
     const managed = managedTenantIds(actor)
     if (!operator && managed.length === 0) return fail('FORBIDDEN', 'Operator or tenant manager role required')
-    return { actorUserId: actor.kind === 'user' ? actor.user.id : null, operator, managed }
+    return { actorUserId: actor.kind === 'user' ? actor.user.id : null, viaOperatorKey: actor.kind === 'operatorKey', operator, managed }
   }
 
   /** The user, if this actor may see and administer them; otherwise "not found". */

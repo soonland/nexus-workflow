@@ -2,6 +2,7 @@ import type {
   ApiKey,
   AuditPage,
   KeyRole,
+  OperatorKey,
   AuditQuery,
   DefinitionSummary,
   DeployResult,
@@ -52,6 +53,12 @@ export interface AdminApi {
 
   /** The audit log, newest first. Operators read everything; tenant managers only their own tenants'. */
   listAudit(query: AuditQuery): Promise<AuditPage>
+
+  // operator keys (signed-in operators and the admin key; not operator keys themselves)
+  listOperatorKeys(): Promise<OperatorKey[]>
+  /** The secret is in the answer only once. `expiresAt` is an ISO date, or leave it out for no expiry. */
+  createOperatorKey(input: { name: string; expiresAt?: string }): Promise<{ key: OperatorKey; plaintext: string }>
+  revokeOperatorKey(id: string): Promise<void>
 
   // people (needs a session or the admin key)
   listUsers(): Promise<UserWithMemberships[]>
@@ -126,6 +133,15 @@ export function createAdminApi(
         if (value) params.set(key, value)
       }
       return request<AuditPage>('GET', `/audit?${params}`)
+    },
+    async listOperatorKeys() {
+      return (await request<{ keys: OperatorKey[] }>('GET', '/operator-keys')).keys
+    },
+    createOperatorKey(input) {
+      return request<{ key: OperatorKey; plaintext: string }>('POST', '/operator-keys', input)
+    },
+    async revokeOperatorKey(id) {
+      await request('DELETE', `/operator-keys/${encodeURIComponent(id)}`)
     },
     async listUsers() {
       return (await request<{ users: UserWithMemberships[] }>('GET', '/users')).users

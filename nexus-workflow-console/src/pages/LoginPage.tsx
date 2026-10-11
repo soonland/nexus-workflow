@@ -45,11 +45,11 @@ export function LoginPage() {
         {useKey ? (
           <>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Break-glass access with the platform admin key (<code>ADMIN_API_KEY</code> of nexus-workflow-app). It is
+              Access with an operator key (<code>nxop_…</code>), or with the platform admin key (<code>ADMIN_API_KEY</code> of nexus-workflow-app) as break-glass. It is
               kept in this browser tab only.
             </Typography>
             <TextField
-              label="Admin key"
+              label="Operator or admin key"
               type="password"
               value={key}
               onChange={(e) => setKey(e.target.value)}
@@ -95,7 +95,7 @@ export function LoginPage() {
               setError(null)
             }}
           >
-            {useKey ? 'Sign in with email and password' : 'Advanced: use the admin key'}
+            {useKey ? 'Sign in with email and password' : 'Advanced: use an operator key or the admin key'}
           </Link>
         </Typography>
       </Paper>

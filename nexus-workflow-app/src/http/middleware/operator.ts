@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from 'hono'
 import { isAdminKeyHeader } from '../../auth/adminKey.js'
 import { isOperator, managedTenantIds, type Principal } from '../../auth/principal.js'
 import { readSessionToken } from '../../auth/sessionCookie.js'
+import type { OperatorKeyStore } from '../../db/OperatorKeyStore.js'
 import type { SessionStore } from '../../db/SessionStore.js'
 import type { UserStore } from '../../db/UserStore.js'
 import type { AppVariables } from './auth.js'
@@ -12,6 +13,8 @@ export interface OperatorGuardDeps {
   adminApiKey: string
   sessions: SessionStore
   users: UserStore
+  /** Named operator keys. Without it only the admin key is accepted as a Bearer credential. */
+  operatorKeys?: OperatorKeyStore
   /** The origin the console is served from, for the CSRF check on sessions. */
   publicOrigin?: string | undefined
 }
@@ -22,23 +25,32 @@ export interface OperatorGuardDeps {
  *  - 401: no credential, or a session that is not valid (sign in)
  *  - 403: a credential that is not allowed (a tenant API key, a wrong key, the wrong role)
  *
- * Explicit `Authorization` credentials win over a cookie; the only one accepted here is the admin
- * key. A session is cookie-based, so state-changing requests made with one also have to pass the
+ * Explicit `Authorization` credentials win over a cookie; the ones accepted here are the admin key
+ * and an operator key (`nxop_...`, not revoked, not expired). A session is cookie-based, so state-changing requests made with one also have to pass the
  * CSRF check; a Bearer credential is not sent by a browser on its own and needs none.
  */
 function createGuard(
   deps: OperatorGuardDeps,
   allow: (principal: Principal) => boolean,
-  forbidden: { bearer: string; session: string },
+  forbidden: { bearer: string; session: string; /** For a valid operator key that `allow` does not accept. */ operatorKey?: string },
 ): MiddlewareHandler<{ Variables: AppVariables }> {
   return async (c, next) => {
     const authHeader = c.req.header('Authorization')
     if (authHeader) {
+      let principal: Principal | null = null
       if (isAdminKeyHeader(authHeader, deps.adminApiKey)) {
-        c.set('principal', { kind: 'adminKey' })
-        return next()
+        principal = { kind: 'adminKey' }
+      } else {
+        const [scheme, token] = authHeader.split(' ')
+        const key = scheme === 'Bearer' && token && deps.operatorKeys ? await deps.operatorKeys.authenticate(token) : null
+        if (key) principal = { kind: 'operatorKey', keyId: key.id, keyName: key.name }
       }
-      return c.json({ error: 'FORBIDDEN', message: forbidden.bearer }, 403)
+      if (!principal) return c.json({ error: 'FORBIDDEN', message: forbidden.bearer }, 403)
+      if (!allow(principal)) {
+        return c.json({ error: 'FORBIDDEN', message: principal.kind === 'operatorKey' ? (forbidden.operatorKey ?? forbidden.bearer) : forbidden.bearer }, 403)
+      }
+      c.set('principal', principal)
+      return next()
     }
 
     const token = readSessionToken(c)
@@ -78,5 +90,17 @@ export function createPeopleAdminGuard(deps: OperatorGuardDeps): MiddlewareHandl
   return createGuard(deps, (principal) => isOperator(principal) || managedTenantIds(principal).length > 0, {
     bearer: 'Operator credentials required',
     session: 'Operator or tenant manager role required',
+  })
+}
+
+/**
+ * For managing operator keys: signed-in operators and the admin key, **not operator keys**. A key
+ * that could create keys could make itself a replacement and survive being revoked.
+ */
+export function createOperatorKeyAdminGuard(deps: OperatorGuardDeps): MiddlewareHandler<{ Variables: AppVariables }> {
+  return createGuard(deps, (principal) => isOperator(principal) && principal.kind !== 'operatorKey', {
+    bearer: 'Operator credentials required',
+    session: 'Operator role required',
+    operatorKey: 'An operator key cannot manage operator keys: sign in as an operator, or use the admin key',
   })
 }

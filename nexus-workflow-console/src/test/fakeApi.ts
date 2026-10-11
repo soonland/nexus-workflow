@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 import type { AdminApi, TenantApi } from '../api/client'
-import type { ApiKey, AuditEntry, DefinitionSummary, InstanceSummary, Membership, UserTask, Webhook, SessionInfo, Tenant, User, UserWithMemberships } from '../api/types'
+import type { ApiKey, AuditEntry, OperatorKey, DefinitionSummary, InstanceSummary, Membership, UserTask, Webhook, SessionInfo, Tenant, User, UserWithMemberships } from '../api/types'
 
 export function makeTenant(overrides: Partial<Tenant> = {}): Tenant {
   return {
@@ -66,6 +66,9 @@ export function makeFakeApi(overrides: Partial<AdminApi> = {}): { [K in keyof Ad
     createKey: vi.fn().mockResolvedValue({ key: makeKey(), plaintext: 'plain-secret-key' }),
     setKeyRole: vi.fn().mockResolvedValue(makeKey()),
     revokeKey: vi.fn().mockResolvedValue(undefined),
+    listOperatorKeys: vi.fn().mockResolvedValue([]),
+    createOperatorKey: vi.fn().mockResolvedValue({ key: makeOperatorKey(), plaintext: 'nxop_secret' }),
+    revokeOperatorKey: vi.fn().mockResolvedValue(undefined),
     listAudit: vi.fn().mockResolvedValue({ entries: [], total: 0, page: 0, pageSize: 20 }),
     listUsers: vi.fn().mockResolvedValue([]),
     createUser: vi.fn().mockResolvedValue({ user: makeUser(), invite: { token: 't', path: '/console/invite/t', expiresAt: '2026-02-01T00:00:00.000Z' } }),
@@ -149,6 +152,19 @@ export function makeAuditEntry(overrides: Partial<AuditEntry> = {}): AuditEntry 
     tenantIds: ['acme'],
     target: 'acme',
     details: {},
+    ...overrides,
+  }
+}
+
+export function makeOperatorKey(overrides: Partial<OperatorKey> = {}): OperatorKey {
+  return {
+    id: 'ok-1',
+    name: 'provisioning script',
+    createdBy: 'op',
+    createdAt: '2026-03-01T00:00:00.000Z',
+    lastUsedAt: null,
+    expiresAt: null,
+    revokedAt: null,
     ...overrides,
   }
 }

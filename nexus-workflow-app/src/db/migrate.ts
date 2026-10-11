@@ -30,6 +30,7 @@ export async function runMigrations(connectionString: string): Promise<void> {
       '011_users.sql',
       '012_audit_log.sql',
       '013_api_key_roles.sql',
+      '014_operator_keys.sql',
     ]
 
     for (const file of migrations) {

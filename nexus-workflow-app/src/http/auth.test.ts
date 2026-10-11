@@ -602,7 +602,14 @@ describe('auth HTTP API (Postgres)', () => {
         '/auth',
         createAuthRouter({
           users, sessions, invites, hasher,
-          describeBearer: async (token) => (token === 'good-key' ? { kind: 'apiKey', key: key as never } : token === 'the-admin-key' ? { kind: 'adminKey' } : null),
+          describeBearer: async (token) =>
+            token === 'good-key'
+              ? { kind: 'apiKey', key: key as never }
+              : token === 'the-admin-key'
+                ? { kind: 'adminKey' }
+                : token === 'nxop_operator'
+                  ? { kind: 'operatorKey', key: { id: 'ok-1', name: 'ci', createdBy: 'u-1', createdAt: new Date('2026-03-02T00:00:00Z'), lastUsedAt: null, expiresAt: new Date('2027-01-01T00:00:00Z'), revokedAt: null } }
+                  : null,
           accountIpThrottle: new LoginThrottle({ maxFailures: 3, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE }),
           accountThrottle: new LoginThrottle({ maxFailures: 8, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE }),
           ipThrottle: new LoginThrottle({ maxFailures: 10, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE }),
@@ -632,6 +639,15 @@ describe('auth HTTP API (Postgres)', () => {
       const res = await withKeys()('Bearer the-admin-key')
 
       expect(await res.json()).toEqual({ adminKey: true, role: 'operator' })
+    })
+
+    it('describes an operator key: its name, who made it and when it expires, never the secret', async () => {
+      const res = await withKeys()('Bearer nxop_operator')
+
+      expect(await res.json()).toEqual({
+        operatorKey: { id: 'ok-1', name: 'ci', createdBy: 'u-1', createdAt: '2026-03-02T00:00:00.000Z', expiresAt: '2027-01-01T00:00:00.000Z' },
+        role: 'operator',
+      })
     })
 
     it('401 for a key that is unknown or revoked, and for a credential that is not a Bearer one', async () => {
