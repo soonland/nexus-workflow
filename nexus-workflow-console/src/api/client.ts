@@ -1,5 +1,7 @@
 import type {
   ApiKey,
+  AuditPage,
+  AuditQuery,
   DefinitionSummary,
   DeployResult,
   InstanceEvent,
@@ -42,6 +44,9 @@ export interface AdminApi {
   listKeys(tenantId: string): Promise<ApiKey[]>
   createKey(tenantId: string, name: string): Promise<CreatedKey>
   revokeKey(tenantId: string, keyId: string): Promise<void>
+
+  /** The audit log, newest first. Operators read everything; tenant managers only their own tenants'. */
+  listAudit(query: AuditQuery): Promise<AuditPage>
 
   // people (needs a session or the admin key)
   listUsers(): Promise<UserWithMemberships[]>
@@ -105,6 +110,14 @@ export function createAdminApi(
     },
     async revokeKey(tenantId, keyId) {
       await request('DELETE', `${tenantPath(tenantId)}/keys/${encodeURIComponent(keyId)}`)
+    },
+    listAudit(query) {
+      const params = new URLSearchParams({ page: String(query.page), pageSize: String(query.pageSize) })
+      for (const key of ['tenant', 'actor', 'action', 'from', 'to'] as const) {
+        const value = query[key]
+        if (value) params.set(key, value)
+      }
+      return request<AuditPage>('GET', `/audit?${params}`)
     },
     async listUsers() {
       return (await request<{ users: UserWithMemberships[] }>('GET', '/users')).users

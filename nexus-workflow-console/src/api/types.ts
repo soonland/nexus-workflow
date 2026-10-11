@@ -172,3 +172,36 @@ export interface InstanceView {
   tokens: InstanceToken[]
   variables: Record<string, unknown>
 }
+
+export type AuditActorKind = 'user' | 'adminKey' | 'apiKey' | 'anonymous'
+
+/** One entry of the audit log: who did what, to which tenants, with a few facts. */
+export interface AuditEntry {
+  id: string
+  at: string
+  actor: { kind: AuditActorKind; id: string | null; label: string | null }
+  /** Dotted code such as `tenant.suspend` or `login.failure`. */
+  action: string
+  tenantIds: string[]
+  target: string | null
+  details: Record<string, unknown>
+}
+
+export interface AuditQuery {
+  tenant?: string
+  actor?: string
+  /** An exact action, or a family such as `key`. */
+  action?: string
+  /** ISO dates. */
+  from?: string
+  to?: string
+  page: number
+  pageSize: number
+}
+
+export interface AuditPage {
+  entries: AuditEntry[]
+  total: number
+  page: number
+  pageSize: number
+}

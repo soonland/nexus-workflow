@@ -63,6 +63,10 @@ function makeServer(overrides: Partial<Server> = {}) {
       if (!managed) return jsonResponse({ error: 'FORBIDDEN', message: 'Not allowed' }, 403)
       return jsonResponse(Array.from({ length: tenant === 'acme' ? 3 : 1 }, (_, i) => ({ id: `${tenant}-flow-${i}`, version: 1, name: `Flow ${i}`, deployedAt: '2026-01-01T00:00:00.000Z', isDeployable: true })))
     }
+    if (url.startsWith('/audit')) {
+      if (usesKey || server.signedInAs) return jsonResponse({ entries: [], total: 0, page: 0, pageSize: 20 })
+      return jsonResponse({ error: 'UNAUTHENTICATED' }, 401)
+    }
     if (url === '/users') {
       if (usesKey || server.signedInAs) return jsonResponse({ users: [] })
       return jsonResponse({ error: 'UNAUTHENTICATED' }, 401)
@@ -204,6 +208,33 @@ describe('what each role sees', () => {
 
     expect(await screen.findByText('Operator access required')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument()
+  })
+})
+
+describe('audit log in the navigation', () => {
+  it('an operator and a tenant manager both get it, under Administration', async () => {
+    const operatorApp = render(<App fetchImpl={makeServer({ accounts, signedInAs: accounts['op@example.com'] }).fetchImpl} />)
+    expect(await screen.findByRole('button', { name: 'Audit log' })).toBeInTheDocument()
+    operatorApp.unmount()
+
+    render(<App fetchImpl={makeServer({ accounts, signedInAs: accounts['mgr@example.com'] }).fetchImpl} />)
+    expect(await screen.findByRole('button', { name: 'Audit log' })).toBeInTheDocument()
+  })
+
+  it('someone with no roles does not', async () => {
+    render(<App fetchImpl={makeServer({ accounts, signedInAs: accounts['new@example.com'] }).fetchImpl} />)
+
+    await screen.findByText(/no roles yet/i)
+    expect(screen.queryByRole('button', { name: 'Audit log' })).not.toBeInTheDocument()
+  })
+
+  it('opens the screen', async () => {
+    const user = userEvent.setup()
+    render(<App fetchImpl={makeServer({ accounts, signedInAs: accounts['op@example.com'] }).fetchImpl} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Audit log' }))
+
+    expect(await screen.findByRole('heading', { name: 'Audit log' })).toBeInTheDocument()
   })
 })
 

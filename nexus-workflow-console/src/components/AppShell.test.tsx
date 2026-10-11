@@ -32,7 +32,7 @@ describe('AppShell', () => {
     setup(['definitions', 'instances', 'users'])
 
     expect(nav().getByRole('button', { name: 'Workflows' })).toBeInTheDocument()
-    expect(nav().getByRole('button', { name: 'People' })).toBeInTheDocument()
+    expect(nav().getByRole('button', { name: 'Administration' })).toBeInTheDocument()
     expect(nav().queryByRole('button', { name: 'Platform' })).not.toBeInTheDocument()
     expect(nav().queryByRole('button', { name: 'Tenants' })).not.toBeInTheDocument()
     expect(nav().getByRole('button', { name: 'Instances' })).toBeInTheDocument()

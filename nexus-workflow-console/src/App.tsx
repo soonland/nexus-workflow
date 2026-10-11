@@ -13,6 +13,7 @@ import { InstancesPage } from './pages/InstancesPage'
 import { TasksPage } from './pages/TasksPage'
 import { WebhooksPage } from './pages/WebhooksPage'
 import { TenantsPage } from './pages/TenantsPage'
+import { AuditPage } from './pages/AuditPage'
 import { UsersPage } from './pages/UsersPage'
 
 function Shell() {
@@ -39,7 +40,7 @@ function Shell() {
   }
   if (!session) return <LoginPage />
 
-  const screens: Screen[] = [...(tenant.tenantId ? (['definitions', 'instances', 'tasks', 'webhooks'] as const) : []), ...(isOperator(session) ? (['tenants'] as const) : []), ...(canManageUsers(session) ? (['users'] as const) : [])]
+  const screens: Screen[] = [...(tenant.tenantId ? (['definitions', 'instances', 'tasks', 'webhooks'] as const) : []), ...(isOperator(session) ? (['tenants'] as const) : []), ...(canManageUsers(session) ? (['users', 'audit'] as const) : [])]
   const currentTenant = tenant.tenantId
   const screen = chosen && screens.includes(chosen) ? chosen : screens[0]
 
@@ -70,6 +71,7 @@ function Shell() {
       {screen === 'webhooks' && tenant.api && tenant.tenantId && <WebhooksPage key={tenant.tenantId} api={tenant.api} tenantId={tenant.tenantId} />}
       {screen === 'tenants' && <TenantsPage api={api} />}
       {screen === 'users' && <UsersPage api={api} session={session} />}
+      {screen === 'audit' && <AuditPage api={api} session={session} />}
       {screen === undefined && <Typography color="text.secondary">Your account has no roles yet. Ask an operator to give you access.</Typography>}
     </AppShell>
   )

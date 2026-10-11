@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 import type { AdminApi, TenantApi } from '../api/client'
-import type { ApiKey, DefinitionSummary, InstanceSummary, Membership, UserTask, Webhook, SessionInfo, Tenant, User, UserWithMemberships } from '../api/types'
+import type { ApiKey, AuditEntry, DefinitionSummary, InstanceSummary, Membership, UserTask, Webhook, SessionInfo, Tenant, User, UserWithMemberships } from '../api/types'
 
 export function makeTenant(overrides: Partial<Tenant> = {}): Tenant {
   return {
@@ -63,6 +63,7 @@ export function makeFakeApi(overrides: Partial<AdminApi> = {}): { [K in keyof Ad
     listKeys: vi.fn().mockResolvedValue([]),
     createKey: vi.fn().mockResolvedValue({ key: makeKey(), plaintext: 'plain-secret-key' }),
     revokeKey: vi.fn().mockResolvedValue(undefined),
+    listAudit: vi.fn().mockResolvedValue({ entries: [], total: 0, page: 0, pageSize: 20 }),
     listUsers: vi.fn().mockResolvedValue([]),
     createUser: vi.fn().mockResolvedValue({ user: makeUser(), invite: { token: 't', path: '/console/invite/t', expiresAt: '2026-02-01T00:00:00.000Z' } }),
     setUserStatus: vi.fn().mockResolvedValue(undefined),
@@ -132,4 +133,17 @@ export function makeTask(overrides: Partial<UserTask> = {}): UserTask {
 
 export function makeWebhook(overrides: Partial<Webhook> = {}): Webhook {
   return { id: 'hook-1', url: 'https://example.com/hook', events: [], createdAt: '2026-01-06T00:00:00.000Z', ...overrides }
+}
+
+export function makeAuditEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
+  return {
+    id: 'a1',
+    at: '2026-03-01T12:00:00.000Z',
+    actor: { kind: 'user', id: 'op', label: 'op@example.com' },
+    action: 'tenant.suspend',
+    tenantIds: ['acme'],
+    target: 'acme',
+    details: {},
+    ...overrides,
+  }
 }

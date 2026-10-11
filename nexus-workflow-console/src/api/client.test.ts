@@ -160,6 +160,25 @@ describe('createAdminApi', () => {
     })
   })
 
+  describe('audit log', () => {
+    it('asks for a page with the filters that are set, and leaves the others out', async () => {
+      fetchMock.mockImplementation(async () => jsonResponse({ entries: [], total: 0, page: 2, pageSize: 50 }))
+
+      await api().listAudit({ page: 2, pageSize: 50, tenant: 'acme', action: 'key', from: '2026-03-01T00:00:00.000Z' })
+
+      const url = new URL(lastCall().url, 'http://localhost')
+      expect(url.pathname).toBe('/audit')
+      expect(Object.fromEntries(url.searchParams)).toEqual({ page: '2', pageSize: '50', tenant: 'acme', action: 'key', from: '2026-03-01T00:00:00.000Z' })
+    })
+
+    it('returns the page as the server sent it', async () => {
+      const entry = { id: 'e1', at: 'x', actor: { kind: 'user', id: 'u', label: 'a@b.c' }, action: 'login.success', tenantIds: [], target: null, details: {} }
+      fetchMock.mockImplementation(async () => jsonResponse({ entries: [entry], total: 1, page: 0, pageSize: 20 }))
+
+      expect(await api().listAudit({ page: 0, pageSize: 20 })).toEqual({ entries: [entry], total: 1, page: 0, pageSize: 20 })
+    })
+  })
+
   describe('people and sessions', () => {
     const body = () => JSON.parse(lastCall().init.body as string)
 

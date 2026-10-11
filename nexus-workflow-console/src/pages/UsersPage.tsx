@@ -104,7 +104,7 @@ export function UsersPage({ api, session }: { api: AdminApi; session: Session })
 
   return (
     <Box>
-      <PageHeader title="Users" group="People">
+      <PageHeader title="Users" group="Administration">
         <Tooltip title="Refresh">
           <IconButton aria-label="Refresh" onClick={() => void load()}>
             <RefreshRoundedIcon />
