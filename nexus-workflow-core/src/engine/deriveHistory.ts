@@ -25,6 +25,8 @@ export interface DeriveHistoryOptions {
  *    boundary event interrupted it, a sibling branch ended it).
  *  - `error`: an error was thrown by the token (the events of the cycle say so), whatever became of it.
  *
+ * A step a person forced (the cycle's events include a `StepForced` for its token) carries who, why and how.
+ *
  * `startedAt` is when the token arrived at the element, `completedAt` when it left. An element the
  * instance passes through within one cycle therefore takes no time.
  *
@@ -48,6 +50,13 @@ export function deriveHistory(
     (oldState?.tokens ?? []).filter((t) => t.status === 'completed' || t.status === 'cancelled').map((t) => t.id),
   )
   const threwError = new Set(events.flatMap((e) => (e.type === 'ErrorThrown' ? [e.tokenId] : [])))
+  // Steps a person pushed along by hand: the app adds a StepForced event for each to the cycle's events
+  const forcedBy = new Map<string, NonNullable<HistoryEntry['forced']>>()
+  for (const e of events) {
+    if (e.type === 'StepForced') {
+      forcedBy.set(e.tokenId, { action: e.action, by: e.forcedBy, reason: e.reason, ...(e.onBehalfOf ? { onBehalfOf: e.onBehalfOf } : {}) })
+    }
+  }
   const scopes = new Map(newState.scopes.map((s) => [s.id, s]))
 
   /** The variables the token can see, innermost scope winning; undefined if there are none or too many. */
@@ -72,6 +81,7 @@ export function deriveHistory(
 
     const status: HistoryEntry['status'] = threwError.has(token.id) ? 'error' : token.status
     const snapshot = snapshotFor(token.scopeId)
+    const forced = forcedBy.get(token.id)
     const entry: HistoryEntry = {
       id: token.id,
       instanceId,
@@ -82,6 +92,7 @@ export function deriveHistory(
       startedAt: token.createdAt,
       completedAt: token.updatedAt,
       ...(snapshot ? { variablesSnapshot: snapshot } : {}),
+      ...(forced ? { forced } : {}),
     }
 
     entries.push(entry)

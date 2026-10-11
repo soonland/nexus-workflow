@@ -17,6 +17,7 @@ import { UserAdmin } from './auth/UserAdmin.js'
 import { InviteStore } from './db/InviteStore.js'
 import { createAuthRouter } from './http/auth.js'
 import { createAuditRouter } from './http/audit.js'
+import { createForceRouter } from './http/force.js'
 import { createUsersRouter } from './http/users.js'
 import { mountConsole } from './http/console.js'
 import { createTenantsRouter } from './http/tenants.js'
@@ -199,6 +200,7 @@ app.use('*', async (c, next) => {
 app.get('/health', (c) => c.json({ status: 'ok' }))
 app.route('/definitions', createDefinitionsRouter(storeFactory))
 app.route('/', createInstancesRouter(storeFactory, eventBusFor))
+app.route('/', createForceRouter(storeFactory, eventBusFor, auditLog))
 app.route('/', createTasksRouter(storeFactory, eventBusFor))
 app.route('/', createAdminRouter(storeFactory, eventBusFor))
 app.route('/', createEventsRouter(storeFactory, eventBusFor))

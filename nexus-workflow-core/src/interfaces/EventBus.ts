@@ -2,6 +2,9 @@ import type { BpmnElementType, WaitCondition } from '../model/types.js'
 
 // ─── Execution Events ─────────────────────────────────────────────────────────
 
+/** The ways a person can push a stuck step along (see the `StepForced` event). */
+export type ForcedAction = 'completeServiceTask' | 'failServiceTask' | 'fireTimer' | 'completeUserTask'
+
 export type ExecutionEvent =
   | { type: 'ProcessInstanceStarted'; instanceId: string; definitionId: string; definitionVersion: number }
   | { type: 'ProcessInstanceCompleted'; instanceId: string; durationMs: number }
@@ -36,6 +39,8 @@ export type ExecutionEvent =
   | { type: 'SubProcessStarted'; instanceId: string; tokenId: string; elementId: string }
   | { type: 'SubProcessCompleted'; instanceId: string; tokenId: string; elementId: string }
   | { type: 'TransactionCancelled'; instanceId: string; tokenId: string; elementId: string; compensatedActivities: string[] }
+  /** A person pushed a stuck step along by hand, with the reason they gave. Written by the app, not the engine. */
+  | { type: 'StepForced'; instanceId: string; tokenId: string; elementId: string; action: ForcedAction; forcedBy: string; reason: string; onBehalfOf?: string }
 
 export type ExecutionEventType = ExecutionEvent['type']
 
