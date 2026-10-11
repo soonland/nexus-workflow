@@ -74,6 +74,19 @@ describe('createSafeFetch', () => {
     expect(await send(`http://127.0.0.1:${port}/hook`, init)).toEqual({ ok: false, status: 500 })
   })
 
+  it('enforces a wall-clock deadline on a target that keeps the socket busy', async () => {
+    server.removeAllListeners('request')
+    server.on('request', (_req, res) => {
+      // Never sends a status line, but writes often enough that an idle timeout would not fire.
+      const timer = setInterval(() => res.socket?.write(' '), 20)
+      res.on('close', () => clearInterval(timer))
+    })
+    const send = createSafeFetch({ policy: loopbackAllowed, timeoutMs: 150 })
+    const started = Date.now()
+    await expect(send(`http://127.0.0.1:${port}/hook`, init)).rejects.toThrow()
+    expect(Date.now() - started).toBeLessThan(2000)
+  })
+
   it('gives up when the target does not answer in time', async () => {
     respond = () => undefined
     const send = createSafeFetch({ policy: loopbackAllowed, timeoutMs: 100 })

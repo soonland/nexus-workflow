@@ -79,21 +79,58 @@ function family(address: string): 'ipv4' | 'ipv6' {
   return isIP(address) === 4 ? 'ipv4' : 'ipv6'
 }
 
-function parseAllowed(entries: string[]): { addresses: BlockList; hosts: Set<string> } {
+interface ParsedAllowList {
+  addresses: BlockList
+  hosts: Set<string>
+}
+
+const parsedAllowLists = new WeakMap<string[], ParsedAllowList>()
+
+/** Throws a message naming the first entry that is neither a host name, an address nor a valid CIDR range. */
+function buildAllowList(entries: string[]): ParsedAllowList {
   const addresses = new BlockList()
   const hosts = new Set<string>()
   for (const raw of entries) {
     const entry = raw.trim().toLowerCase()
     if (!entry) continue
-    const [base, bits] = entry.split('/')
+    const [base, bits, ...extra] = entry.split('/')
     if (base && isIP(base)) {
-      if (bits === undefined) addresses.addAddress(base, family(base))
-      else addresses.addSubnet(base, Number(bits), family(base))
+      const kind = family(base)
+      if (extra.length > 0) throw new Error(`"${raw}" is not a valid CIDR range`)
+      if (bits === undefined) {
+        addresses.addAddress(base, kind)
+      } else {
+        const max = kind === 'ipv4' ? 32 : 128
+        if (!/^\d{1,3}$/.test(bits) || Number(bits) > max) throw new Error(`"${raw}" is not a valid CIDR range`)
+        addresses.addSubnet(base, Number(bits), kind)
+      }
+    } else if (entry.includes('/') || !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(entry)) {
+      throw new Error(`"${raw}" is not a host name, address or CIDR range`)
     } else {
       hosts.add(entry)
     }
   }
   return { addresses, hosts }
+}
+
+/** Parsed once per list, so a request does not rebuild it for every address it checks. */
+function parseAllowed(entries: string[]): ParsedAllowList {
+  let parsed = parsedAllowLists.get(entries)
+  if (!parsed) {
+    parsed = buildAllowList(entries)
+    parsedAllowLists.set(entries, parsed)
+  }
+  return parsed
+}
+
+/** Returns what is wrong with an allow-list, or undefined when every entry is usable. */
+export function describeAllowListProblem(entries: string[]): string | undefined {
+  try {
+    buildAllowList(entries)
+    return undefined
+  } catch (err) {
+    return (err as Error).message
+  }
 }
 
 /** True when a connection to `address` is refused by the policy. */

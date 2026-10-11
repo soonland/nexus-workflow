@@ -1,7 +1,7 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { normalizeOrigin } from './auth/origin.js'
-import { parseAllowedHostsEnv } from './webhooks/urlPolicy.js'
+import { describeAllowListProblem, parseAllowedHostsEnv } from './webhooks/urlPolicy.js'
 
 const nodeEnv = process.env['NODE_ENV'] ?? 'development'
 
@@ -82,6 +82,12 @@ export function assertConfigValid(cfg: typeof config) {
 
   if (Number.isNaN(cfg.trustedProxies)) {
     console.error('[config] TRUST_PROXY must be true, false or the number of proxies in front of this server. Exiting.')
+    process.exit(1)
+  }
+
+  const allowListProblem = describeAllowListProblem(cfg.webhookAllowedHosts)
+  if (allowListProblem) {
+    console.error(`[config] WEBHOOK_ALLOWED_HOSTS: ${allowListProblem}. Exiting.`)
     process.exit(1)
   }
 

@@ -20,7 +20,7 @@ export type WebhookFetch = (url: string, init: WebhookRequest) => Promise<Webhoo
 export interface SafeFetchOptions {
   policy: WebhookUrlPolicy
   resolver?: HostResolver
-  /** Total time allowed for connecting and receiving the response status. Default: 10 s. */
+  /** Wall-clock limit for connecting and receiving the response status, per address tried. Default: 10 s. */
   timeoutMs?: number
 }
 
@@ -34,6 +34,8 @@ function send(
     const secure = url.protocol === 'https:'
     const hostname = url.hostname.replace(/^\[|\]$/g, '')
     let connected = false
+    // `timeout` below only covers an idle socket; this is the wall-clock limit on the whole attempt.
+    const deadline = setTimeout(() => req.destroy(new Error(`timed out after ${timeoutMs} ms`)), timeoutMs)
     const req = (secure ? httpsRequest : httpRequest)(
       {
         // Connect to the address that was validated, not to whatever the name resolves to now.
@@ -43,12 +45,14 @@ function send(
         method: init.method,
         headers: { ...init.headers, Host: url.host, 'Content-Length': Buffer.byteLength(init.body) },
         ...(secure && !isIP(hostname) ? { servername: hostname } : {}),
-        timeout: timeoutMs,
+        // No shared keep-alive agent: every delivery gets its own socket, so 'connected' below is reliable.
+        agent: false,
       },
       (res) => {
         const status = res.statusCode ?? 0
         // Redirects are not followed: a 3xx is a failed delivery, and the body is not read.
         res.destroy()
+        clearTimeout(deadline)
         resolve({ ok: status >= 200 && status < 300, status, connected: true })
       },
     )
@@ -57,8 +61,10 @@ function send(
         connected = true
       })
     })
-    req.on('timeout', () => req.destroy(new Error(`timed out after ${timeoutMs} ms`)))
-    req.on('error', (err) => reject(Object.assign(err, { connected })))
+    req.on('error', (err) => {
+      clearTimeout(deadline)
+      reject(Object.assign(err, { connected }))
+    })
     req.end(init.body)
   })
 }
