@@ -130,6 +130,20 @@ describe('POST /instances/:id/force', () => {
     expect(step).toMatchObject({ error: expect.stringContaining('Gave up waiting for the provider') })
   })
 
+  it('pushes a service task along after its failure suspended the instance: it resumes and finishes', async () => {
+    const { instanceId, tokenId } = await start('service-proc')
+    // what the worker does when no handler is registered for the task type
+    await force(instanceId, { action: 'failServiceTask', tokenId, reason: 'no handler', error: { code: 'HANDLER_NOT_FOUND', message: 'No handler registered' } })
+    expect((await store.getInstance(instanceId))!.status).toBe('suspended')
+
+    const res = await force(instanceId, { action: 'completeServiceTask', tokenId, reason: 'sent by hand' })
+
+    expect(res.status).toBe(200)
+    expect(res.body['instance'].status).toBe('completed')
+    const send = (await history(instanceId)).find((e) => e.elementId === 'send' && e.forced?.action === 'completeServiceTask')
+    expect(send?.forced?.reason).toBe('sent by hand')
+  })
+
   it('fires a timer now', async () => {
     const { instanceId, tokenId } = await start('timer-proc')
 
