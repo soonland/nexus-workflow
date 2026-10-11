@@ -6,6 +6,7 @@ import { runMigrations } from '../db/migrate.js'
 import { OperatorKeyStore } from '../db/OperatorKeyStore.js'
 import { SessionStore } from '../db/SessionStore.js'
 import { TenantStore } from '../db/TenantStore.js'
+import { dropTenantSchema } from '../db/tenantProvisioner.js'
 import { UserStore } from '../db/UserStore.js'
 import { createAuthMiddleware, type AppVariables } from './middleware/auth.js'
 import { createOperatorGuard, createOperatorKeyAdminGuard, createPeopleAdminGuard } from './middleware/operator.js'
@@ -69,6 +70,9 @@ describe('operator keys (Postgres, real guards)', () => {
   })
 
   afterAll(async () => {
+    // whatever the tests provisioned must not outlive them (the tests run against the development database)
+    const left = await sql<Array<{ id: string }>>`SELECT id FROM public.tenants WHERE id LIKE ${prefix + '%'}`
+    for (const { id: tenantId } of left) await dropTenantSchema(tenantId, sql)
     await sql`DELETE FROM public.audit_log WHERE details::text LIKE ${'%' + prefix + '%'} OR actor_label LIKE ${prefix + '%'}`
     await sql`DELETE FROM public.operator_keys WHERE name LIKE ${prefix + '%'}`
     await sql`DELETE FROM public.api_keys WHERE tenant_id LIKE ${prefix + '%'}`
@@ -251,6 +255,8 @@ describe('operator keys (Postgres, real guards)', () => {
       // and the database accepts that kind of actor
       const [row] = await sql`SELECT actor_kind, actor_id FROM public.audit_log WHERE action = 'tenant.create' AND target = ${prefix + '_x'}`
       expect(row).toMatchObject({ actor_kind: 'operatorKey', actor_id: key['id'] })
+      // the tenant was provisioned (a schema was created): drop it, not just its registry row
+      await dropTenantSchema(`${prefix}_x`, sql)
       await sql`DELETE FROM public.tenants WHERE id = ${prefix + '_x'}`
     })
   })
