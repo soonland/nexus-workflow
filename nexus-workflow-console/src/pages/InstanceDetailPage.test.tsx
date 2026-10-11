@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../api/client'
-import type { InstanceEvent, InstanceView } from '../api/types'
+import type { HistoryEntry, InstanceEvent, InstanceView } from '../api/types'
 import { makeFakeTenantApi, makeInstance } from '../test/fakeApi'
 import { InstanceDetailPage } from './InstanceDetailPage'
 
@@ -37,8 +37,9 @@ const events: InstanceEvent[] = [
   event('e5', 'TokenMoved', { fromElementId: 'notify', toElementId: 'review' }),
 ]
 
-function setup(data = view(), log = events) {
+function setup(data = view(), log = events, steps: HistoryEntry[] = []) {
   const api = makeFakeTenantApi()
+  api.getInstanceHistory.mockResolvedValue(steps)
   api.getInstance.mockResolvedValue(data)
   api.getInstanceEvents.mockResolvedValue(log)
   api.getDefinitionXml.mockResolvedValue('<bpmn/>')
@@ -154,5 +155,92 @@ describe('InstanceDetailPage', () => {
     await user.click(screen.getByRole('button', { name: /back to instances/i }))
 
     expect(onBack).toHaveBeenCalled()
+  })
+
+  describe('with step history', () => {
+    const step = (overrides: Partial<HistoryEntry> & Pick<HistoryEntry, 'elementId'>): HistoryEntry => ({
+      id: `s-${overrides.elementId}`,
+      elementType: 'serviceTask',
+      status: 'completed',
+      startedAt: '2026-01-04T00:00:00.000Z',
+      completedAt: '2026-01-04T00:00:02.500Z',
+      ...overrides,
+    })
+    const steps: HistoryEntry[] = [
+      step({ elementId: 'start', elementType: 'startEvent', completedAt: '2026-01-04T00:00:00.000Z' }),
+      step({ elementId: 'check', variablesSnapshot: { amount: { type: 'number', value: 120 } } }),
+      step({ elementId: 'notify', status: 'error', startedAt: '2026-01-04T00:01:00.000Z', completedAt: '2026-01-04T00:03:05.000Z' }),
+    ]
+    const row = (element: string) => screen.getAllByText(element).find((node) => node.closest('tr'))!.closest('tr')!
+
+    it('lists each step with how it went and how long it took', async () => {
+      setup(view(), events, steps)
+      await screen.findByText('order-17')
+
+      expect(within(row('check')).getByText('completed')).toBeInTheDocument()
+      expect(within(row('check')).getByText('2.5 s')).toBeInTheDocument()
+      expect(within(row('start')).getByText('0 ms')).toBeInTheDocument()
+      expect(within(row('notify')).getByText('error')).toBeInTheDocument()
+      expect(within(row('notify')).getByText('2 min 5 s')).toBeInTheDocument()
+    })
+
+    it('marks the diagram from the steps', async () => {
+      setup(view(), events, steps)
+
+      await screen.findByTestId('diagram')
+
+      expect(screen.getByTestId('active')).toHaveTextContent('review')
+      expect(screen.getByTestId('done')).toHaveTextContent('start,check')
+      expect(screen.getByTestId('failed')).toHaveTextContent('notify')
+    })
+
+    it('shows the variables as they were at a step, on request', async () => {
+      const { user } = setup(view(), events, steps)
+      await screen.findByText('order-17')
+      expect(screen.queryByRole('table', { name: 'Variables at check' })).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Show the variables at check' }))
+
+      const table = await screen.findByRole('table', { name: 'Variables at check' })
+      expect(within(table).getByText('amount')).toBeInTheDocument()
+      expect(within(table).getByText('120')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Hide the variables at check' }))
+      await waitFor(() => expect(screen.queryByRole('table', { name: 'Variables at check' })).not.toBeInTheDocument())
+    })
+
+    it('offers no variables button for a step that has no snapshot', async () => {
+      setup(view(), events, steps)
+      await screen.findByText('order-17')
+
+      expect(screen.queryByRole('button', { name: /variables at start/i })).not.toBeInTheDocument()
+    })
+
+    it('keeps the event log available, under the steps', async () => {
+      const { user } = setup(view(), events, steps)
+      await screen.findByText('order-17')
+
+      await user.click(screen.getByRole('button', { name: /event log \(5\)/i }))
+
+      expect(await screen.findByText('Service task failed: smtp down')).toBeInTheDocument()
+    })
+
+    it('uses the event log alone for an instance that has no steps', async () => {
+      setup(view(), events, [])
+
+      expect(await screen.findByText('Service task failed: smtp down')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /event log/i })).not.toBeInTheDocument()
+      expect(screen.getByTestId('done')).toHaveTextContent('start,check') // marked from the events
+    })
+
+    it('still works from the event log when the steps cannot be read', async () => {
+      const api = makeFakeTenantApi()
+      api.getInstance.mockResolvedValue(view())
+      api.getInstanceEvents.mockResolvedValue(events)
+      api.getInstanceHistory.mockRejectedValue(new ApiError(500, 'Boom', 'INTERNAL'))
+      render(<InstanceDetailPage api={api} instanceId="aaaaaaaa-1111" onBack={() => undefined} />)
+
+      expect(await screen.findByText('Service task failed: smtp down')).toBeInTheDocument()
+      expect(screen.queryByText('Boom')).not.toBeInTheDocument()
+    })
   })
 })

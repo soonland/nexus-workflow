@@ -158,6 +158,19 @@ export interface InstanceToken {
   status: string
 }
 
+/** One finished step of an instance: when it arrived at an element, when it left, and how it went. */
+export interface HistoryEntry {
+  id: string
+  elementId: string
+  elementType: string
+  /** `cancelled` covers steps that were interrupted (an instance cancelled, a boundary event fired). */
+  status: 'completed' | 'cancelled' | 'error'
+  startedAt: string
+  completedAt: string
+  /** The variables as they stood when the step finished; left out for very large ones. */
+  variablesSnapshot?: Record<string, { type: string; value: unknown }>
+}
+
 /** One entry of an instance's audit trail, as the engine logged it. */
 export interface InstanceEvent {
   id: string

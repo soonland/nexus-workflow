@@ -1,4 +1,4 @@
-import type { InstanceEvent, InstanceToken } from './api/types'
+import type { HistoryEntry, InstanceEvent, InstanceToken } from './api/types'
 
 const text = (value: unknown): string | undefined => (typeof value === 'string' && value !== '' ? value : undefined)
 
@@ -79,6 +79,18 @@ export function progressMarks(events: InstanceEvent[], tokens: InstanceToken[]):
   return {
     activeIds,
     doneIds: [...left].filter((id) => !activeIds.includes(id) && !failed.has(id)),
+    errorIds: [...failed],
+  }
+}
+
+/** What to mark on the diagram, from the steps the instance has finished (when it has step history). */
+export function historyMarks(entries: HistoryEntry[], tokens: InstanceToken[]): Progress {
+  const activeIds = [...new Set(tokens.map((t) => t.elementId))]
+  const failed = new Set(entries.filter((e) => e.status !== 'completed').map((e) => e.elementId))
+  const passed = new Set(entries.filter((e) => e.status === 'completed').map((e) => e.elementId))
+  return {
+    activeIds,
+    doneIds: [...passed].filter((id) => !activeIds.includes(id) && !failed.has(id)),
     errorIds: [...failed],
   }
 }

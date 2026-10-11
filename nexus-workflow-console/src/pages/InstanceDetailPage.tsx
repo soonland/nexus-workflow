@@ -1,9 +1,14 @@
-import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Component, Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
+  Chip,
   CircularProgress,
+  Collapse,
   IconButton,
   Stack,
   Table,
@@ -15,14 +20,17 @@ import {
   Typography,
 } from '@mui/material'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded'
+import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded'
+import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import type { TenantApi } from '../api/client'
-import type { InstanceEvent, InstanceView } from '../api/types'
-import { describeEvent, progressMarks } from '../instanceEvents'
+import type { HistoryEntry, InstanceEvent, InstanceView } from '../api/types'
+import { describeEvent, historyMarks, progressMarks } from '../instanceEvents'
 import { InstanceStatusChip } from '../components/InstanceStatusChip'
 import { MARK_COLORS } from '../components/diagramMarks'
 import { PageHeader } from '../components/PageHeader'
-import { formatDate } from '../format'
+import { formatDate, formatDuration } from '../format'
 
 // Loaded on demand: the diagram library is large and only this page needs it
 const BpmnDiagram = lazy(() => import('../components/BpmnDiagram'))
@@ -38,18 +46,53 @@ class DiagramBoundary extends Component<{ children: ReactNode; fallback: ReactNo
   }
 }
 
+/** The event log as a table: what happened, when, and at which element. */
+function EventsTable({ events }: { events: InstanceEvent[] }) {
+  return (
+    <Table>
+      <TableHead>
+        <TableRow>
+          <TableCell>Time</TableCell>
+          <TableCell>What happened</TableCell>
+          <TableCell>Element</TableCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {events.map((event) => {
+          const { summary, elementId } = describeEvent(event)
+          return (
+            <TableRow key={event.id}>
+              <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(event.occurredAt)}</TableCell>
+              <TableCell>{summary}</TableCell>
+              <TableCell sx={{ fontFamily: 'monospace' }}>{elementId ?? ''}</TableCell>
+            </TableRow>
+          )
+        })}
+      </TableBody>
+    </Table>
+  )
+}
+
 export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi; instanceId: string; onBack(): void }) {
   const [view, setView] = useState<InstanceView | null>(null)
   const [events, setEvents] = useState<InstanceEvent[] | null>(null)
+  const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [openStep, setOpenStep] = useState<string | null>(null)
   const [xml, setXml] = useState<string | null | 'unavailable'>(null)
   const [error, setError] = useState<string | null>(null)
   const [diagramError, setDiagramError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const [loaded, log] = await Promise.all([api.getInstance(instanceId), api.getInstanceEvents(instanceId)])
+      const [loaded, log, steps] = await Promise.all([
+        api.getInstance(instanceId),
+        api.getInstanceEvents(instanceId),
+        // Step history is the richer record, but the page works from the event log without it
+        api.getInstanceHistory(instanceId).catch((): HistoryEntry[] => []),
+      ])
       setView(loaded)
       setEvents(log)
+      setHistory(steps)
       setError(null)
       // Try the diagram again after an earlier failure. The drawing that is showing stays until the
       // XML arrives (and is not redrawn if it is the same), so a refresh keeps the reader's zoom.
@@ -72,7 +115,11 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
   const onDiagramError = useCallback((message: string) => setDiagramError(message), [])
 
   // What to mark on the diagram: where the instance is, where it has been, where it went wrong
-  const marks = useMemo(() => progressMarks(events ?? [], view?.tokens ?? []), [view, events])
+  // Instances that predate step history have none: they are marked from the event log instead
+  const marks = useMemo(
+    () => (history.length > 0 ? historyMarks(history, view?.tokens ?? []) : progressMarks(events ?? [], view?.tokens ?? [])),
+    [view, events, history],
+  )
 
   const short = instanceId.slice(0, 8)
   const instance = view?.instance
@@ -206,32 +253,100 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
             <Typography variant="subtitle2" gutterBottom>
               History
             </Typography>
-            {(events ?? []).length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                Nothing has been recorded yet.
-              </Typography>
+            {history.length > 0 ? (
+              <>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell padding="checkbox" />
+                      <TableCell>Started</TableCell>
+                      <TableCell>Step</TableCell>
+                      <TableCell>Result</TableCell>
+                      <TableCell align="right">Took</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {history.map((step) => {
+                      const variables = Object.entries(step.variablesSnapshot ?? {})
+                      const open = openStep === step.id
+                      return (
+                        <Fragment key={step.id}>
+                          <TableRow hover>
+                            <TableCell padding="checkbox">
+                              {variables.length > 0 && (
+                                <IconButton
+                                  size="small"
+                                  aria-label={`${open ? 'Hide' : 'Show'} the variables at ${step.elementId}`}
+                                  aria-expanded={open}
+                                  onClick={() => setOpenStep(open ? null : step.id)}
+                                >
+                                  {open ? <KeyboardArrowDownRoundedIcon fontSize="small" /> : <KeyboardArrowRightRoundedIcon fontSize="small" />}
+                                </IconButton>
+                              )}
+                            </TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(step.startedAt)}</TableCell>
+                            <TableCell>
+                              <Typography component="span" variant="body2" sx={{ fontFamily: 'monospace' }}>
+                                {step.elementId}
+                              </Typography>{' '}
+                              <Typography component="span" variant="caption" color="text.secondary">
+                                {step.elementType}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                size="small"
+                                label={step.status}
+                                color={step.status === 'completed' ? 'success' : step.status === 'error' ? 'error' : 'warning'}
+                                variant="outlined"
+                              />
+                            </TableCell>
+                            <TableCell align="right">{formatDuration(new Date(step.completedAt).getTime() - new Date(step.startedAt).getTime())}</TableCell>
+                          </TableRow>
+                          {variables.length > 0 && (
+                            <TableRow>
+                              <TableCell colSpan={5} sx={{ py: 0, borderBottom: open ? undefined : 0 }}>
+                                <Collapse in={open} unmountOnExit>
+                                  <Table aria-label={`Variables at ${step.elementId}`}>
+                                    <TableBody>
+                                      {variables.map(([name, variable]) => (
+                                        <TableRow key={name}>
+                                          <TableCell sx={{ fontFamily: 'monospace', width: '30%' }}>{name}</TableCell>
+                                          <TableCell sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{JSON.stringify(variable.value)}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </Collapse>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </Fragment>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+                {(events ?? []).length > 0 && (
+                  <Accordion disableGutters variant="outlined" sx={{ mt: 1.5 }}>
+                    <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+                      <Typography variant="body2">Event log ({(events ?? []).length})</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <EventsTable events={events ?? []} />
+                    </AccordionDetails>
+                  </Accordion>
+                )}
+              </>
             ) : (
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Time</TableCell>
-                    <TableCell>What happened</TableCell>
-                    <TableCell>Element</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {(events ?? []).map((event) => {
-                    const { summary, elementId } = describeEvent(event)
-                    return (
-                      <TableRow key={event.id}>
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(event.occurredAt)}</TableCell>
-                        <TableCell>{summary}</TableCell>
-                        <TableCell sx={{ fontFamily: 'monospace' }}>{elementId ?? ''}</TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+              <>
+            {(events ?? []).length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  Nothing has been recorded yet.
+                </Typography>
+              ) : (
+                <EventsTable events={events ?? []} />
+              )}
+              </>
             )}
           </Box>
         </Stack>

@@ -298,6 +298,10 @@ describe('createAdminApi', () => {
       expect((await tenant.getInstance('i 1')).variables).toEqual({ a: 1 })
       expect(lastCall().url).toBe('/instances/i%201')
 
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ history: [{ id: 's1' }] }))
+      expect(await tenant.getInstanceHistory('i1')).toEqual([{ id: 's1' }])
+      expect(lastCall().url).toBe('/instances/i1/history')
+
       fetchMock.mockImplementationOnce(async () => jsonResponse({ events: [{ id: 'e1' }] }))
       expect(await tenant.getInstanceEvents('i1')).toEqual([{ id: 'e1' }])
       expect(lastCall().url).toBe('/instances/i1/events')
