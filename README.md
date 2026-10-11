@@ -205,7 +205,7 @@ Every request is made by one of these, and what it may do follows from that:
 
 | Caller | Credential | Platform admin (`/tenants`) | A tenant's own data (definitions, instances, tasks, webhooks, ...) |
 |---|---|---|---|
-| **Operator** | signed-in user with the `operator` role, or the admin key | yes | **no**: running the platform is not reading its customers' workflows |
+| **Operator** | signed-in user with the `operator` role, an **operator key**, or the admin key | yes | **no**: running the platform is not reading its customers' workflows |
 | **Tenant manager** | signed-in user with the `tenant_manager` role for that tenant | no | yes, for the tenants they manage only |
 | **Tenant API key** | `Authorization: Bearer <key>` | no | yes, for the key's own tenant, **as far as its role allows** (below) |
 | Anonymous | none | no | no |
@@ -214,6 +214,16 @@ Every request is made by one of these, and what it may do follows from that:
 - **Status codes:** `401` means "no valid credential, sign in"; `403` means "your credential is valid but not allowed". A suspended or deleting tenant rejects its managers with `403` and its keys with `401`.
 - **Cookies and CSRF:** state-changing requests made with a session cookie need the `X-Nexus-Console: 1` header (and a matching `Origin`), on these routes as well as on `/auth`. Bearer credentials need neither. If both are sent, the Bearer credential wins.
 - To look inside a tenant, an operator needs a membership or a key for it; this is deliberate.
+
+#### Operator keys
+
+Programs that administer the platform (create tenants and keys, manage people, read the audit log) use a named, revocable **operator key** instead of the shared `ADMIN_API_KEY`.
+
+- A key looks like `nxop_...`, is shown **once** when it is created, and only its hash is stored. It can have an **expiry date**; an expired key is refused like a revoked one.
+- It reaches what an operator reaches (`/tenants`, `/users`, `/audit`, ...) and, like an operator, **never a tenant's own data** (an operator key sent to a tenant route is a 401). It is kept in its own table (`operator_keys`), so it can never be looked up as a tenant key.
+- **Managing them:** `GET /operator-keys`, `POST /operator-keys` `{ name, expiresAt? }`, `DELETE /operator-keys/:id`, or the *Operator keys* screen in the console. This is for **signed-in operators and the admin key only: an operator key cannot create, list or revoke keys** (it could otherwise make itself a replacement and outlive being revoked).
+- Everything a key does is in the audit log under its own name (actor kind `operatorKey`), and creating and revoking keys is logged (`operator-key.create`, `operator-key.revoke`). `GET /auth/me` describes a key (`{ operatorKey: { id, name, createdBy, createdAt, expiresAt }, role: "operator" }`).
+- **`ADMIN_API_KEY` stays as break-glass**, for when nothing else works (and it appears in the audit log as "admin key"). The normal way in is a person signing in, who creates operator keys in the console.
 
 #### Roles of tenant API keys
 
@@ -257,11 +267,12 @@ Administrative actions and sign-ins are written to `public.audit_log`, and read 
 |---|---|
 | Tenants | `tenant.create`, `tenant.suspend`, `tenant.reactivate`, `tenant.rename`, `tenant.delete` |
 | Keys | `key.create` (with its role), `key.role` (from, to), `key.revoke` (the key's id and name, never the key) |
+| Operator keys | `operator-key.create` (name, expiry), `operator-key.revoke` |
 | People | `user.create`, `user.disable`, `user.enable`, `membership.add`, `membership.remove`, `invite.create` (also a password reset), `invite.accept` |
 | Signing in | `login.success`, `login.failure` (with the address and why; attempts the throttle refuses are not logged) |
 | Forced steps | `step.force` (which step, the reason, and for a task on whose behalf; see below) |
 
-Each entry has the actor (a person, the admin key, a tenant key, or "anonymous" for a failed sign-in), the action, the tenants it is about, a target (a tenant, key or person id) and a few facts. Passwords, invite tokens and plaintext keys are never stored: callers pass only plain facts, and anything whose name suggests a secret is removed before writing. An entry is written after the action succeeded; if writing fails it is reported on the console and the action still stands. Entries have no foreign keys, so they outlive the tenant or person they are about.
+Each entry has the actor (a person, the admin key, an operator key, a tenant key, or "anonymous" for a failed sign-in), the action, the tenants it is about, a target (a tenant, key or person id) and a few facts. Passwords, invite tokens and plaintext keys are never stored: callers pass only plain facts, and anything whose name suggests a secret is removed before writing. An entry is written after the action succeeded; if writing fails it is reported on the console and the action still stands. Entries have no foreign keys, so they outlive the tenant or person they are about.
 
 `GET /audit` filters: `tenant`, `actor` (a user id, or a kind such as `adminKey`), `action` (exact, or a family such as `key`), `from`, `to` (ISO dates), `page` (from 0) and `pageSize` (1 to 100, default 50).
 - **Operators** (and the admin key) read everything.

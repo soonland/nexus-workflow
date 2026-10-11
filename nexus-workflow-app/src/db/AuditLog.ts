@@ -6,6 +6,7 @@ import type postgres from 'postgres'
 export type AuditActor =
   | { kind: 'user'; id: string; label: string }
   | { kind: 'adminKey' }
+  | { kind: 'operatorKey'; id: string; label?: string }
   | { kind: 'apiKey'; id?: string; label?: string }
   | { kind: 'anonymous'; label?: string }
 
@@ -103,7 +104,7 @@ export class AuditLog {
   async record(input: AuditInput): Promise<void> {
     try {
       const { actor } = input
-      const actorId = actor.kind === 'user' || actor.kind === 'apiKey' ? (actor.id ?? null) : null
+      const actorId = actor.kind === 'user' || actor.kind === 'apiKey' || actor.kind === 'operatorKey' ? (actor.id ?? null) : null
       const actorLabel = actor.kind === 'adminKey' ? 'admin key' : clip('label' in actor ? actor.label : null)
       await this.sql`
         INSERT INTO public.audit_log (id, actor_kind, actor_id, actor_label, action, tenant_ids, target, details)

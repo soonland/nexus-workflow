@@ -14,6 +14,7 @@ import { createObservabilityRouter } from './http/observability.js'
 import { createWebhooksRouter } from './http/webhooks.js'
 import { isAdminKeyHeader } from './auth/adminKey.js'
 import { AuditLog } from './db/AuditLog.js'
+import { OperatorKeyStore } from './db/OperatorKeyStore.js'
 import { TenantStore } from './db/TenantStore.js'
 import { UserAdmin } from './auth/UserAdmin.js'
 import { InviteStore } from './db/InviteStore.js'
@@ -25,7 +26,8 @@ import { mountConsole } from './http/console.js'
 import { createTenantsRouter } from './http/tenants.js'
 import { createAuthMiddleware, type AppVariables } from './http/middleware/auth.js'
 import { createKeyRoleMiddleware } from './http/middleware/keyRole.js'
-import { createOperatorGuard, createPeopleAdminGuard } from './http/middleware/operator.js'
+import { createOperatorGuard, createOperatorKeyAdminGuard, createPeopleAdminGuard } from './http/middleware/operator.js'
+import { createOperatorKeysRouter } from './http/operatorKeys.js'
 import { PostgresWebhookStore } from './webhooks/WebhookStore.js'
 import { WebhookDispatcher } from './webhooks/WebhookDispatcher.js'
 import { PostgresEventLog } from './db/EventLog.js'
@@ -125,9 +127,12 @@ const sessionStore = new SessionStore(authSql, {
 })
 const inviteStore = new InviteStore(authSql, { hmacSecret: config.apiKeyHmacSecret, ttlMs: config.inviteTtlMs })
 const keyStore = new TenantStore(authSql, config.apiKeyHmacSecret)
+const operatorKeys = new OperatorKeyStore(authSql, config.apiKeyHmacSecret)
 app.route('/auth', createAuthRouter({
   describeBearer: async (token) => {
     if (isAdminKeyHeader(`Bearer ${token}`, config.adminApiKey)) return { kind: 'adminKey' }
+    const operatorKey = await operatorKeys.authenticate(token)
+    if (operatorKey) return { kind: 'operatorKey', key: operatorKey }
     const key = await keyStore.findActiveKey(token)
     return key ? { kind: 'apiKey', key } : null
   },
@@ -159,9 +164,24 @@ app.route('/users', createUsersRouter({
     adminApiKey: config.adminApiKey,
     sessions: sessionStore,
     users: userStore,
+    operatorKeys,
     publicOrigin: config.publicOrigin,
   }),
   publicOrigin: config.publicOrigin,
+}))
+
+// Operator keys: named, revocable credentials for programs that administer the platform. Managed by
+// signed-in operators and the admin key; a key cannot create keys.
+app.route('/operator-keys', createOperatorKeysRouter({
+  keys: operatorKeys,
+  audit: auditLog,
+  guard: createOperatorKeyAdminGuard({
+    adminApiKey: config.adminApiKey,
+    sessions: sessionStore,
+    users: userStore,
+    operatorKeys,
+    publicOrigin: config.publicOrigin,
+  }),
 }))
 
 // The audit log: operators read everything, tenant managers the entries for their own tenants
@@ -171,6 +191,7 @@ app.route('/audit', createAuditRouter({
     adminApiKey: config.adminApiKey,
     sessions: sessionStore,
     users: userStore,
+    operatorKeys,
     publicOrigin: config.publicOrigin,
   }),
 }))
@@ -183,6 +204,7 @@ app.route('/tenants', createTenantsRouter(authSql, config.apiKeyHmacSecret, conf
     adminApiKey: config.adminApiKey,
     sessions: sessionStore,
     users: userStore,
+    operatorKeys,
     publicOrigin: config.publicOrigin,
   }),
   // A suspended or deleted tenant must not keep background workers or connection pools alive

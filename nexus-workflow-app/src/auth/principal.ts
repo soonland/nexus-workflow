@@ -5,11 +5,13 @@ import type { Membership, User } from '../db/UserStore.js'
  *  - `user`: a person with a session; what they may do comes from their memberships.
  *  - `apiKey`: a tenant API key (what programs use); bound to one tenant, with a role.
  *  - `adminKey`: the platform's ADMIN_API_KEY, a break-glass operator credential.
+ *  - `operatorKey`: a named, revocable, database-backed operator credential (never valid for a tenant's own data).
  */
 export type Principal =
   | { kind: 'user'; user: User; memberships: Membership[] }
   | { kind: 'apiKey'; tenantId: string; keyId: string; keyName: string; role: KeyRole }
   | { kind: 'adminKey' }
+  | { kind: 'operatorKey'; keyId: string; keyName: string }
 
 /**
  * What a tenant API key may do (see migration 013):
@@ -21,7 +23,7 @@ export const KEY_ROLES: readonly KeyRole[] = ['service', 'tenant_manager']
 
 /** May administer the platform (tenants, users). Does not by itself open any tenant's data. */
 export function isOperator(principal: Principal): boolean {
-  if (principal.kind === 'adminKey') return true
+  if (principal.kind === 'adminKey' || principal.kind === 'operatorKey') return true
   if (principal.kind === 'user') return principal.memberships.some((m) => m.role === 'operator')
   return false
 }

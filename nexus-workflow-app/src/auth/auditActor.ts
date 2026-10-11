@@ -8,6 +8,8 @@ export function auditActorOf(principal: Principal): AuditActor {
       return { kind: 'user', id: principal.user.id, label: principal.user.email }
     case 'adminKey':
       return { kind: 'adminKey' }
+    case 'operatorKey':
+      return { kind: 'operatorKey', id: principal.keyId, label: principal.keyName }
     case 'apiKey':
       return { kind: 'apiKey', id: principal.keyId, label: `${principal.keyName} (key of ${principal.tenantId})` }
   }
