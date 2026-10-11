@@ -157,7 +157,7 @@ A small web UI for the admin API below: list, create, suspend, reactivate and de
 
 ```bash
 # Start the workflow app with an admin key
-ADMIN_API_KEY=dev-admin-key pnpm --filter nexus-workflow-app dev
+ADMIN_API_KEY=dev-admin-key-change-me pnpm --filter nexus-workflow-app dev
 
 # Development (hot reload): http://localhost:3002/console/
 pnpm --filter nexus-workflow-console dev
@@ -240,7 +240,7 @@ Programs that administer the platform (create tenants and keys, manage people, r
 - **What it may not do to people:** grant the `operator` role (when creating a person or later), or re-issue an operator's invite (which would let whoever holds the link take that account over). Either would turn a key into a person with operator access, who could then create keys, so revoking the key would not end it. A signed-in operator or the admin key does these. It *can* create, invite, disable and offboard the people of tenants, so a provisioning program keeps working.
 - **After a key leaks:** revoke it (effective at once), then review what it did: the audit log filters by actor, and it shows every tenant, tenant key and person it created (`key.create`, `user.create`, ...). Those are separate credentials and are not revoked with it. An operator key by design can create tenant keys and tenant managers, as an operator can (see #460).
 - Everything a key does is in the audit log under its own name (actor kind `operatorKey`), and creating and revoking keys is logged (`operator-key.create`, `operator-key.revoke`). `GET /auth/me` describes a key (`{ operatorKey: { id, name, createdBy, createdAt, expiresAt }, role: "operator" }`).
-- **`ADMIN_API_KEY` stays as break-glass**, for when nothing else works (and it appears in the audit log as "admin key"). The normal way in is a person signing in, who creates operator keys in the console.
+- **`ADMIN_API_KEY` is break-glass, and best left unset in production.** It is one shared secret with full operator power, it never expires, and it cannot be rotated without a restart. Unset, it matches nothing. The way in is `nexus-workflow-app`'s first-operator command (see above), then people signing in and creating operator keys. Set it only to recover (for example when every operator is locked out), then unset it again. When it is set the server says so at startup: a warning in production, another when operator keys also exist, and it refuses to start in production with a key shorter than 16 characters. What it does shows in the audit log as "admin key", and `GET /auth/me` answers `{ adminKey: true, role: "operator" }` for it.
 
 #### Roles of tenant API keys
 

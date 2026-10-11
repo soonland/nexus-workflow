@@ -136,6 +136,15 @@ const sessionStore = new SessionStore(authSql, {
 const inviteStore = new InviteStore(authSql, { hmacSecret: config.apiKeyHmacSecret, ttlMs: config.inviteTtlMs })
 const keyStore = new TenantStore(authSql, config.apiKeyHmacSecret)
 const operatorKeys = new OperatorKeyStore(authSql, config.apiKeyHmacSecret)
+if (config.adminApiKey) {
+  const now = Date.now()
+  const live = (await operatorKeys.list()).filter((k) => !k.revokedAt && (!k.expiresAt || k.expiresAt.getTime() > now))
+  if (live.length > 0) {
+    console.warn(
+      `[config] ADMIN_API_KEY is set although ${live.length} operator key(s) exist. Unset it and keep it for recovery only.`,
+    )
+  }
+}
 app.route('/auth', createAuthRouter({
   describeBearer: async (token) => {
     if (isAdminKeyHeader(`Bearer ${token}`, config.adminApiKey)) return { kind: 'adminKey' }

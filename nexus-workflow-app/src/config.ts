@@ -17,6 +17,9 @@ function parseTrustedProxies(value: string | undefined): number {
   return /^\d+$/.test(value) ? Number(value) : Number.NaN
 }
 
+/** Shortest ADMIN_API_KEY accepted in production. */
+export const ADMIN_API_KEY_MIN_LENGTH = 16
+
 export const config = {
   port: Number(process.env['PORT'] ?? 3000),
   databaseUrl: process.env['DATABASE_URL'] ?? 'postgres://nexus:nexus@localhost:5433/nexus_workflow',
@@ -26,7 +29,10 @@ export const config = {
   shutdownTimeoutMs: Number(process.env['SHUTDOWN_TIMEOUT_MS'] ?? 10_000),
   /** Milliseconds before a request is aborted with 408. Default: 30 s. */
   requestTimeoutMs: Number(process.env['REQUEST_TIMEOUT_MS'] ?? 30_000),
-  /** Bootstrap API key for initial tenant/key setup (dev and first-run). Never used for runtime auth. */
+  /**
+   * Break-glass operator credential. Optional and best left unset in production once operators can
+   * sign in; the normal way in is a person or a named, revocable operator key.
+   */
   adminApiKey: process.env['ADMIN_API_KEY'] ?? '',
   /** HMAC-SHA256 secret used to hash API keys before storing/comparing. Must be set in production. */
   apiKeyHmacSecret: process.env['API_KEY_HMAC_SECRET'] ?? '',
@@ -66,11 +72,24 @@ export const config = {
  * if required values are missing. Call this explicitly in main.ts after importing config.
  */
 export function assertConfigValid(cfg: typeof config) {
-  if (!cfg.adminApiKey && cfg.nodeEnv === 'production') {
-    console.error('[config] ADMIN_API_KEY is required in production. Set it to a secret key (e.g. openssl rand -hex 32). Exiting.')
-    process.exit(1)
-  } else if (!cfg.adminApiKey) {
-    console.warn('[config] ADMIN_API_KEY is not set — bootstrap key unavailable.')
+  // ADMIN_API_KEY is break-glass: one shared secret with full operator power that never expires.
+  // Unset, it matches nothing, which is the intended state of a running production system.
+  if (cfg.adminApiKey) {
+    const production = cfg.nodeEnv === 'production'
+    if (cfg.adminApiKey.length < ADMIN_API_KEY_MIN_LENGTH) {
+      const message = `[config] ADMIN_API_KEY is shorter than ${ADMIN_API_KEY_MIN_LENGTH} characters. Use a random secret (e.g. openssl rand -hex 32).`
+      if (production) {
+        console.error(`${message} Exiting.`)
+        process.exit(1)
+      }
+      console.warn(message)
+    }
+    if (production) {
+      console.warn(
+        '[config] ADMIN_API_KEY is set in production. It is a shared, non-expiring break-glass credential: ' +
+          'once an operator can sign in and create operator keys, unset it, and set it again only to recover.',
+      )
+    }
   }
 
   if (cfg.publicOriginInvalid !== undefined) {
