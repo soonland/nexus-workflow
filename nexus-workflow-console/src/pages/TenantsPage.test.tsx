@@ -315,6 +315,10 @@ describe('TenantsPage', () => {
       expect(screen.getByText(/its secret does not change/i)).toBeInTheDocument()
       expect(api.setKeyRole).not.toHaveBeenCalled()
       await user.click(screen.getByRole('button', { name: 'Save the role of key erp' }))
+      // Save asks first, and nothing is sent until it is confirmed
+      expect(await screen.findByText('Give this key more access?')).toBeInTheDocument()
+      expect(api.setKeyRole).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Raise to tenant manager' }))
 
       await waitFor(() => expect(api.setKeyRole).toHaveBeenCalledWith('acme', 'k1', 'tenant_manager'))
       await waitFor(() => expect(api.listKeys).toHaveBeenCalledTimes(2))
@@ -336,6 +340,25 @@ describe('TenantsPage', () => {
       expect(api.setKeyRole).not.toHaveBeenCalled()
       expect(screen.queryByRole('combobox', { name: 'Role of key erp' })).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Edit key erp' })).toBeInTheDocument()
+    })
+
+    it('backing out of the confirmation keeps the row in edit mode and changes nothing', async () => {
+      const { api, user } = setup()
+      api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'erp', role: 'tenant_manager' })])
+      await screen.findByText('Acme Corp')
+      await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
+      await user.click(await screen.findByRole('button', { name: 'Edit key erp' }))
+      await user.click(screen.getByRole('combobox', { name: 'Role of key erp' }))
+      await user.click(await screen.findByRole('option', { name: 'Service' }))
+
+      await user.click(screen.getByRole('button', { name: 'Save the role of key erp' }))
+      expect(await screen.findByText('Give this key less access?')).toBeInTheDocument()
+      expect(screen.getByText(/the key “erp” will lose webhooks, metrics/i)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => expect(screen.queryByText('Give this key less access?')).not.toBeInTheDocument())
+      expect(api.setKeyRole).not.toHaveBeenCalled()
+      expect(screen.getByRole('combobox', { name: 'Role of key erp' })).toBeInTheDocument()
     })
 
     it('edits one key at a time: opening another row closes the first', async () => {
@@ -362,9 +385,11 @@ describe('TenantsPage', () => {
       await user.click(await screen.findByRole('option', { name: 'Tenant manager' }))
 
       await user.click(screen.getByRole('button', { name: 'Save the role of key erp' }))
+      await user.click(await screen.findByRole('button', { name: 'Raise to tenant manager' }))
 
       expect(await screen.findByText(/not found or revoked/)).toBeInTheDocument()
-      expect(screen.getByRole('combobox', { name: 'Role of key erp' })).toBeInTheDocument()
+      // the confirmation is fading out; once it has gone the row is still in edit mode
+      expect(await screen.findByRole('combobox', { name: 'Role of key erp' })).toBeInTheDocument()
     })
 
     it('a revoked key shows its role as text and cannot be edited', async () => {

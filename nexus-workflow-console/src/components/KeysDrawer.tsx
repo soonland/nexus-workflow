@@ -58,6 +58,8 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
   // The key whose role is being edited, and the role chosen so far. One row at a time.
   const [editing, setEditing] = useState<{ keyId: string; role: KeyRole } | null>(null)
   const [saving, setSaving] = useState(false)
+  // Save asks first: the key and the role waiting for a yes
+  const [confirming, setConfirming] = useState<{ key: ApiKey; role: KeyRole } | null>(null)
   const [creating, setCreating] = useState(false)
   const [created, setCreated] = useState<string | null>(null)
   const [revoking, setRevoking] = useState<ApiKey | null>(null)
@@ -79,6 +81,7 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
     setNewName('')
     setNewRole('service')
     setEditing(null)
+    setConfirming(null)
     void load()
   }, [load])
 
@@ -114,6 +117,7 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
 
   async function saveRole(key: ApiKey, role: KeyRole) {
     if (!tenantId) return
+    setConfirming(null)
     setSaving(true)
     setError(null)
     try {
@@ -272,7 +276,7 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
                             size="small"
                             variant="contained"
                             disabled={saving || editing.role === key.role}
-                            onClick={() => void saveRole(key, editing.role)}
+                            onClick={() => setConfirming({ key, role: editing.role })}
                             aria-label={`Save the role of key ${key.name}`}
                           >
                             {saving ? 'Saving…' : 'Save'}
@@ -319,6 +323,27 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirming !== null}
+        title={confirming?.role === 'tenant_manager' ? 'Give this key more access?' : 'Give this key less access?'}
+        confirmLabel={confirming?.role === 'tenant_manager' ? 'Raise to tenant manager' : 'Lower to service'}
+        destructive={confirming?.role === 'service'}
+        onConfirm={() => confirming && void saveRole(confirming.key, confirming.role)}
+        onCancel={() => setConfirming(null)}
+      >
+        {confirming?.role === 'tenant_manager' ? (
+          <>
+            The key “{confirming.key.name}” will be able to do everything in this tenant, including webhooks and the administrative
+            commands. Its secret does not change.
+          </>
+        ) : (
+          <>
+            The key “{confirming?.key.name}” will lose webhooks, metrics and the administrative commands (cancel, suspend, resume,
+            restart, delete a definition) straight away: a program that uses them will get 403. Its secret does not change.
+          </>
+        )}
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={revoking !== null}
