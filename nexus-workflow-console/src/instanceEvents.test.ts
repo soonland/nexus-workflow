@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import type { InstanceEvent, InstanceToken } from './api/types'
-import { describeEvent, progressMarks } from './instanceEvents'
+import type { HistoryEntry, InstanceEvent, InstanceToken } from './api/types'
+import { describeEvent, historyMarks, progressMarks } from './instanceEvents'
 
 const event = (type: string, data: Record<string, unknown> = {}): InstanceEvent => ({ id: type, type, occurredAt: '2026-01-04T00:00:00.000Z', data })
 const token = (elementId: string): InstanceToken => ({ id: elementId, elementId, elementType: 'userTask', status: 'active' })
@@ -68,5 +68,33 @@ describe('progressMarks', () => {
 
   it('has nothing to mark without events or tokens', () => {
     expect(progressMarks([], [])).toEqual({ activeIds: [], doneIds: [], errorIds: [] })
+  })
+})
+
+describe('historyMarks', () => {
+  const step = (elementId: string, status: HistoryEntry['status']): HistoryEntry => ({
+    id: `${elementId}-${status}`,
+    elementId,
+    elementType: 'userTask',
+    status,
+    startedAt: '2026-01-04T00:00:00.000Z',
+    completedAt: '2026-01-04T00:00:01.000Z',
+  })
+
+  it('marks where the instance is, the steps it finished, and the ones that were cancelled or failed', () => {
+    const marks = historyMarks([step('start', 'completed'), step('check', 'completed'), step('notify', 'error'), step('wait', 'cancelled')], [token('review')])
+
+    expect(marks).toEqual({ activeIds: ['review'], doneIds: ['start', 'check'], errorIds: ['notify', 'wait'] })
+  })
+
+  it('does not call an element passed while the instance is there, or one that also failed once', () => {
+    const marks = historyMarks([step('loop', 'completed'), step('loop', 'error'), step('now', 'completed')], [token('now')])
+
+    expect(marks.doneIds).toEqual([])
+    expect(marks.errorIds).toEqual(['loop'])
+  })
+
+  it('has nothing to mark without steps or tokens', () => {
+    expect(historyMarks([], [])).toEqual({ activeIds: [], doneIds: [], errorIds: [] })
   })
 })
