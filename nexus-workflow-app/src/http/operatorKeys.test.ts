@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Hono } from 'hono'
 import postgres from 'postgres'
+import { UserAdmin } from '../auth/UserAdmin.js'
 import { AuditLog } from '../db/AuditLog.js'
+import { InviteStore } from '../db/InviteStore.js'
 import { runMigrations } from '../db/migrate.js'
 import { OperatorKeyStore } from '../db/OperatorKeyStore.js'
 import { SessionStore } from '../db/SessionStore.js'
@@ -12,6 +14,7 @@ import { createAuthMiddleware, type AppVariables } from './middleware/auth.js'
 import { createOperatorGuard, createOperatorKeyAdminGuard, createPeopleAdminGuard } from './middleware/operator.js'
 import { createOperatorKeysRouter } from './operatorKeys.js'
 import { createTenantsRouter } from './tenants.js'
+import { createUsersRouter } from './users.js'
 
 // Operator keys through the real guards, router and stores in Postgres.
 
@@ -64,6 +67,8 @@ describe('operator keys (Postgres, real guards)', () => {
     app = new Hono<{ Variables: AppVariables }>()
     app.route('/operator-keys', createOperatorKeysRouter({ keys: store, audit, guard: createOperatorKeyAdminGuard(deps) }))
     app.route('/tenants', createTenantsRouter(sql, HMAC, ADMIN_KEY, { guard: createOperatorGuard(deps), audit }))
+    const invites = new InviteStore(sql, { hmacSecret: HMAC, ttlMs: 24 * 60 * MINUTE })
+    app.route('/users', createUsersRouter({ admin: new UserAdmin(users, invites, audit), guard: createPeopleAdminGuard(deps) }))
     app.get('/people', createPeopleAdminGuard(deps), (c) => c.json({ principal: c.get('principal')?.kind }))
     app.use('*', createAuthMiddleware(sql, HMAC, { sessions, users }))
     app.get('/definitions', (c) => c.json({ tenantId: c.get('tenantId') }))
@@ -159,6 +164,14 @@ describe('operator keys (Postgres, real guards)', () => {
       expect((await call('/operator-keys/nope', { session: 'operator', method: 'DELETE' })).status).toBe(404)
     })
 
+    it('of two simultaneous revokes, one succeeds and one is told it is already revoked', async () => {
+      const { key } = await create('revoked twice at once')
+
+      const results = await Promise.all([1, 2].map(() => call(`/operator-keys/${key['id']}`, { session: 'operator', method: 'DELETE' })))
+
+      expect(results.map((r) => r.status).sort()).toEqual([200, 404])
+    })
+
     it('a tenant manager, a tenant key and nobody cannot manage operator keys', async () => {
       expect((await call('/operator-keys', { session: 'manager' })).status).toBe(403)
       expect((await call('/operator-keys', { bearer: tenantKey })).status).toBe(403)
@@ -226,6 +239,73 @@ describe('operator keys (Postgres, real guards)', () => {
       expect((await call('/tenants', { bearer: 'nxop_' + 'f'.repeat(64) })).status).toBe(403)
       expect((await call('/tenants', { bearer: 'nxop_' })).status).toBe(403)
       expect((await call('/tenants', { bearer: ADMIN_KEY })).status).toBe(200)
+    })
+  })
+
+  // ─── what a key may not do to people ───────────────────────────────────────
+
+  describe('people: an operator key cannot reach platform administration through them', () => {
+    const email = (name: string) => `${prefix}.${name}@example.com`.toLowerCase()
+    let key = ''
+
+    beforeAll(async () => {
+      key = (await create('people key')).plaintext
+    })
+
+    const usersCount = async () => (await sql`SELECT count(*)::int AS n FROM public.users WHERE email LIKE ${prefix + '.esc%'}`)[0]!['n'] as number
+
+    it('cannot create a person with the operator role', async () => {
+      const res = await call('/users', { bearer: key, body: { email: email('esc-new'), name: 'Escalation', memberships: [{ role: 'operator' }] } })
+
+      expect(res.status).toBe(403)
+      expect(res.body['message']).toMatch(/operator key cannot grant the operator role/i)
+      expect(await usersCount()).toBe(0) // nobody was created, not even half-way
+    })
+
+    it('cannot give anyone the operator role', async () => {
+      const target = await users.createUser({ email: email('esc-target'), name: 'Target' })
+
+      const res = await call(`/users/${target.id}/memberships`, { bearer: key, body: { role: 'operator' } })
+
+      expect(res.status).toBe(403)
+      expect((await users.listMemberships(target.id)).some((m) => m.role === 'operator')).toBe(false)
+    })
+
+    it('cannot take over an operator\'s account by re-issuing their invite', async () => {
+      const res = await call(`/users/${id['operator']}/invite`, { bearer: key, method: 'POST', body: {} })
+
+      expect(res.status).toBe(403)
+      expect(res.body).not.toHaveProperty('invite') // no link came back
+    })
+
+    it('a signed-in operator can still do all three (the restriction is for keys)', async () => {
+      const created = await call('/users', { session: 'operator', body: { email: email('esc-by-person'), name: 'By person', memberships: [{ role: 'operator' }] } })
+      expect(created.status).toBe(201)
+      const reinvited = await call(`/users/${created.body['user'].id}/invite`, { session: 'operator', method: 'POST', body: {} })
+      expect(reinvited.status).toBe(200)
+    })
+
+    it('and so can the admin key, which is the break-glass credential', async () => {
+      const res = await call('/users', { bearer: ADMIN_KEY, body: { email: email('esc-by-admin'), name: 'By admin', memberships: [{ role: 'operator' }] } })
+      expect(res.status).toBe(201)
+    })
+
+    it('can still provision the people of tenants: create a tenant manager, invite them, offboard them', async () => {
+      const created = await call('/users', { bearer: key, body: { email: email('esc-ok'), name: 'Customer', memberships: [{ role: 'tenant_manager', tenantId: tenant }] } })
+      expect(created.status).toBe(201)
+      const personId: string = created.body['user'].id
+
+      expect((await call(`/users/${personId}/invite`, { bearer: key, method: 'POST', body: {} })).status).toBe(200)
+      expect((await call(`/users/${personId}`, { bearer: key, method: 'PATCH', body: { status: 'disabled' } })).status).toBe(200)
+      const memberships = await users.listMemberships(personId)
+      expect((await call(`/users/${personId}/memberships/${memberships[0]!.id}`, { bearer: key, method: 'DELETE' })).status).toBe(200)
+    })
+
+    it('what it did is in the audit log under its own name, so it can be found and undone after a revoke', async () => {
+      const [created] = await sql<Array<{ actor_kind: string; target: string | null }>>`
+        SELECT actor_kind, target FROM public.audit_log WHERE action = 'user.create' AND details::text LIKE ${'%' + email('esc-ok') + '%'}`
+
+      expect(created?.actor_kind).toBe('operatorKey')
     })
   })
 

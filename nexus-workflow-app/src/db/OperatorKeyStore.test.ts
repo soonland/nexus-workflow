@@ -71,10 +71,21 @@ describe('OperatorKeyStore (Postgres)', () => {
   it('refuses a revoked key, and a revoke that finds nothing says so', async () => {
     const { key, plaintext } = await make('revoke me')
 
-    expect(await store.revoke(key.id)).toBe(true)
+    const revoked = await store.revoke(key.id)
+
+    expect(revoked).toMatchObject({ id: key.id, name: `${prefix} revoke me` })
+    expect(revoked?.revokedAt).toBeInstanceOf(Date)
     expect(await store.authenticate(plaintext)).toBeNull()
-    expect(await store.revoke(key.id)).toBe(false) // already revoked
-    expect(await store.revoke('no-such-key')).toBe(false)
+    expect(await store.revoke(key.id)).toBeNull() // already revoked
+    expect(await store.revoke('no-such-key')).toBeNull()
+  })
+
+  it('hands the revoked key to exactly one of two simultaneous revokes', async () => {
+    const { key } = await make('race')
+
+    const results = await Promise.all([store.revoke(key.id), store.revoke(key.id), store.revoke(key.id)])
+
+    expect(results.filter((r) => r !== null)).toHaveLength(1)
   })
 
   it('refuses an expired key', async () => {

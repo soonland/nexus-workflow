@@ -69,11 +69,9 @@ export function createOperatorKeysRouter(deps: OperatorKeysRouterDeps): Hono<{ V
 
   app.delete('/:id', async (c) => {
     const id = c.req.param('id')
-    const keys = await deps.keys.list()
-    const key = keys.find((k) => k.id === id)
-    if (!key || !(await deps.keys.revoke(id))) {
-      return c.json({ error: 'NOT_FOUND', message: `Operator key '${id}' not found or already revoked` }, 404)
-    }
+    // one statement: the key comes back only to the request that actually revoked it
+    const key = await deps.keys.revoke(id)
+    if (!key) return c.json({ error: 'NOT_FOUND', message: `Operator key '${id}' not found or already revoked` }, 404)
     const principal = c.get('principal')
     await deps.audit?.record({
       action: 'operator-key.revoke',

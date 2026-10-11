@@ -54,10 +54,17 @@ export class OperatorKeyStore {
     return this.sql<OperatorKey[]>`SELECT ${this.sql.unsafe(COLUMNS)} FROM public.operator_keys ORDER BY created_at DESC, id`
   }
 
-  /** Revokes a key. False if there is no such key or it was already revoked. */
-  async revoke(id: string): Promise<boolean> {
-    const rows = await this.sql`UPDATE public.operator_keys SET revoked_at = now() WHERE id = ${id} AND revoked_at IS NULL RETURNING id`
-    return rows.length > 0
+  /**
+   * Revokes a key and returns it (as it is now), in one statement. Null if there is no such key or it
+   * was already revoked, so of two simultaneous revokes exactly one gets the key back.
+   */
+  async revoke(id: string): Promise<OperatorKey | null> {
+    const rows = await this.sql<OperatorKey[]>`
+      UPDATE public.operator_keys SET revoked_at = now()
+      WHERE id = ${id} AND revoked_at IS NULL
+      RETURNING ${this.sql.unsafe(COLUMNS)}
+    `
+    return rows[0] ?? null
   }
 
   /**
