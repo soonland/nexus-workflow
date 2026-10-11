@@ -28,7 +28,10 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
-            Review the changes in this pull request.
+            Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
+            The checkout is a detached HEAD, so `gh` cannot work out the PR from the current branch:
+            always pass the PR number explicitly, e.g. `gh pr diff ${{ github.event.pull_request.number }}`
+            and `gh pr comment ${{ github.event.pull_request.number }} --body "..."`.
             Flag bugs, security issues, and deviations from the project conventions described in CLAUDE.md.
             Post your findings as inline review comments on the relevant lines.
             If the code looks good, post a brief summary comment on the PR confirming the review is complete.
