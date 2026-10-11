@@ -12,6 +12,7 @@ import {
   DialogTitle,
   Drawer,
   IconButton,
+  MenuItem,
   Paper,
   Stack,
   Table,
@@ -25,9 +26,20 @@ import {
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded'
 import type { AdminApi } from '../api/client'
-import type { ApiKey, Tenant } from '../api/types'
+import type { ApiKey, KeyRole, Tenant } from '../api/types'
 import { formatDate } from '../format'
 import { ConfirmDialog } from './ConfirmDialog'
+
+const ROLE_HELP: Record<KeyRole, { label: string; help: string }> = {
+  service: {
+    label: 'Service',
+    help: 'For programs: start and read instances, tasks, events, messages, and deploy or read definitions. Cannot cancel, suspend or restart instances, delete definitions, or use webhooks and metrics.',
+  },
+  tenant_manager: {
+    label: 'Tenant manager',
+    help: 'Everything in this tenant, including webhooks, metrics and the administrative commands. Use it for a trusted integration such as the ERP.',
+  },
+}
 
 interface KeysDrawerProps {
   api: AdminApi
@@ -42,6 +54,8 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
   const [keys, setKeys] = useState<ApiKey[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
+  const [newRole, setNewRole] = useState<KeyRole>('service')
+  const [changing, setChanging] = useState<{ key: ApiKey; role: KeyRole } | null>(null)
   const [creating, setCreating] = useState(false)
   const [created, setCreated] = useState<string | null>(null)
   const [revoking, setRevoking] = useState<ApiKey | null>(null)
@@ -61,6 +75,7 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
     setKeys(null)
     setError(null)
     setNewName('')
+    setNewRole('service')
     void load()
   }, [load])
 
@@ -69,7 +84,7 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
     setCreating(true)
     setError(null)
     try {
-      const result = await api.createKey(tenantId, newName.trim())
+      const result = await api.createKey(tenantId, newName.trim(), newRole)
       setCreated(result.plaintext)
       setCopied(false)
       setNewName('')
@@ -91,6 +106,17 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
       onChanged()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not revoke the key')
+    }
+  }
+
+  async function changeRole(key: ApiKey, role: KeyRole) {
+    if (!tenantId) return
+    setChanging(null)
+    try {
+      await api.setKeyRole(tenantId, key.id, role)
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not change the key\'s role')
     }
   }
 
@@ -149,10 +175,28 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
               fullWidth
               autoComplete="off"
             />
+            <TextField
+              select
+              size="small"
+              label="Role"
+              value={newRole}
+              onChange={(e) => setNewRole(e.target.value as KeyRole)}
+              disabled={!canCreate}
+              sx={{ minWidth: 170 }}
+            >
+              {(Object.keys(ROLE_HELP) as KeyRole[]).map((role) => (
+                <MenuItem key={role} value={role}>
+                  {ROLE_HELP[role].label}
+                </MenuItem>
+              ))}
+            </TextField>
             <Button type="submit" variant="contained" disabled={!canCreate || newName.trim() === '' || creating} sx={{ height: 40, whiteSpace: 'nowrap' }}>
               Create key
             </Button>
           </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -2, mb: 3 }}>
+            {ROLE_HELP[newRole].help}
+          </Typography>
 
           {keys === null && !error ? (
             <Box sx={{ display: 'grid', placeItems: 'center', py: 4 }}>
@@ -163,6 +207,7 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
               <TableHead>
                 <TableRow>
                   <TableCell>Name</TableCell>
+                  <TableCell>Role</TableCell>
                   <TableCell>Created</TableCell>
                   <TableCell>Last used</TableCell>
                   <TableCell align="right" />
@@ -171,7 +216,7 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
               <TableBody>
                 {(keys ?? []).length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} align="center" sx={{ color: 'text.secondary' }}>
+                    <TableCell colSpan={5} align="center" sx={{ color: 'text.secondary' }}>
                       No keys yet
                     </TableCell>
                   </TableRow>
@@ -179,6 +224,26 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
                 {(keys ?? []).map((key) => (
                   <TableRow key={key.id} sx={key.revokedAt ? { opacity: 0.6 } : undefined}>
                     <TableCell>{key.name}</TableCell>
+                    <TableCell>
+                      {key.revokedAt ? (
+                        ROLE_HELP[key.role]?.label ?? key.role
+                      ) : (
+                        <TextField
+                          select
+                          size="small"
+                          value={key.role}
+                          onChange={(e) => setChanging({ key, role: e.target.value as KeyRole })}
+                          slotProps={{ htmlInput: { 'aria-label': `Role of key ${key.name}` } }}
+                          sx={{ minWidth: 150 }}
+                        >
+                          {(Object.keys(ROLE_HELP) as KeyRole[]).map((role) => (
+                            <MenuItem key={role} value={role}>
+                              {ROLE_HELP[role].label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      )}
+                    </TableCell>
                     <TableCell>{formatDate(key.createdAt)}</TableCell>
                     <TableCell>{formatDate(key.lastUsedAt)}</TableCell>
                     <TableCell align="right">
@@ -217,6 +282,27 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ConfirmDialog
+        open={changing !== null}
+        title={changing?.role === 'tenant_manager' ? 'Give this key more access?' : 'Give this key less access?'}
+        confirmLabel={changing?.role === 'tenant_manager' ? 'Raise to tenant manager' : 'Lower to service'}
+        destructive={changing?.role === 'service'}
+        onConfirm={() => changing && void changeRole(changing.key, changing.role)}
+        onCancel={() => setChanging(null)}
+      >
+        {changing?.role === 'tenant_manager' ? (
+          <>
+            The key “{changing.key.name}” will be able to do everything in this tenant, including webhooks and the administrative
+            commands. Its secret does not change.
+          </>
+        ) : (
+          <>
+            The key “{changing?.key.name}” will lose webhooks, metrics and the administrative commands (cancel, suspend, resume,
+            restart, delete a definition) straight away: a program that uses them will get 403. Its secret does not change.
+          </>
+        )}
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={revoking !== null}
