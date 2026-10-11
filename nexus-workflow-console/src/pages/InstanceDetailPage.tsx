@@ -27,7 +27,7 @@ import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRigh
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import type { TenantApi } from '../api/client'
 import type { HistoryEntry, InstanceEvent, InstanceToken, InstanceView } from '../api/types'
-import { describeEvent, historyMarks, progressMarks } from '../instanceEvents'
+import { describeEvent, describeInstanceError, historyMarks, progressMarks } from '../instanceEvents'
 import { ForceStepDialog } from '../components/ForceStepDialog'
 import { describeForcedAction, forceChoices, type ForceChoice } from '../forceActions'
 import { InstanceStatusChip } from '../components/InstanceStatusChip'
@@ -179,7 +179,13 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
             </Typography>
           </Stack>
 
-          {instance.errorInfo && <Alert severity="error">{instance.errorInfo.message ?? instance.errorInfo.code ?? 'The instance reported an error'}</Alert>}
+          {instance.errorInfo &&
+            (instance.status === 'suspended' ? (
+              <Alert severity="error">Suspended by an error: {describeInstanceError(instance.errorInfo)}</Alert>
+            ) : (
+              // the engine keeps the last error after the instance has moved on; it is history, not a problem now
+              <Alert severity="info">Had an error earlier: {describeInstanceError(instance.errorInfo)}</Alert>
+            ))}
 
           <Box>
             <Typography variant="subtitle2" gutterBottom>

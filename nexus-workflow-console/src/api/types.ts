@@ -148,7 +148,8 @@ export interface Webhook {
 }
 
 export interface InstanceDetail extends InstanceSummary {
-  errorInfo?: { code?: string; message?: string }
+  /** The last error the instance had. The engine keeps it after the instance has moved on. */
+  errorInfo?: { code?: string; message?: string; elementId?: string }
 }
 
 export interface InstanceToken {

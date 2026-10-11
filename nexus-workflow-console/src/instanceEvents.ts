@@ -102,3 +102,10 @@ export function historyMarks(entries: HistoryEntry[], tokens: InstanceToken[]): 
     errorIds: [...failed],
   }
 }
+
+/** What went wrong, in a sentence: where, the code and the message (whichever of them are known). */
+export function describeInstanceError(error: { code?: string; message?: string; elementId?: string }): string {
+  const where = error.elementId ? ` at ${error.elementId}` : ''
+  const what = [error.code, error.message].filter(Boolean).join(': ')
+  return `${what || 'An error'}${where ? ` (${where.trim()})` : ''}`
+}

@@ -244,6 +244,30 @@ describe('InstanceDetailPage', () => {
     })
   })
 
+  describe('an error the instance had', () => {
+    const withError = (status: 'suspended' | 'completed') =>
+      view({
+        instance: {
+          ...makeInstance({ id: 'aaaaaaaa-1111', status }),
+          errorInfo: { code: 'HANDLER_NOT_FOUND', message: 'No handler registered', elementId: 'send' },
+        },
+      })
+
+    it('says the instance is suspended by it, while it is', async () => {
+      setup(withError('suspended'))
+
+      expect(await screen.findByText(/suspended by an error: HANDLER_NOT_FOUND: No handler registered \(at send\)/i)).toBeInTheDocument()
+    })
+
+    it('is only a note once the instance has moved on, not a red error on a finished instance', async () => {
+      setup(withError('completed'))
+
+      const note = await screen.findByText(/had an error earlier: HANDLER_NOT_FOUND/i)
+      expect(note.closest('[role="alert"]')).toHaveClass('MuiAlert-colorInfo')
+      expect(screen.queryByText(/suspended by an error/i)).not.toBeInTheDocument()
+    })
+  })
+
   describe('pushing a stuck step along', () => {
     const stuck = (overrides: Partial<InstanceView> = {}): InstanceView =>
       view({

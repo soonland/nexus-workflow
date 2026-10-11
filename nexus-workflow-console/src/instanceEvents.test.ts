@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { HistoryEntry, InstanceEvent, InstanceToken } from './api/types'
-import { describeEvent, historyMarks, progressMarks } from './instanceEvents'
+import { describeEvent, describeInstanceError, historyMarks, progressMarks } from './instanceEvents'
 
 const event = (type: string, data: Record<string, unknown> = {}): InstanceEvent => ({ id: type, type, occurredAt: '2026-01-04T00:00:00.000Z', data })
 const token = (elementId: string): InstanceToken => ({ id: elementId, elementId, elementType: 'userTask', status: 'active' })
@@ -108,5 +108,19 @@ describe('historyMarks', () => {
 
   it('has nothing to mark without steps or tokens', () => {
     expect(historyMarks([], [])).toEqual({ activeIds: [], doneIds: [], errorIds: [] })
+  })
+})
+
+describe('describeInstanceError', () => {
+  it('says what, and where', () => {
+    expect(describeInstanceError({ code: 'HANDLER_NOT_FOUND', message: "No handler registered for task type 'send-email'", elementId: 'send' })).toBe(
+      "HANDLER_NOT_FOUND: No handler registered for task type 'send-email' (at send)",
+    )
+  })
+
+  it('copes with whichever parts are missing', () => {
+    expect(describeInstanceError({ message: 'test' })).toBe('test')
+    expect(describeInstanceError({ code: 'FORCED_FAILURE', elementId: 'send' })).toBe('FORCED_FAILURE (at send)')
+    expect(describeInstanceError({})).toBe('An error')
   })
 })
