@@ -5,7 +5,7 @@ import type { Session } from './roles'
 
 const STORAGE_KEY = 'nexus-console-admin-key'
 
-// The admin key is the break-glass way in. It is kept in sessionStorage, not localStorage, so it
+// A key (an operator key, or the admin key for break-glass) is the way in without a person's account. It is kept in sessionStorage, not localStorage, so it
 // is forgotten when the tab is closed. Signing in as a person keeps nothing in the page at all:
 // the session lives in an HttpOnly cookie that scripts cannot read.
 function readStoredKey(): string | null {
@@ -25,9 +25,9 @@ function writeStoredKey(key: string | null): void {
   }
 }
 
-const STALE_KEY_MESSAGE = 'Your admin key is no longer accepted by the server. Please sign in again.'
+const STALE_KEY_MESSAGE = 'Your key is no longer accepted by the server (revoked, expired or rotated). Please sign in again.'
 const EXPIRED_SESSION_MESSAGE = 'Your session has ended. Please sign in again.'
-const KEY_REJECTED_MESSAGE = 'The admin key was rejected. Check that it matches ADMIN_API_KEY on the server.'
+const KEY_REJECTED_MESSAGE = 'The key was rejected. Use a current operator key, or the admin key (ADMIN_API_KEY of the server).'
 
 interface AuthValue {
   api: AdminApi
@@ -117,7 +117,7 @@ export function AuthProvider({ children, fetchImpl }: { children: ReactNode; fet
 
   const signInWithAdminKey = useCallback(
     async (candidate: string) => {
-      // Listing tenants needs the admin key, so a successful call proves the key is valid.
+      // Listing tenants needs an operator credential, so a successful call proves the key is valid.
       try {
         await createAdminApi(() => candidate, fetchImpl).listTenants()
       } catch (err) {

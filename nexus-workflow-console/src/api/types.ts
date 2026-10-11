@@ -240,3 +240,16 @@ export interface AuditPage {
   page: number
   pageSize: number
 }
+
+/** A named, revocable credential for a program that administers the platform. The secret is not here. */
+export interface OperatorKey {
+  id: string
+  name: string
+  /** The person who created it, if any. */
+  createdBy: string | null
+  createdAt: string
+  lastUsedAt: string | null
+  /** After this moment the key is refused. Null: it does not expire. */
+  expiresAt: string | null
+  revokedAt: string | null
+}

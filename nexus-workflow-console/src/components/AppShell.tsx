@@ -26,10 +26,11 @@ import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded'
 import PeopleAltRoundedIcon from '@mui/icons-material/PeopleAltRounded'
 import PlayCircleOutlineRoundedIcon from '@mui/icons-material/PlayCircleOutlineRounded'
+import VpnKeyRoundedIcon from '@mui/icons-material/VpnKeyRounded'
 import WebhookRoundedIcon from '@mui/icons-material/WebhookRounded'
 import { SIDEBAR_WIDTH } from '../theme'
 
-export type Screen = 'definitions' | 'instances' | 'tasks' | 'webhooks' | 'tenants' | 'users' | 'audit'
+export type Screen = 'definitions' | 'instances' | 'tasks' | 'webhooks' | 'tenants' | 'operatorKeys' | 'users' | 'audit'
 
 const SCREENS: Record<Screen, { label: string; group: string; icon: ReactNode }> = {
   definitions: { label: 'Definitions', group: 'Workflows', icon: <AccountTreeRoundedIcon fontSize="small" /> },
@@ -37,6 +38,7 @@ const SCREENS: Record<Screen, { label: string; group: string; icon: ReactNode }>
   tasks: { label: 'Tasks', group: 'Workflows', icon: <AssignmentRoundedIcon fontSize="small" /> },
   webhooks: { label: 'Webhooks', group: 'Workflows', icon: <WebhookRoundedIcon fontSize="small" /> },
   tenants: { label: 'Tenants', group: 'Platform', icon: <BusinessRoundedIcon fontSize="small" /> },
+  operatorKeys: { label: 'Operator keys', group: 'Platform', icon: <VpnKeyRoundedIcon fontSize="small" /> },
   users: { label: 'Users', group: 'Administration', icon: <PeopleAltRoundedIcon fontSize="small" /> },
   audit: { label: 'Audit log', group: 'Administration', icon: <HistoryRoundedIcon fontSize="small" /> },
 }

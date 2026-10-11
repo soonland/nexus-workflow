@@ -67,6 +67,10 @@ function makeServer(overrides: Partial<Server> = {}) {
       if (usesKey || server.signedInAs) return jsonResponse({ entries: [], total: 0, page: 0, pageSize: 20 })
       return jsonResponse({ error: 'UNAUTHENTICATED' }, 401)
     }
+    if (url === '/operator-keys') {
+      if (usesKey || roles.includes('operator')) return jsonResponse({ keys: [] })
+      return server.signedInAs ? jsonResponse({ error: 'FORBIDDEN', message: 'Operator role required' }, 403) : jsonResponse({ error: 'UNAUTHENTICATED' }, 401)
+    }
     if (url === '/users') {
       if (usesKey || server.signedInAs) return jsonResponse({ users: [] })
       return jsonResponse({ error: 'UNAUTHENTICATED' }, 401)
@@ -100,7 +104,7 @@ describe('App sign-in with an account', () => {
 
     expect(await screen.findByLabelText(/email/i)).toBeInTheDocument()
     expect(calls).toHaveBeenCalledWith('/auth/me', expect.anything())
-    expect(screen.queryByLabelText(/admin key/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/operator or admin key/i)).not.toBeInTheDocument()
   })
 
   it('goes straight in when the browser already holds a session', async () => {
@@ -211,6 +215,32 @@ describe('what each role sees', () => {
   })
 })
 
+describe('operator keys in the navigation', () => {
+  it('an operator gets the Operator keys screen, under Platform', async () => {
+    const user = userEvent.setup()
+    render(<App fetchImpl={makeServer({ accounts, signedInAs: accounts['op@example.com'] }).fetchImpl} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Operator keys' }))
+
+    expect(await screen.findByRole('heading', { name: 'Operator keys' })).toBeInTheDocument()
+    expect(screen.getByText('No operator keys yet')).toBeInTheDocument()
+  })
+
+  it('someone holding a key gets it too (the server decides what a key may do there)', async () => {
+    sessionStorage.setItem('nexus-console-admin-key', 'right-key')
+    render(<App fetchImpl={makeServer({ accounts }).fetchImpl} />)
+
+    expect(await screen.findByRole('button', { name: 'Operator keys' })).toBeInTheDocument()
+  })
+
+  it('a tenant manager does not', async () => {
+    render(<App fetchImpl={makeServer({ accounts, signedInAs: accounts['mgr@example.com'] }).fetchImpl} />)
+
+    await screen.findByRole('heading', { name: 'Definitions' })
+    expect(screen.queryByRole('button', { name: 'Operator keys' })).not.toBeInTheDocument()
+  })
+})
+
 describe('audit log in the navigation', () => {
   it('an operator and a tenant manager both get it, under Administration', async () => {
     const operatorApp = render(<App fetchImpl={makeServer({ accounts, signedInAs: accounts['op@example.com'] }).fetchImpl} />)
@@ -281,8 +311,8 @@ describe('tenant context', () => {
 
 describe('admin key (break-glass)', () => {
   async function useKey(user: ReturnType<typeof userEvent.setup>, key: string) {
-    await user.click(await screen.findByRole('button', { name: /use the admin key/i }))
-    await user.type(screen.getByLabelText(/admin key/i), key)
+    await user.click(await screen.findByRole('button', { name: /use an operator key or the admin key/i }))
+    await user.type(screen.getByLabelText(/operator or admin key/i), key)
     await user.click(screen.getByRole('button', { name: /^sign in$/i }))
   }
 
@@ -290,7 +320,7 @@ describe('admin key (break-glass)', () => {
     render(<App fetchImpl={makeServer({ accounts }).fetchImpl} />)
 
     expect(await screen.findByLabelText(/email/i)).toBeInTheDocument()
-    expect(screen.queryByLabelText(/admin key/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/operator or admin key/i)).not.toBeInTheDocument()
   })
 
   it('rejects a wrong key with a message', async () => {
@@ -299,7 +329,7 @@ describe('admin key (break-glass)', () => {
 
     await useKey(user, 'wrong-key')
 
-    expect(await screen.findByText(/admin key was rejected/i)).toBeInTheDocument()
+    expect(await screen.findByText(/key was rejected/i)).toBeInTheDocument()
     expect(sessionStorage.getItem('nexus-console-admin-key')).toBeNull()
   })
 
