@@ -66,6 +66,21 @@ This starts:
 
 > The Docker PostgreSQL instance is shared by both apps. `nexus_workflow` and `nexus_erp` are separate databases created automatically by migrations/seed.
 
+> The development database lives in memory (`tmpfs`): its data is gone when the container is recreated (`docker compose down`, a Docker restart). Tenants, keys and users have to be created again then.
+
+### Looking at the database (pgAdmin)
+
+pgAdmin is available as an optional service, so you can see each tenant's schema and tables:
+
+```bash
+docker compose up -d pgadmin      # then open http://localhost:5050
+```
+
+- It is in the `tools` profile, so a plain `docker compose up -d` (and CI) does not start it.
+- There is no pgAdmin login (desktop mode), so the port is bound to `127.0.0.1` only. **Do not publish it on a network.**
+- The server *nexus (docker compose)* is already registered; its password is `nexus`. Expand *Databases → nexus_workflow → Schemas*: `public` holds the platform tables and each tenant has its own `tenant_<id>`.
+- It is for development; the production compose file does not include it.
+
 ---
 
 ## nexus-workflow-app
