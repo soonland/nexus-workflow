@@ -5,9 +5,17 @@ import postgres from 'postgres'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
+/** Arbitrary constant naming the migration lock; every runner of these migrations must use the same one. */
+const MIGRATION_LOCK_KEY = 7_262_001
+
 export async function runMigrations(connectionString: string): Promise<void> {
   const sql = postgres(connectionString)
+  // Only one runner at a time: concurrent starts (several replicas, or test files) would otherwise
+  // race on CREATE TABLE / CREATE TYPE and fail with a duplicate key on pg_type. The lock is held
+  // by a reserved connection of its own and released with it.
+  const lock = await sql.reserve()
   try {
+    await lock`SELECT pg_advisory_lock(${MIGRATION_LOCK_KEY})`
     // Create migrations tracking table if it doesn't exist
     await sql`
       CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -51,7 +59,12 @@ export async function runMigrations(connectionString: string): Promise<void> {
       console.log(`Applied migration: ${file}`)
     }
   } finally {
-    await sql.end()
+    try {
+      await lock`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`
+    } finally {
+      lock.release()
+      await sql.end()
+    }
   }
 }
 
