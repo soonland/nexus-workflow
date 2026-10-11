@@ -267,7 +267,7 @@ export interface TenantApi {
   forceStep(
     instanceId: string,
     input: { action: ForcedAction; tokenId: string; reason: string; outputVariables?: Record<string, unknown>; error?: { message?: string } },
-  ): Promise<void>
+  ): Promise<{ instanceStatus: InstanceStatus }>
   /** The steps the instance has finished, oldest first (empty for instances that predate step history). */
   getInstanceHistory(id: string): Promise<HistoryEntry[]>
   /** The instance's audit trail, oldest first. */
@@ -332,7 +332,8 @@ export function createTenantApi(
       return request<InstanceView>('GET', instancePath(id))
     },
     async forceStep(instanceId, input) {
-      await request('POST', `${instancePath(instanceId)}/force`, input)
+      const answer = await request<{ instance: { status: InstanceStatus } }>('POST', `${instancePath(instanceId)}/force`, input)
+      return { instanceStatus: answer.instance.status }
     },
     async getInstanceHistory(id) {
       return (await request<{ history: HistoryEntry[] }>('GET', `${instancePath(id)}/history`)).history

@@ -1,4 +1,4 @@
-import type { ForcedAction, InstanceToken } from './api/types'
+import type { ForcedAction, InstanceDetail, InstanceToken } from './api/types'
 
 export interface ForceChoice {
   action: ForcedAction
@@ -50,11 +50,17 @@ const COMPLETE_TASK: ForceChoice = {
  * What a person may do to push this step along, or nothing: only a token that is waiting, and only in
  * the way it is waiting. This is the same rule the server enforces (it refuses the rest with 422).
  */
-export function forceChoices(token: InstanceToken): ForceChoice[] {
+export function forceChoices(token: InstanceToken, instance?: Pick<InstanceDetail, 'status' | 'errorInfo'>): ForceChoice[] {
   if (token.status !== 'waiting') return []
   switch (token.waitingFor?.type) {
-    case 'external':
-      return token.elementType === 'serviceTask' ? [COMPLETE_SERVICE, FAIL_SERVICE] : []
+    case 'external': {
+      if (token.elementType !== 'serviceTask') return []
+      // Failing a task that has already failed here (and left the instance suspended) changes nothing:
+      // it is suspended at this step already. Only completing it makes sense.
+      const error = instance?.errorInfo
+      const failedHere = instance?.status === 'suspended' && error !== undefined && (error.tokenId ? error.tokenId === token.id : error.elementId === token.elementId)
+      return failedHere ? [COMPLETE_SERVICE] : [COMPLETE_SERVICE, FAIL_SERVICE]
+    }
     case 'timer':
       return [FIRE_TIMER]
     case 'user-task':
@@ -73,3 +79,16 @@ const VERB: Record<ForcedAction, string> = {
 
 /** "completed a service task", for sentences about a forced step. */
 export const describeForcedAction = (action: ForcedAction): string => VERB[action] ?? 'pushed a step along'
+
+/**
+ * What the person should be told once a step has been pushed along, from what the instance did next.
+ * A failure is the one that is easy to misread: whether anything moved depends on the process.
+ */
+export function describeForceOutcome(action: ForcedAction, instanceStatus: string): string {
+  if (action === 'failServiceTask') {
+    return instanceStatus === 'suspended'
+      ? 'The step was failed. Nothing in this process handles that error, so the instance is suspended here: you can still complete the step.'
+      : 'The step was failed and the process handled the error: the instance moved on.'
+  }
+  return 'The step was pushed along'
+}

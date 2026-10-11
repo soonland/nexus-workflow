@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from '@mui/material'
 import { ApiError, type TenantApi } from '../api/client'
-import type { InstanceToken } from '../api/types'
+import type { ForcedAction, InstanceToken } from '../api/types'
 import type { ForceChoice } from '../forceActions'
 import { parseJsonObject } from '../jsonObject'
 
@@ -13,8 +13,11 @@ interface Props {
   instanceId: string
   api: TenantApi
   onClose(): void
-  /** The step was pushed along (or turned out no longer to be waiting: either way the page should reload). */
-  onDone(outcome: 'forced' | 'moved-on'): void
+  /**
+   * The step was pushed along (`forced`, with what the instance became), or turned out no longer to be
+   * waiting (`moved-on`, nothing changed). Either way the page should reload.
+   */
+  onDone(outcome: 'forced' | 'moved-on', result?: { action: ForcedAction; instanceStatus: string }): void
 }
 
 /** Asks for the reason, says what will happen and who will be told, then pushes the step along. */
@@ -59,14 +62,14 @@ export function ForceStepDialog({ target: requested, instanceId, api, onClose, o
     setBusy(true)
     setError(null)
     try {
-      await api.forceStep(instanceId, {
+      const done = await api.forceStep(instanceId, {
         action: target.choice.action,
         tokenId: target.token.id,
         reason: reason.trim(),
         ...(parsed.value ? { outputVariables: parsed.value } : {}),
       })
       reset()
-      onDone('forced')
+      onDone('forced', { action: target.choice.action, instanceStatus: done.instanceStatus })
     } catch (err) {
       if (err instanceof ApiError && err.code === 'STEP_NOT_CURRENT') {
         // Someone (or the instance itself) got there first: nothing was done, and the page should show where it is now

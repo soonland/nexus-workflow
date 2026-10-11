@@ -70,7 +70,17 @@ describe('ForceStepDialog', () => {
         outputVariables: { sent: true },
       }),
     )
-    expect(onDone).toHaveBeenCalledWith('forced')
+    expect(onDone).toHaveBeenCalledWith('forced', { action: 'completeServiceTask', instanceStatus: 'active' })
+  })
+
+  it('tells the page what the instance became, so it can say what actually happened', async () => {
+    const { api, user, onDone } = setup(serviceToken, 1)
+    api.forceStep.mockResolvedValue({ instanceStatus: 'suspended' })
+    await user.type(screen.getByLabelText(/^reason/i), 'gave up')
+
+    await user.click(confirm('Fail'))
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('forced', { action: 'failServiceTask', instanceStatus: 'suspended' }))
   })
 
   it('refuses output variables that are not a JSON object, before sending anything', async () => {
@@ -133,8 +143,8 @@ describe('ForceStepDialog', () => {
 
   it('cannot be dismissed while the request is in flight, so the answer is never lost', async () => {
     const { api, user, onClose, onDone } = setup()
-    let finish: () => void = () => undefined
-    api.forceStep.mockImplementation(() => new Promise<void>((resolve) => (finish = resolve)))
+    let finish: (value: { instanceStatus: 'active' }) => void = () => undefined
+    api.forceStep.mockImplementation(() => new Promise((resolve) => (finish = resolve)))
     await user.type(screen.getByLabelText(/^reason/i), 'because')
 
     await user.click(confirm('Complete'))
@@ -142,8 +152,8 @@ describe('ForceStepDialog', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
     await user.keyboard('{Escape}')
     expect(onClose).not.toHaveBeenCalled()
-    finish()
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith('forced'))
+    finish({ instanceStatus: 'active' })
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('forced', expect.objectContaining({ action: 'completeServiceTask' })))
   })
 
   it('cancelling closes without doing anything', async () => {

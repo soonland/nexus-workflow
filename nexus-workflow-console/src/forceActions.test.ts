@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { InstanceToken } from './api/types'
-import { describeForcedAction, forceChoices } from './forceActions'
+import { describeForcedAction, describeForceOutcome, forceChoices } from './forceActions'
 
 const token = (overrides: Partial<InstanceToken>): InstanceToken => ({ id: 't', elementId: 'x', elementType: 'serviceTask', status: 'waiting', ...overrides })
 const actions = (t: InstanceToken) => forceChoices(t).map((c) => c.action)
@@ -41,6 +41,44 @@ describe('forceChoices', () => {
     expect(service.map((c) => c.takesVariables)).toEqual([true, false])
     expect(forceChoices(token({ waitingFor: { type: 'timer' } }))[0]?.takesVariables).toBe(false)
     expect(forceChoices(token({ elementType: 'userTask', waitingFor: { type: 'user-task' } }))[0]?.takesVariables).toBe(true)
+  })
+})
+
+describe('forceChoices once the task has already failed', () => {
+  const service = token({ id: 'tok-1', elementId: 'send', waitingFor: { type: 'external' } })
+  const suspendedBy = (errorInfo: { tokenId?: string; elementId?: string }) => ({ status: 'suspended' as const, errorInfo })
+
+  it('offers only Complete: failing it again would change nothing', () => {
+    expect(forceChoices(service, suspendedBy({ tokenId: 'tok-1', elementId: 'send' })).map((c) => c.action)).toEqual(['completeServiceTask'])
+  })
+
+  it('matches by element when the error does not say which token', () => {
+    expect(forceChoices(service, suspendedBy({ elementId: 'send' })).map((c) => c.action)).toEqual(['completeServiceTask'])
+  })
+
+  it('still offers Fail when the error was somewhere else, or the instance is not suspended', () => {
+    expect(forceChoices(service, suspendedBy({ tokenId: 'other', elementId: 'elsewhere' })).map((c) => c.action)).toEqual(['completeServiceTask', 'failServiceTask'])
+    expect(forceChoices(service, { status: 'active', errorInfo: { tokenId: 'tok-1' } }).map((c) => c.action)).toEqual(['completeServiceTask', 'failServiceTask'])
+    expect(forceChoices(service, { status: 'suspended' }).map((c) => c.action)).toEqual(['completeServiceTask', 'failServiceTask'])
+  })
+})
+
+describe('describeForceOutcome', () => {
+  it('says plainly that a failure nothing handles leaves the instance suspended at the step', () => {
+    const text = describeForceOutcome('failServiceTask', 'suspended')
+    expect(text).toMatch(/nothing in this process handles that error/i)
+    expect(text).toMatch(/suspended here/i)
+  })
+
+  it('says the process moved on when it handled the failure', () => {
+    expect(describeForceOutcome('failServiceTask', 'completed')).toMatch(/handled the error: the instance moved on/i)
+    expect(describeForceOutcome('failServiceTask', 'active')).toMatch(/handled the error/i)
+  })
+
+  it('has a plain message for the other actions', () => {
+    for (const action of ['completeServiceTask', 'fireTimer', 'completeUserTask'] as const) {
+      expect(describeForceOutcome(action, 'active')).toBe('The step was pushed along')
+    }
   })
 })
 

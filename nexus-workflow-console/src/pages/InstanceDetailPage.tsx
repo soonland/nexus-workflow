@@ -29,7 +29,7 @@ import type { TenantApi } from '../api/client'
 import type { HistoryEntry, InstanceEvent, InstanceToken, InstanceView } from '../api/types'
 import { describeEvent, describeInstanceError, historyMarks, progressMarks } from '../instanceEvents'
 import { ForceStepDialog } from '../components/ForceStepDialog'
-import { describeForcedAction, forceChoices, type ForceChoice } from '../forceActions'
+import { describeForcedAction, describeForceOutcome, forceChoices, type ForceChoice } from '../forceActions'
 import { InstanceStatusChip } from '../components/InstanceStatusChip'
 import { MARK_COLORS } from '../components/diagramMarks'
 import { PageHeader } from '../components/PageHeader'
@@ -234,7 +234,7 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
                       <TableCell>{token.status}</TableCell>
                       <TableCell align="right">
                         <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-                          {forceChoices(token).map((choice) => (
+                          {forceChoices(token, instance).map((choice) => (
                             <Button
                               key={choice.action}
                               size="small"
@@ -391,16 +391,22 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
         instanceId={instanceId}
         api={api}
         onClose={() => setForcing(null)}
-        onDone={(outcome) => {
+        onDone={(outcome, result) => {
           setForcing(null)
-          setMessage(outcome === 'forced' ? 'The step was pushed along' : 'The instance had already moved on: nothing was changed')
+          setMessage(
+            outcome === 'forced' && result
+              ? describeForceOutcome(result.action, result.instanceStatus)
+              : outcome === 'forced'
+                ? 'The step was pushed along'
+                : 'The instance had already moved on: nothing was changed',
+          )
           void load()
         }}
       />
 
       <Snackbar
         open={message !== null}
-        autoHideDuration={5000}
+        autoHideDuration={8000}
         onClose={() => setMessage(null)}
         message={message ?? ''}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}

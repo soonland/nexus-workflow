@@ -299,7 +299,7 @@ describe('InstanceDetailPage', () => {
 
     it('asks for a reason, pushes the step along, tells the person and reloads', async () => {
       const { api, user } = setup(stuck())
-      api.forceStep.mockResolvedValue(undefined)
+      api.forceStep.mockResolvedValue({ instanceStatus: 'completed' })
       await screen.findByText('order-17')
 
       await user.click(screen.getByRole('button', { name: 'Fire now: wait' }))
@@ -310,6 +310,33 @@ describe('InstanceDetailPage', () => {
       await waitFor(() => expect(api.forceStep).toHaveBeenCalledWith('aaaaaaaa-1111', { action: 'fireTimer', tokenId: 'tok-timer', reason: 'customer called' }))
       expect(await screen.findByText('The step was pushed along')).toBeInTheDocument()
       await waitFor(() => expect(api.getInstance).toHaveBeenCalledTimes(2)) // reloaded
+    })
+
+    it('says what a failure did: nothing handles it, so the instance stays suspended at the step', async () => {
+      const { api, user } = setup(stuck())
+      api.forceStep.mockResolvedValue({ instanceStatus: 'suspended' })
+      await screen.findByText('order-17')
+
+      await user.click(screen.getByRole('button', { name: 'Fail: send' }))
+      await user.type(await screen.findByLabelText(/^reason/i), 'gave up')
+      await user.click(screen.getByRole('button', { name: 'Fail' }))
+
+      expect(await screen.findByText(/nothing in this process handles that error, so the instance is suspended here/i)).toBeInTheDocument()
+    })
+
+    it('does not offer Fail on a task whose failure already suspended the instance (it would change nothing)', async () => {
+      const suspended = view({
+        instance: {
+          ...makeInstance({ id: 'aaaaaaaa-1111', status: 'suspended' }),
+          errorInfo: { code: 'HANDLER_NOT_FOUND', message: 'No handler registered', elementId: 'send', tokenId: 'tok-svc' },
+        },
+        tokens: [{ id: 'tok-svc', elementId: 'send', elementType: 'serviceTask', status: 'waiting', waitingFor: { type: 'external' } }],
+      })
+      setup(suspended)
+      await screen.findByText(/suspended by an error/i)
+
+      expect(screen.getByRole('button', { name: 'Complete: send' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Fail: send' })).not.toBeInTheDocument()
     })
 
     it('says nothing was changed when the instance had already moved on, and reloads', async () => {
