@@ -243,4 +243,137 @@ describe('InstanceDetailPage', () => {
       expect(screen.queryByText('Boom')).not.toBeInTheDocument()
     })
   })
+
+  describe('an error the instance had', () => {
+    const withError = (status: 'suspended' | 'completed') =>
+      view({
+        instance: {
+          ...makeInstance({ id: 'aaaaaaaa-1111', status }),
+          errorInfo: { code: 'HANDLER_NOT_FOUND', message: 'No handler registered', elementId: 'send' },
+        },
+      })
+
+    it('says the instance is suspended by it, while it is', async () => {
+      setup(withError('suspended'))
+
+      expect(await screen.findByText(/suspended by an error: HANDLER_NOT_FOUND: No handler registered \(at send\)/i)).toBeInTheDocument()
+    })
+
+    it('is only a note once the instance has moved on, not a red error on a finished instance', async () => {
+      setup(withError('completed'))
+
+      const note = await screen.findByText(/had an error earlier: HANDLER_NOT_FOUND/i)
+      expect(note.closest('[role="alert"]')).toHaveClass('MuiAlert-colorInfo')
+      expect(screen.queryByText(/suspended by an error/i)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('pushing a stuck step along', () => {
+    const stuck = (overrides: Partial<InstanceView> = {}): InstanceView =>
+      view({
+        tokens: [
+          { id: 'tok-svc', elementId: 'send', elementType: 'serviceTask', status: 'waiting', waitingFor: { type: 'external' } },
+          { id: 'tok-timer', elementId: 'wait', elementType: 'intermediateCatchEvent', status: 'waiting', waitingFor: { type: 'timer' } },
+          { id: 'tok-task', elementId: 'review', elementType: 'userTask', status: 'waiting', waitingFor: { type: 'user-task' } },
+        ],
+        ...overrides,
+      })
+
+    it('offers each waiting step the actions that fit it', async () => {
+      setup(stuck())
+      await screen.findByText('order-17')
+
+      const rowOf = (element: string) => screen.getAllByText(element).find((n) => n.closest('tr'))!.closest('tr')!
+      const buttons = (element: string) => within(rowOf(element)).getAllByRole('button').map((b) => b.textContent)
+      expect(buttons('send')).toEqual(['Complete', 'Fail'])
+      expect(buttons('wait')).toEqual(['Fire now'])
+      expect(buttons('review')).toEqual(['Complete as me'])
+    })
+
+    it('offers nothing for steps that are not waiting in a way that can be pushed', async () => {
+      setup(view()) // its token is "active", not waiting
+      await screen.findByText('order-17')
+
+      expect(screen.queryByRole('button', { name: /^(Complete|Fail|Fire now)/ })).not.toBeInTheDocument()
+    })
+
+    it('asks for a reason, pushes the step along, tells the person and reloads', async () => {
+      const { api, user } = setup(stuck())
+      api.forceStep.mockResolvedValue({ instanceStatus: 'completed' })
+      await screen.findByText('order-17')
+
+      await user.click(screen.getByRole('button', { name: 'Fire now: wait' }))
+      expect(await screen.findByText('Fire this timer now')).toBeInTheDocument()
+      await user.type(screen.getByLabelText(/^reason/i), 'customer called')
+      await user.click(screen.getByRole('button', { name: 'Fire now' }))
+
+      await waitFor(() => expect(api.forceStep).toHaveBeenCalledWith('aaaaaaaa-1111', { action: 'fireTimer', tokenId: 'tok-timer', reason: 'customer called' }))
+      expect(await screen.findByText('The step was pushed along')).toBeInTheDocument()
+      await waitFor(() => expect(api.getInstance).toHaveBeenCalledTimes(2)) // reloaded
+    })
+
+    it('says what a failure did: nothing handles it, so the instance stays suspended at the step', async () => {
+      const { api, user } = setup(stuck())
+      api.forceStep.mockResolvedValue({ instanceStatus: 'suspended' })
+      await screen.findByText('order-17')
+
+      await user.click(screen.getByRole('button', { name: 'Fail: send' }))
+      await user.type(await screen.findByLabelText(/^reason/i), 'gave up')
+      await user.click(screen.getByRole('button', { name: 'Fail' }))
+
+      expect(await screen.findByText(/nothing in this process handles that error, so the instance is suspended here/i)).toBeInTheDocument()
+    })
+
+    it('does not offer Fail on a task whose failure already suspended the instance (it would change nothing)', async () => {
+      const suspended = view({
+        instance: {
+          ...makeInstance({ id: 'aaaaaaaa-1111', status: 'suspended' }),
+          errorInfo: { code: 'HANDLER_NOT_FOUND', message: 'No handler registered', elementId: 'send', tokenId: 'tok-svc' },
+        },
+        tokens: [{ id: 'tok-svc', elementId: 'send', elementType: 'serviceTask', status: 'waiting', waitingFor: { type: 'external' } }],
+      })
+      setup(suspended)
+      await screen.findByText(/suspended by an error/i)
+
+      expect(screen.getByRole('button', { name: 'Complete: send' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Fail: send' })).not.toBeInTheDocument()
+    })
+
+    it('says nothing was changed when the instance had already moved on, and reloads', async () => {
+      const { api, user } = setup(stuck())
+      api.forceStep.mockRejectedValue(new ApiError(409, 'gone', 'STEP_NOT_CURRENT'))
+      await screen.findByText('order-17')
+
+      await user.click(screen.getByRole('button', { name: 'Complete: send' }))
+      await user.type(await screen.findByLabelText(/^reason/i), 'stuck')
+      await user.click(screen.getByRole('button', { name: 'Complete' }))
+      await user.click(await screen.findByRole('button', { name: 'Close' }))
+
+      expect(await screen.findByText(/had already moved on: nothing was changed/i)).toBeInTheDocument()
+      await waitFor(() => expect(api.getInstance).toHaveBeenCalledTimes(2))
+    })
+
+    it('shows forced steps in the history, with who, what, for whom and why', async () => {
+      const steps: HistoryEntry[] = [
+        {
+          id: 's1',
+          elementId: 'review',
+          elementType: 'userTask',
+          status: 'completed',
+          startedAt: '2026-01-04T00:00:00.000Z',
+          completedAt: '2026-01-04T00:05:00.000Z',
+          forced: { action: 'completeUserTask', by: 'manager@example.com', reason: 'Ada is on leave', onBehalfOf: 'ada@example.com' },
+        },
+        { id: 's2', elementId: 'start', elementType: 'startEvent', status: 'completed', startedAt: '2026-01-04T00:00:00.000Z', completedAt: '2026-01-04T00:00:00.000Z' },
+      ]
+      setup(view(), events, steps)
+      await screen.findByText('order-17')
+
+      // the "where it is now" table also has a row for "review"; the history row is the one with the marker
+      const forced = screen.getByText('forced').closest('tr')!
+      expect(within(forced).getByText('review')).toBeInTheDocument()
+      expect(within(forced).getByText(/manager@example.com completed a task for ada@example.com: “Ada is on leave”/)).toBeInTheDocument()
+      expect(screen.getAllByText('forced')).toHaveLength(1) // the step that was not forced has no marker
+    })
+  })
 })

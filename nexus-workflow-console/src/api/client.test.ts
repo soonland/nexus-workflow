@@ -311,6 +311,18 @@ describe('createAdminApi', () => {
       expect(lastCall().url).toBe('/definitions/my%20flow/xml?version=3')
     })
 
+    it('forces a step with the reason, as the server expects it', async () => {
+      fetchMock.mockImplementation(async () => jsonResponse({ instance: { id: 'i1', status: 'completed' }, events: ['TokenMoved', 'StepForced'] }))
+      const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch)
+
+      const outcome = await tenant.forceStep('i 1', { action: 'completeServiceTask', tokenId: 't1', reason: 'by hand', outputVariables: { sent: true } })
+
+      expect(outcome).toEqual({ instanceStatus: 'completed' })
+
+      expect([lastCall().init.method, lastCall().url]).toEqual(['POST', '/instances/i%201/force'])
+      expect(JSON.parse(lastCall().init.body as string)).toEqual({ action: 'completeServiceTask', tokenId: 't1', reason: 'by hand', outputVariables: { sent: true } })
+    })
+
     it('does not mistake a non-JSON answer (a proxy error page, an empty 200) for data', async () => {
       const tenant = createTenantApi('acme', () => null, fetchMock as unknown as typeof fetch)
 

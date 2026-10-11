@@ -44,6 +44,12 @@ export function describeAudit(entry: AuditEntry): string {
       return d['reset'] === true ? `Issued a new invitation (password reset) for ${who}` : `Issued a new invitation for ${who}`
     case 'invite.accept':
       return 'Accepted their invitation'
+    case 'step.force': {
+      const element = text(d['elementId'])
+      const behalf = text(d['onBehalfOf'])
+      const reason = text(d['reason'])
+      return `Pushed ${element ? `step ${element}` : 'a step'} along by hand${behalf ? ` for ${behalf}` : ''}${reason ? `: “${reason}”` : ''}`
+    }
     case 'login.success':
       return 'Signed in'
     case 'login.failure':
@@ -68,5 +74,6 @@ export const ACTION_FAMILIES = [
   { value: 'user', label: 'People' },
   { value: 'membership', label: 'Roles' },
   { value: 'invite', label: 'Invitations' },
+  { value: 'step', label: 'Forced steps' },
   { value: 'login', label: 'Sign-ins' },
 ] as const

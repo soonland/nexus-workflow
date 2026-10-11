@@ -10,6 +10,7 @@ import {
   CircularProgress,
   Collapse,
   IconButton,
+  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -25,8 +26,10 @@ import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownR
 import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import type { TenantApi } from '../api/client'
-import type { HistoryEntry, InstanceEvent, InstanceView } from '../api/types'
-import { describeEvent, historyMarks, progressMarks } from '../instanceEvents'
+import type { HistoryEntry, InstanceEvent, InstanceToken, InstanceView } from '../api/types'
+import { describeEvent, describeInstanceError, historyMarks, progressMarks } from '../instanceEvents'
+import { ForceStepDialog } from '../components/ForceStepDialog'
+import { describeForcedAction, describeForceOutcome, forceChoices, type ForceChoice } from '../forceActions'
 import { InstanceStatusChip } from '../components/InstanceStatusChip'
 import { MARK_COLORS } from '../components/diagramMarks'
 import { PageHeader } from '../components/PageHeader'
@@ -78,6 +81,8 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
   const [events, setEvents] = useState<InstanceEvent[] | null>(null)
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [openStep, setOpenStep] = useState<string | null>(null)
+  const [forcing, setForcing] = useState<{ token: InstanceToken; choice: ForceChoice } | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
   const [xml, setXml] = useState<string | null | 'unavailable'>(null)
   const [error, setError] = useState<string | null>(null)
   const [diagramError, setDiagramError] = useState<string | null>(null)
@@ -174,7 +179,13 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
             </Typography>
           </Stack>
 
-          {instance.errorInfo && <Alert severity="error">{instance.errorInfo.message ?? instance.errorInfo.code ?? 'The instance reported an error'}</Alert>}
+          {instance.errorInfo &&
+            (instance.status === 'suspended' ? (
+              <Alert severity="error">Suspended by an error: {describeInstanceError(instance.errorInfo)}</Alert>
+            ) : (
+              // the engine keeps the last error after the instance has moved on; it is history, not a problem now
+              <Alert severity="info">Had an error earlier: {describeInstanceError(instance.errorInfo)}</Alert>
+            ))}
 
           <Box>
             <Typography variant="subtitle2" gutterBottom>
@@ -212,6 +223,7 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
                     <TableCell>Element</TableCell>
                     <TableCell>Type</TableCell>
                     <TableCell>Status</TableCell>
+                    <TableCell align="right">Push along</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -220,6 +232,21 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
                       <TableCell sx={{ fontFamily: 'monospace' }}>{token.elementId}</TableCell>
                       <TableCell>{token.elementType}</TableCell>
                       <TableCell>{token.status}</TableCell>
+                      <TableCell align="right">
+                        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+                          {forceChoices(token, instance).map((choice) => (
+                            <Button
+                              key={choice.action}
+                              size="small"
+                              color={choice.destructive ? 'error' : 'primary'}
+                              aria-label={`${choice.label}: ${token.elementId}`}
+                              onClick={() => setForcing({ token, choice })}
+                            >
+                              {choice.label}
+                            </Button>
+                          ))}
+                        </Stack>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -300,6 +327,13 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
                                 color={step.status === 'completed' ? 'success' : step.status === 'error' ? 'error' : 'warning'}
                                 variant="outlined"
                               />
+                              {step.forced && <Chip size="small" label="forced" color="info" sx={{ ml: 0.5 }} />}
+                              {step.forced && (
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                  {step.forced.by} {describeForcedAction(step.forced.action)}
+                                  {step.forced.onBehalfOf ? ` for ${step.forced.onBehalfOf}` : ''}: “{step.forced.reason}”
+                                </Typography>
+                              )}
                             </TableCell>
                             <TableCell align="right">{formatDuration(new Date(step.completedAt).getTime() - new Date(step.startedAt).getTime())}</TableCell>
                           </TableRow>
@@ -351,6 +385,32 @@ export function InstanceDetailPage({ api, instanceId, onBack }: { api: TenantApi
           </Box>
         </Stack>
       )}
+
+      <ForceStepDialog
+        target={forcing}
+        instanceId={instanceId}
+        api={api}
+        onClose={() => setForcing(null)}
+        onDone={(outcome, result) => {
+          setForcing(null)
+          setMessage(
+            outcome === 'forced' && result
+              ? describeForceOutcome(result.action, result.instanceStatus)
+              : outcome === 'forced'
+                ? 'The step was pushed along'
+                : 'The instance had already moved on: nothing was changed',
+          )
+          void load()
+        }}
+      />
+
+      <Snackbar
+        open={message !== null}
+        autoHideDuration={8000}
+        onClose={() => setMessage(null)}
+        message={message ?? ''}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Box>
   )
 }

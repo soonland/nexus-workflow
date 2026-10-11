@@ -4,6 +4,7 @@ import type {
   AuditQuery,
   DefinitionSummary,
   DeployResult,
+  ForcedAction,
   HistoryEntry,
   InstanceEvent,
   InstanceStatus,
@@ -259,6 +260,14 @@ export interface TenantApi {
   restartInstance(id: string): Promise<string>
 
   getInstance(id: string): Promise<InstanceView>
+  /**
+   * Pushes a stuck step along by hand. The reason is required and is recorded with the step, in the
+   * event log and in the audit log. Refused (409) if the instance has already moved on.
+   */
+  forceStep(
+    instanceId: string,
+    input: { action: ForcedAction; tokenId: string; reason: string; outputVariables?: Record<string, unknown>; error?: { message?: string } },
+  ): Promise<{ instanceStatus: InstanceStatus }>
   /** The steps the instance has finished, oldest first (empty for instances that predate step history). */
   getInstanceHistory(id: string): Promise<HistoryEntry[]>
   /** The instance's audit trail, oldest first. */
@@ -321,6 +330,10 @@ export function createTenantApi(
     },
     getInstance(id) {
       return request<InstanceView>('GET', instancePath(id))
+    },
+    async forceStep(instanceId, input) {
+      const answer = await request<{ instance: { status: InstanceStatus } }>('POST', `${instancePath(instanceId)}/force`, input)
+      return { instanceStatus: answer.instance.status }
     },
     async getInstanceHistory(id) {
       return (await request<{ history: HistoryEntry[] }>('GET', `${instancePath(id)}/history`)).history
