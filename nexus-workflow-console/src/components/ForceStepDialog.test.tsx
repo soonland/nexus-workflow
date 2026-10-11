@@ -154,4 +154,29 @@ describe('ForceStepDialog', () => {
     expect(onClose).toHaveBeenCalled()
     expect(api.forceStep).not.toHaveBeenCalled()
   })
+
+  it('keeps its title and button while it fades out, instead of going blank', () => {
+    const api = makeFakeTenantApi()
+    const choice = forceChoices(serviceToken)[0]!
+    const props = { instanceId: 'inst-1', api, onClose: vi.fn(), onDone: vi.fn() }
+    const { rerender } = render(<ForceStepDialog target={{ token: serviceToken, choice }} {...props} />)
+    expect(screen.getByText('Complete this service task by hand')).toBeInTheDocument()
+
+    rerender(<ForceStepDialog target={null} {...props} />)
+
+    // still in the page during the exit transition, with its text
+    expect(screen.getByText('Complete this service task by hand')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Complete' })).toBeInTheDocument()
+  })
+
+  it('shows the new step when it is opened for another one', () => {
+    const api = makeFakeTenantApi()
+    const props = { instanceId: 'inst-1', api, onClose: vi.fn(), onDone: vi.fn() }
+    const { rerender } = render(<ForceStepDialog target={{ token: serviceToken, choice: forceChoices(serviceToken)[0]! }} {...props} />)
+
+    rerender(<ForceStepDialog target={{ token: timerToken, choice: forceChoices(timerToken)[0]! }} {...props} />)
+
+    expect(screen.getByText('Fire this timer now')).toBeInTheDocument()
+    expect(screen.queryByText('Complete this service task by hand')).not.toBeInTheDocument()
+  })
 })

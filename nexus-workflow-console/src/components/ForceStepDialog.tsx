@@ -18,7 +18,12 @@ interface Props {
 }
 
 /** Asks for the reason, says what will happen and who will be told, then pushes the step along. */
-export function ForceStepDialog({ target, instanceId, api, onClose, onDone }: Props) {
+export function ForceStepDialog({ target: requested, instanceId, api, onClose, onDone }: Props) {
+  // The dialog fades out after `requested` goes null; keep the last target so its title and buttons
+  // do not blank while it does
+  const [lastTarget, setLastTarget] = useState(requested)
+  if (requested !== null && requested !== lastTarget) setLastTarget(requested)
+  const target = requested ?? lastTarget
   const [reason, setReason] = useState('')
   const [variables, setVariables] = useState('')
   const [variablesError, setVariablesError] = useState<string | null>(null)
@@ -77,7 +82,7 @@ export function ForceStepDialog({ target, instanceId, api, onClose, onDone }: Pr
   const trimmed = reason.trim()
 
   return (
-    <Dialog open={target !== null} onClose={close} fullWidth maxWidth="sm">
+    <Dialog open={requested !== null} onClose={close} fullWidth maxWidth="sm">
       <form onSubmit={submit}>
         <DialogTitle>{target?.choice.title}</DialogTitle>
         <DialogContent>
