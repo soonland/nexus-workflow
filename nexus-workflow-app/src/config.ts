@@ -1,6 +1,7 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { normalizeOrigin } from './auth/origin.js'
+import { describeAllowListProblem, parseAllowedHostsEnv } from './webhooks/urlPolicy.js'
 
 const nodeEnv = process.env['NODE_ENV'] ?? 'development'
 
@@ -51,6 +52,13 @@ export const config = {
    * Above 0, X-Forwarded-For / X-Forwarded-Proto are believed. Only set it behind proxies you control.
    */
   trustedProxies: parseTrustedProxies(process.env['TRUST_PROXY']),
+  /** Accept plain http:// webhook targets. Off by default; for local development only. */
+  webhookAllowHttp: process.env['WEBHOOK_ALLOW_HTTP'] === 'true',
+  /**
+   * Internal webhook targets to allow (comma separated hostnames, addresses or CIDR ranges).
+   * Webhooks are otherwise refused when they point at loopback, private or link-local addresses.
+   */
+  webhookAllowedHosts: parseAllowedHostsEnv(process.env['WEBHOOK_ALLOWED_HOSTS']),
 }
 
 /**
@@ -74,6 +82,12 @@ export function assertConfigValid(cfg: typeof config) {
 
   if (Number.isNaN(cfg.trustedProxies)) {
     console.error('[config] TRUST_PROXY must be true, false or the number of proxies in front of this server. Exiting.')
+    process.exit(1)
+  }
+
+  const allowListProblem = describeAllowListProblem(cfg.webhookAllowedHosts)
+  if (allowListProblem) {
+    console.error(`[config] WEBHOOK_ALLOWED_HOSTS: ${allowListProblem}. Exiting.`)
     process.exit(1)
   }
 

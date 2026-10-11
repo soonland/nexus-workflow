@@ -1,6 +1,8 @@
 import { createHmac } from 'node:crypto'
 import type { ExecutionEvent } from 'nexus-workflow-core'
 import type { TenantEventSource } from '../events/TenantEventHub.js'
+import { createSafeFetch, type WebhookFetch } from './safeFetch.js'
+import { STRICT_WEBHOOK_URL_POLICY } from './urlPolicy.js'
 import type { WebhookStore } from './WebhookStore.js'
 
 // ─── Options ──────────────────────────────────────────────────────────────────
@@ -10,8 +12,11 @@ export interface WebhookDispatcherOptions {
   maxAttempts?: number
   /** Base delay in ms for exponential backoff between retries. Default: 1000. */
   baseRetryDelayMs?: number
-  /** Injectable fetch for testing. Defaults to global fetch. */
-  fetch?: typeof fetch
+  /**
+   * How a request is sent. Defaults to a sender that refuses internal addresses, does not follow
+   * redirects and gives up after 10 s (see safeFetch.ts). Injectable for testing.
+   */
+  fetch?: WebhookFetch
 }
 
 // ─── WebhookDispatcher ────────────────────────────────────────────────────────
@@ -25,7 +30,7 @@ export class WebhookDispatcher {
   private readonly source: TenantEventSource
   private readonly maxAttempts: number
   private readonly baseRetryDelayMs: number
-  private readonly fetch: typeof fetch
+  private readonly fetch: WebhookFetch
   private unsubscribe: (() => void) | null = null
   private stopped = false
 
@@ -38,7 +43,7 @@ export class WebhookDispatcher {
     this.source = source
     this.maxAttempts = options.maxAttempts ?? 3
     this.baseRetryDelayMs = options.baseRetryDelayMs ?? 1000
-    this.fetch = options.fetch ?? globalThis.fetch
+    this.fetch = options.fetch ?? createSafeFetch({ policy: STRICT_WEBHOOK_URL_POLICY })
   }
 
   start(): void {
