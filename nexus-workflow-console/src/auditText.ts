@@ -27,7 +27,9 @@ export function describeAudit(entry: AuditEntry): string {
     case 'tenant.delete':
       return `Deleted tenant ${entry.target ?? ''}`.trim()
     case 'key.create':
-      return `Created API key${text(d['name']) ? ` "${text(d['name'])}"` : ''}`
+      return `Created API key${text(d['name']) ? ` "${text(d['name'])}"` : ''}${text(d['role']) ? ` (${text(d['role'])})` : ''}`
+    case 'key.role':
+      return `Changed the role of API key${text(d['name']) ? ` "${text(d['name'])}"` : ''} from ${text(d['from']) ?? '?'} to ${text(d['to']) ?? '?'}`
     case 'key.revoke':
       return 'Revoked an API key'
     case 'user.create':

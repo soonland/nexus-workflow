@@ -15,6 +15,7 @@ with the same values the server uses.
 Options:
   --name <name>       Display name for a new tenant (default: the tenant id)
   --key-name <name>   Label for the API key (default: "provisioned key")
+  --role <role>       What the key may do: tenant_manager (default) or service (runtime API only)
   --write-env <path>  Write the key into this dotenv file instead of printing it
   --env-var <NAME>    Variable to set in --write-env (default: WORKFLOW_API_KEY)
 `
@@ -24,6 +25,7 @@ const { values, positionals } = parseArgs({
   options: {
     name: { type: 'string' },
     'key-name': { type: 'string' },
+    role: { type: 'string' },
     'write-env': { type: 'string' },
     'env-var': { type: 'string', default: 'WORKFLOW_API_KEY' },
     help: { type: 'boolean', short: 'h' },
@@ -42,6 +44,11 @@ if (values['write-env'] && !isValidEnvVarName(values['env-var'])) {
   process.exit(1)
 }
 
+if (values.role !== undefined && values.role !== 'service' && values.role !== 'tenant_manager') {
+  console.error(`Invalid --role: ${JSON.stringify(values.role)} (use "tenant_manager" or "service")`)
+  process.exit(1)
+}
+
 // The tenants table must exist; migrations are idempotent.
 await runMigrations(config.databaseUrl)
 
@@ -51,6 +58,7 @@ try {
     tenantId,
     ...(values.name ? { name: values.name } : {}),
     ...(values['key-name'] ? { keyName: values['key-name'] } : {}),
+    ...(values.role ? { keyRole: values.role as 'service' | 'tenant_manager' } : {}),
   })
 
   console.log(result.tenantCreated ? `Created tenant '${tenantId}'.` : `Tenant '${tenantId}' already exists.`)

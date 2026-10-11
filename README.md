@@ -207,13 +207,34 @@ Every request is made by one of these, and what it may do follows from that:
 |---|---|---|---|
 | **Operator** | signed-in user with the `operator` role, or the admin key | yes | **no**: running the platform is not reading its customers' workflows |
 | **Tenant manager** | signed-in user with the `tenant_manager` role for that tenant | no | yes, for the tenants they manage only |
-| **Tenant API key** | `Authorization: Bearer <key>` | no | yes, for the key's own tenant |
+| **Tenant API key** | `Authorization: Bearer <key>` | no | yes, for the key's own tenant, **as far as its role allows** (below) |
 | Anonymous | none | no | no |
 
 - **Tenant routes with a session:** a signed-in tenant manager names the tenant in the `X-Tenant` header and must manage it (`400` if the header is missing, `403` for any other tenant, and also for one that does not exist, so tenants cannot be probed). A tenant API key always acts as its own tenant; `X-Tenant` is ignored for keys.
 - **Status codes:** `401` means "no valid credential, sign in"; `403` means "your credential is valid but not allowed". A suspended or deleting tenant rejects its managers with `403` and its keys with `401`.
 - **Cookies and CSRF:** state-changing requests made with a session cookie need the `X-Nexus-Console: 1` header (and a matching `Origin`), on these routes as well as on `/auth`. Bearer credentials need neither. If both are sent, the Bearer credential wins.
 - To look inside a tenant, an operator needs a membership or a key for it; this is deliberate.
+
+#### Roles of tenant API keys
+
+A tenant key has a role, so a program gets only what it needs:
+
+| Role | May | May not |
+|---|---|---|
+| `service` (default) | the runtime API: deploy and read definitions; start and read instances, their events and history; list, claim, release and complete tasks; send messages and signals; send engine commands other than the ones below | delete a definition; suspend, resume, cancel or restart an instance (also as the commands `SuspendInstance` / `ResumeInstance` / `CancelInstance`); webhooks; metrics |
+| `tenant_manager` | everything in its tenant | |
+
+- **Deny by default:** any route that is not on the `service` list (see `src/auth/keyPermissions.ts`) is closed to service keys, including routes added later, until someone decides otherwise. A refused call says which role it needs.
+- **Who made a key:** a key records the person who created it (none for the admin key or the command line). `GET /auth/me` with `Authorization: Bearer <key>` describes the key (`{ apiKey: { id, name, tenantId, role, createdBy, createdAt } }`, never the secret), and the admin key as `{ adminKey: true, role: "operator" }`.
+- **Creating and changing:** `POST /tenants/:id/keys` takes `{ name, role? }` (default `service`). An operator changes an existing key's role, keeping its secret, with `PATCH /tenants/:id/keys/:keyId` `{ role }`; the change is in the audit log (`key.role`). The command line takes `--role` and defaults to `tenant_manager`, because it issues a tenant's main integration key (the ERP's).
+
+##### Upgrading existing keys (migration 013)
+
+Every key that existed before the migration became `service`. A program that needs more keeps working once its key is **raised**, with no new secret to hand out:
+- In the console: Tenants, Keys of the tenant, choose the role of the key.
+- Or by API: `curl -X PATCH $API/tenants/<tenant>/keys/<keyId> -H "Authorization: Bearer $ADMIN_API_KEY" -H 'Content-Type: application/json' -d '{"role":"tenant_manager"}'`.
+
+`nexus-erp` needs `tenant_manager`: its admin screens suspend, resume, restart and cancel instances and delete definitions. Raise its key (or provision a new one: `tenant:provision` defaults to `tenant_manager`). Until then those screens get 403 with a message naming the role.
 
 ### Managing tenants (admin API)
 
@@ -225,7 +246,8 @@ The `/tenants` endpoints are for platform operators: a signed-in operator, or `A
 | `POST /tenants` `{id, name}` | Create a tenant and provision its schema |
 | `PATCH /tenants/:id` `{status?, name?}` | Suspend (`"suspended"`), reactivate (`"active"`) or rename. Suspending rejects the tenant's keys and stops its background workers. A tenant that is being deleted cannot be changed (409) |
 | `DELETE /tenants/:id` | Permanently delete the tenant, its schema and all its data and keys. The tenant is first marked `deleting` (keys rejected, no reactivation), then its workers stop, its schema is dropped and its rows are removed. The `default` tenant is protected (409). If a step fails you get a 500 and the tenant stays `deleting`; run the `DELETE` again (every step can be repeated) |
-| `POST/GET /tenants/:id/keys`, `DELETE /tenants/:id/keys/:keyId` | Create (plaintext shown once), list and revoke keys |
+| `POST/GET /tenants/:id/keys`, `DELETE /tenants/:id/keys/:keyId` | Create (`{name, role?}`, plaintext shown once), list and revoke keys |
+| `PATCH /tenants/:id/keys/:keyId` `{role}` | Change what a key may do, keeping its secret (`service` or `tenant_manager`) |
 
 ### Audit log
 
@@ -234,7 +256,7 @@ Administrative actions and sign-ins are written to `public.audit_log`, and read 
 | Written for | Actions |
 |---|---|
 | Tenants | `tenant.create`, `tenant.suspend`, `tenant.reactivate`, `tenant.rename`, `tenant.delete` |
-| Keys | `key.create`, `key.revoke` (the key's id and name, never the key) |
+| Keys | `key.create` (with its role), `key.role` (from, to), `key.revoke` (the key's id and name, never the key) |
 | People | `user.create`, `user.disable`, `user.enable`, `membership.add`, `membership.remove`, `invite.create` (also a password reset), `invite.accept` |
 | Signing in | `login.success`, `login.failure` (with the address and why; attempts the throttle refuses are not logged) |
 | Forced steps | `step.force` (which step, the reason, and for a task on whose behalf; see below) |

@@ -9,7 +9,6 @@ export function auditActorOf(principal: Principal): AuditActor {
     case 'adminKey':
       return { kind: 'adminKey' }
     case 'apiKey':
-      // The principal knows the tenant but not which of its keys was used
-      return { kind: 'apiKey', label: `API key of tenant ${principal.tenantId}` }
+      return { kind: 'apiKey', id: principal.keyId, label: `${principal.keyName} (key of ${principal.tenantId})` }
   }
 }

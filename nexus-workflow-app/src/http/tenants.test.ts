@@ -35,6 +35,8 @@ function makeApiKey(overrides: Partial<ApiKeyPublic> = {}): ApiKeyPublic {
     id: 'key-id-1',
     tenantId: 'tenant-1',
     name: 'My API Key',
+    role: 'service',
+    createdBy: null,
     createdAt: new Date('2024-01-01T00:00:00.000Z'),
     lastUsedAt: null,
     revokedAt: null,
@@ -121,6 +123,7 @@ describe('tenants HTTP API', () => {
     createApiKey: ReturnType<typeof vi.fn>
     listApiKeys: ReturnType<typeof vi.fn>
     revokeApiKey: ReturnType<typeof vi.fn>
+    setApiKeyRole: ReturnType<typeof vi.fn>
   }
   let app: Hono
   let onTenantDeactivating: ReturnType<typeof vi.fn>
@@ -141,6 +144,7 @@ describe('tenants HTTP API', () => {
       createApiKey: vi.fn(),
       listApiKeys: vi.fn(),
       revokeApiKey: vi.fn(),
+      setApiKeyRole: vi.fn(),
     }
 
     vi.mocked(TenantStore).mockImplementation(function () {
@@ -490,7 +494,7 @@ describe('tenants HTTP API', () => {
 
       await post(app, '/tenants/tenant-1/keys', { name: 'Production Key' }, AUTH)
 
-      expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'Production Key')
+      expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'Production Key', { createdBy: null }) // the admin key: nobody to record
     })
 
     it('should return 404 when the tenant does not exist', async () => {
@@ -565,7 +569,7 @@ describe('tenants HTTP API', () => {
 
       await post(app, '/tenants/tenant-1/keys', { name: '  Production Key  ' }, AUTH)
 
-      expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'Production Key')
+      expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'Production Key', { createdBy: null })
     })
 
     it('should return 400 when body is non-JSON', async () => {
@@ -661,6 +665,99 @@ describe('tenants HTTP API', () => {
   })
 
   // ─── DELETE /tenants/:id/keys/:keyId ──────────────────────────────────────
+
+  describe('key roles', () => {
+    const key = (overrides: Partial<ApiKeyPublic> = {}) => makeApiKey({ role: 'service', createdBy: null, ...overrides })
+    const patch = (path: string, body: unknown, headers: Record<string, string> = AUTH) =>
+      app.fetch(new Request(`http://localhost${path}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) }))
+
+    it('creates a key with the role asked for', async () => {
+      mockStore.getTenant.mockResolvedValueOnce(makeTenant())
+      mockStore.createApiKey.mockResolvedValueOnce({ key: key({ role: 'tenant_manager' }), plaintext: 'secret' })
+
+      const res = await post(app, '/tenants/tenant-1/keys', { name: 'ERP', role: 'tenant_manager' }, AUTH)
+
+      expect(res.status).toBe(201)
+      expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'ERP', { role: 'tenant_manager', createdBy: null })
+    })
+
+    it('leaves the role to the store (least privilege) when none is asked for', async () => {
+      mockStore.getTenant.mockResolvedValueOnce(makeTenant())
+      mockStore.createApiKey.mockResolvedValueOnce({ key: key(), plaintext: 'secret' })
+
+      await post(app, '/tenants/tenant-1/keys', { name: 'ci' }, AUTH)
+
+      const options = mockStore.createApiKey.mock.calls[0]![2]
+      expect(options).not.toHaveProperty('role')
+    })
+
+    it('400 for a role that does not exist', async () => {
+      mockStore.getTenant.mockResolvedValueOnce(makeTenant())
+
+      const res = await post(app, '/tenants/tenant-1/keys', { name: 'ci', role: 'operator' }, AUTH)
+
+      expect(res.status).toBe(400)
+      expect(mockStore.createApiKey).not.toHaveBeenCalled()
+    })
+
+    it('records the person who created the key', async () => {
+      const principal = { kind: 'user', user: { id: 'u-1', email: 'op@example.com' }, memberships: [{ role: 'operator', tenantId: null }] }
+      const guarded = new Hono()
+      guarded.use('*', async (c, next) => {
+        c.set('principal' as never, principal as never)
+        return next()
+      })
+      guarded.route('/tenants', createTenantsRouter(vi.fn() as unknown as postgres.Sql, 'test-secret', ADMIN_KEY, { guard: async (_c, next) => next() }))
+      mockStore.getTenant.mockResolvedValueOnce(makeTenant())
+      mockStore.createApiKey.mockResolvedValueOnce({ key: key(), plaintext: 'secret' })
+
+      await guarded.fetch(new Request('http://localhost/tenants/tenant-1/keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'ci' }) }))
+
+      expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'ci', { createdBy: 'u-1' })
+    })
+
+    it('changes a key\'s role, keeping its secret, and writes it to the audit log', async () => {
+      const record = vi.fn().mockResolvedValue(undefined)
+      app = new Hono()
+      app.route('/tenants', createTenantsRouter(vi.fn() as unknown as postgres.Sql, 'test-secret', ADMIN_KEY, { audit: { record } as never }))
+      mockStore.getTenant.mockResolvedValueOnce(makeTenant())
+      mockStore.setApiKeyRole.mockResolvedValueOnce({ key: key({ role: 'tenant_manager', name: 'ERP' }), previous: 'service' })
+
+      const res = await patch('/tenants/tenant-1/keys/key-id-1', { role: 'tenant_manager' })
+
+      expect(res.status).toBe(200)
+      expect((await res.json()).key.role).toBe('tenant_manager')
+      expect(mockStore.setApiKeyRole).toHaveBeenCalledWith('tenant-1', 'key-id-1', 'tenant_manager')
+      expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'key.role', target: 'key-id-1', tenantIds: ['tenant-1'], details: { name: 'ERP', from: 'service', to: 'tenant_manager' } }))
+    })
+
+    it('writes nothing to the audit log when the role was already that', async () => {
+      const record = vi.fn().mockResolvedValue(undefined)
+      app = new Hono()
+      app.route('/tenants', createTenantsRouter(vi.fn() as unknown as postgres.Sql, 'test-secret', ADMIN_KEY, { audit: { record } as never }))
+      mockStore.getTenant.mockResolvedValueOnce(makeTenant())
+      mockStore.setApiKeyRole.mockResolvedValueOnce({ key: key({ role: 'service' }), previous: 'service' })
+
+      const res = await patch('/tenants/tenant-1/keys/key-id-1', { role: 'service' })
+
+      expect(res.status).toBe(200)
+      expect(record).not.toHaveBeenCalled()
+    })
+
+    it('400 for a missing or unknown role, 404 for an unknown tenant or a revoked key, 403 without the admin key', async () => {
+      mockStore.getTenant.mockResolvedValue(makeTenant())
+      expect((await patch('/tenants/tenant-1/keys/k', {})).status).toBe(400)
+      expect((await patch('/tenants/tenant-1/keys/k', { role: 'god' })).status).toBe(400)
+
+      mockStore.setApiKeyRole.mockResolvedValueOnce(null)
+      expect((await patch('/tenants/tenant-1/keys/k', { role: 'service' })).status).toBe(404)
+
+      mockStore.getTenant.mockResolvedValueOnce(null)
+      expect((await patch('/tenants/nope/keys/k', { role: 'service' })).status).toBe(404)
+
+      expect((await patch('/tenants/tenant-1/keys/k', { role: 'service' }, {})).status).toBe(403)
+    })
+  })
 
   describe('DELETE /tenants/:id/keys/:keyId', () => {
     it('should return 200 with success: true when key is successfully revoked', async () => {

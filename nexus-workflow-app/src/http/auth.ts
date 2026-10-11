@@ -4,12 +4,18 @@ import type { BeginResult, LoginThrottle } from '../auth/LoginThrottle.js'
 import { PasswordPolicyError, type PasswordHasher } from '../auth/PasswordHasher.js'
 import { clearSessionCookie, clientIp, readSessionToken, setSessionCookie } from '../auth/sessionCookie.js'
 import type { AuditLog } from '../db/AuditLog.js'
+import type { ApiKeyPublic } from '../db/TenantStore.js'
 import type { InviteStore } from '../db/InviteStore.js'
 import type { SessionStore } from '../db/SessionStore.js'
 import type { UserStore } from '../db/UserStore.js'
 import { csrfGuard } from './middleware/csrf.js'
 
 export interface AuthRouterDeps {
+  /**
+   * Describes the credential sent as `Authorization: Bearer ...` for GET /me: the admin key, or a
+   * tenant API key (null when it is neither, or no longer valid).
+   */
+  describeBearer?: (token: string) => Promise<{ kind: 'adminKey' } | { kind: 'apiKey'; key: ApiKeyPublic } | null>
   /** Sign-ins and failed sign-ins are written here. */
   audit?: AuditLog
   users: UserStore
@@ -262,6 +268,17 @@ export function createAuthRouter(deps: AuthRouterDeps): Hono {
   })
 
   app.get('/me', async (c) => {
+    // A program asks with its key: say what the key is, the way a person is described below
+    const authorization = c.req.header('Authorization')
+    if (authorization) {
+      const [scheme, bearer] = authorization.split(' ')
+      const described = scheme === 'Bearer' && bearer && deps.describeBearer ? await deps.describeBearer(bearer) : null
+      if (!described) return c.json({ error: 'UNAUTHENTICATED', message: 'Not signed in' }, 401)
+      if (described.kind === 'adminKey') return c.json({ adminKey: true, role: 'operator' })
+      const { id, name, tenantId, role, createdBy, createdAt } = described.key
+      return c.json({ apiKey: { id, name, tenantId, role, createdBy, createdAt } })
+    }
+
     const token = readSessionToken(c)
     const resolved = token ? await sessions.resolve(token) : null
     if (!resolved) return c.json({ error: 'UNAUTHENTICATED', message: 'Not signed in' }, 401)

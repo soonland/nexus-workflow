@@ -1,6 +1,7 @@
 import type {
   ApiKey,
   AuditPage,
+  KeyRole,
   AuditQuery,
   DefinitionSummary,
   DeployResult,
@@ -44,7 +45,9 @@ export interface AdminApi {
   updateTenant(id: string, changes: { name?: string; status?: 'active' | 'suspended' }): Promise<Tenant>
   deleteTenant(id: string): Promise<void>
   listKeys(tenantId: string): Promise<ApiKey[]>
-  createKey(tenantId: string, name: string): Promise<CreatedKey>
+  createKey(tenantId: string, name: string, role?: KeyRole): Promise<CreatedKey>
+  /** Changes what a key may do, keeping its secret (so the program using it does not change). */
+  setKeyRole(tenantId: string, keyId: string, role: KeyRole): Promise<ApiKey>
   revokeKey(tenantId: string, keyId: string): Promise<void>
 
   /** The audit log, newest first. Operators read everything; tenant managers only their own tenants'. */
@@ -107,8 +110,11 @@ export function createAdminApi(
     async listKeys(tenantId) {
       return (await request<{ keys: ApiKey[] }>('GET', `${tenantPath(tenantId)}/keys`)).keys
     },
-    createKey(tenantId, name) {
-      return request<CreatedKey>('POST', `${tenantPath(tenantId)}/keys`, { name })
+    createKey(tenantId, name, role) {
+      return request<CreatedKey>('POST', `${tenantPath(tenantId)}/keys`, { name, ...(role ? { role } : {}) })
+    },
+    async setKeyRole(tenantId, keyId, role) {
+      return (await request<{ key: ApiKey }>('PATCH', `${tenantPath(tenantId)}/keys/${encodeURIComponent(keyId)}`, { role })).key
     },
     async revokeKey(tenantId, keyId) {
       await request('DELETE', `${tenantPath(tenantId)}/keys/${encodeURIComponent(keyId)}`)

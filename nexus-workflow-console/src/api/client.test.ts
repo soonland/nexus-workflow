@@ -160,6 +160,28 @@ describe('createAdminApi', () => {
     })
   })
 
+  describe('key roles', () => {
+    it('creates a key with the role, and without one leaves it to the server', async () => {
+      fetchMock.mockImplementation(async () => jsonResponse({ key: { id: 'k' }, plaintext: 'secret' }, 201))
+
+      await api().createKey('acme', 'erp', 'tenant_manager')
+      expect(JSON.parse(lastCall().init.body as string)).toEqual({ name: 'erp', role: 'tenant_manager' })
+
+      await api().createKey('acme', 'plain')
+      expect(JSON.parse(lastCall().init.body as string)).toEqual({ name: 'plain' })
+    })
+
+    it('changes a key\'s role with PATCH and returns the key', async () => {
+      fetchMock.mockImplementation(async () => jsonResponse({ key: { id: 'k 1', role: 'tenant_manager' } }))
+
+      const key = await api().setKeyRole('acme', 'k 1', 'tenant_manager')
+
+      expect([lastCall().init.method, lastCall().url]).toEqual(['PATCH', '/tenants/acme/keys/k%201'])
+      expect(JSON.parse(lastCall().init.body as string)).toEqual({ role: 'tenant_manager' })
+      expect(key).toMatchObject({ id: 'k 1', role: 'tenant_manager' })
+    })
+  })
+
   describe('audit log', () => {
     it('asks for a page with the filters that are set, and leaves the others out', async () => {
       fetchMock.mockImplementation(async () => jsonResponse({ entries: [], total: 0, page: 2, pageSize: 50 }))

@@ -261,7 +261,7 @@ describe('TenantsPage', () => {
       await user.type(await screen.findByLabelText('Key name'), 'deploy')
       await user.click(screen.getByRole('button', { name: 'Create key' }))
 
-      await waitFor(() => expect(api.createKey).toHaveBeenCalledWith('acme', 'deploy'))
+      await waitFor(() => expect(api.createKey).toHaveBeenCalledWith('acme', 'deploy', 'service')) // least privilege unless another is chosen
       expect(await screen.findByTestId('new-key')).toHaveTextContent('plain-secret-key')
       expect(screen.getByText(/only time the key is shown/i)).toBeInTheDocument()
 
@@ -269,6 +269,139 @@ describe('TenantsPage', () => {
       await waitFor(() => expect(screen.queryByTestId('new-key')).not.toBeInTheDocument())
       // Creating a key changes the tenant's key count, so the list is reloaded
       expect(api.listTenants).toHaveBeenCalledTimes(2)
+    })
+
+    it('creates a key with the role chosen, and says what each role is for', async () => {
+      const { api, user } = setup()
+      await screen.findByText('Acme Corp')
+      await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
+      expect(await screen.findByText(/for programs: start and read instances/i)).toBeInTheDocument()
+
+      await user.type(await screen.findByLabelText('Key name'), 'erp')
+      await user.click(screen.getByRole('combobox', { name: 'Role' }))
+      await user.click(await screen.findByRole('option', { name: 'Tenant manager' }))
+      expect(screen.getByText(/everything in this tenant, including webhooks/i)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Create key' }))
+
+      await waitFor(() => expect(api.createKey).toHaveBeenCalledWith('acme', 'erp', 'tenant_manager'))
+    })
+
+    it('shows each key\'s role as text, with an Edit button, and no select until you edit', async () => {
+      const { api, user } = setup()
+      api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'worker', role: 'service' }), makeKey({ id: 'k2', name: 'erp', role: 'tenant_manager' })])
+      await screen.findByText('Acme Corp')
+
+      await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
+
+      const worker = (await screen.findByText('worker')).closest('tr')!
+      const erp = screen.getByText('erp').closest('tr')!
+      expect(within(worker).getByText('Service')).toBeInTheDocument()
+      expect(within(erp).getByText('Tenant manager')).toBeInTheDocument()
+      expect(screen.queryByRole('combobox', { name: /role of key/i })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Edit key worker' })).toBeInTheDocument()
+    })
+
+    it('edits a role: the row becomes a select, shows what changes, and saves with the same secret', async () => {
+      const { api, user } = setup()
+      api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'erp', role: 'service' })])
+      await screen.findByText('Acme Corp')
+      await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
+
+      await user.click(await screen.findByRole('button', { name: 'Edit key erp' }))
+      expect(screen.getByRole('button', { name: 'Save the role of key erp' })).toBeDisabled() // nothing changed yet
+      await user.click(screen.getByRole('combobox', { name: 'Role of key erp' }))
+      await user.click(await screen.findByRole('option', { name: 'Tenant manager' }))
+      expect(screen.queryByText(/its secret does not change/i)).not.toBeInTheDocument() // no caption under the select
+      expect(api.setKeyRole).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Save the role of key erp' }))
+      // Save asks first, says what changes, and nothing is sent until it is confirmed
+      expect(await screen.findByText('Give this key more access?')).toBeInTheDocument()
+      expect(screen.getByText(/everything in this tenant, including webhooks and the administrative commands/i)).toBeInTheDocument()
+      expect(screen.getByText(/its secret does not change/i)).toBeInTheDocument()
+      expect(api.setKeyRole).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Raise to tenant manager' }))
+
+      await waitFor(() => expect(api.setKeyRole).toHaveBeenCalledWith('acme', 'k1', 'tenant_manager'))
+      await waitFor(() => expect(api.listKeys).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Role of key erp' })).not.toBeInTheDocument()) // back to text
+    })
+
+    it('changes nothing on Cancel, and no caption is shown while choosing', async () => {
+      const { api, user } = setup()
+      api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'erp', role: 'tenant_manager' })])
+      await screen.findByText('Acme Corp')
+      await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
+
+      await user.click(await screen.findByRole('button', { name: 'Edit key erp' }))
+      await user.click(screen.getByRole('combobox', { name: 'Role of key erp' }))
+      await user.click(await screen.findByRole('option', { name: 'Service' }))
+      expect(screen.queryByText(/will lose webhooks, metrics/i)).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Cancel editing key erp' }))
+
+      expect(api.setKeyRole).not.toHaveBeenCalled()
+      expect(screen.queryByRole('combobox', { name: 'Role of key erp' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Edit key erp' })).toBeInTheDocument()
+    })
+
+    it('backing out of the confirmation keeps the row in edit mode and changes nothing', async () => {
+      const { api, user } = setup()
+      api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'erp', role: 'tenant_manager' })])
+      await screen.findByText('Acme Corp')
+      await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
+      await user.click(await screen.findByRole('button', { name: 'Edit key erp' }))
+      await user.click(screen.getByRole('combobox', { name: 'Role of key erp' }))
+      await user.click(await screen.findByRole('option', { name: 'Service' }))
+
+      await user.click(screen.getByRole('button', { name: 'Save the role of key erp' }))
+      expect(await screen.findByText('Give this key less access?')).toBeInTheDocument()
+      expect(screen.getByText(/the key “erp” will lose webhooks, metrics/i)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => expect(screen.queryByText('Give this key less access?')).not.toBeInTheDocument())
+      expect(api.setKeyRole).not.toHaveBeenCalled()
+      expect(screen.getByRole('combobox', { name: 'Role of key erp' })).toBeInTheDocument()
+    })
+
+    it('edits one key at a time: opening another row closes the first', async () => {
+      const { api, user } = setup()
+      api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'one', role: 'service' }), makeKey({ id: 'k2', name: 'two', role: 'service' })])
+      await screen.findByText('Acme Corp')
+      await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
+
+      await user.click(await screen.findByRole('button', { name: 'Edit key one' }))
+      await user.click(screen.getByRole('button', { name: 'Edit key two' }))
+
+      expect(screen.queryByRole('combobox', { name: 'Role of key one' })).not.toBeInTheDocument()
+      expect(screen.getByRole('combobox', { name: 'Role of key two' })).toBeInTheDocument()
+    })
+
+    it('shows the server\'s refusal and stays in edit mode so nothing typed is lost', async () => {
+      const { api, user } = setup()
+      api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'erp', role: 'service' })])
+      api.setKeyRole.mockRejectedValue(new ApiError(404, "Key 'k1' not found or revoked", 'NOT_FOUND'))
+      await screen.findByText('Acme Corp')
+      await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
+      await user.click(await screen.findByRole('button', { name: 'Edit key erp' }))
+      await user.click(screen.getByRole('combobox', { name: 'Role of key erp' }))
+      await user.click(await screen.findByRole('option', { name: 'Tenant manager' }))
+
+      await user.click(screen.getByRole('button', { name: 'Save the role of key erp' }))
+      await user.click(await screen.findByRole('button', { name: 'Raise to tenant manager' }))
+
+      expect(await screen.findByText(/not found or revoked/)).toBeInTheDocument()
+      // the confirmation is fading out; once it has gone the row is still in edit mode
+      expect(await screen.findByRole('combobox', { name: 'Role of key erp' })).toBeInTheDocument()
+    })
+
+    it('a revoked key shows its role as text and cannot be edited', async () => {
+      const { api, user } = setup()
+      api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'old', role: 'tenant_manager', revokedAt: '2026-02-01T00:00:00.000Z' })])
+      await screen.findByText('Acme Corp')
+
+      await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
+
+      expect(await screen.findByText('Tenant manager', { selector: 'td' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Edit key old' })).not.toBeInTheDocument()
     })
 
     it('revokes a key after confirmation', async () => {

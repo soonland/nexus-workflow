@@ -12,6 +12,8 @@ describe('describeAudit', () => {
     [entry('tenant.rename', { name: 'Acme Corp' }), 'Renamed tenant acme to "Acme Corp"'],
     [entry('tenant.delete'), 'Deleted tenant acme'],
     [entry('key.create', { name: 'ci' }, 'key-1'), 'Created API key "ci"'],
+    [entry('key.create', { name: 'erp', role: 'tenant_manager' }, 'key-1'), 'Created API key "erp" (tenant_manager)'],
+    [entry('key.role', { name: 'erp', from: 'service', to: 'tenant_manager' }, 'key-1'), 'Changed the role of API key "erp" from service to tenant_manager'],
     [entry('key.revoke', {}, 'key-1'), 'Revoked an API key'],
     [entry('user.create', { email: 'ada@example.com' }, 'u1'), 'Invited ada@example.com'],
     [entry('user.disable', { email: 'ada@example.com' }, 'u1'), 'Disabled ada@example.com'],

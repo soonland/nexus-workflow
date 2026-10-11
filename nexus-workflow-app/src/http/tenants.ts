@@ -3,7 +3,7 @@ import type postgres from 'postgres'
 import { isAdminKeyHeader } from '../auth/adminKey.js'
 import { TenantStore } from '../db/TenantStore.js'
 import { auditActorOf } from '../auth/auditActor.js'
-import type { Principal } from '../auth/principal.js'
+import { KEY_ROLES, type KeyRole, type Principal } from '../auth/principal.js'
 import type { AuditActor, AuditLog } from '../db/AuditLog.js'
 import { readTenantCounts, type TenantCounts } from '../db/tenantCounts.js'
 import { dropTenantSchema, provisionTenantSchema, VALID_TENANT_ID } from '../db/tenantProvisioner.js'
@@ -288,21 +288,29 @@ export function createTenantsRouter(
       return c.json({ error: 'VALIDATION_ERROR', message: 'Body must be a JSON object' }, 400)
     }
 
-    const { name } = body as Record<string, unknown>
+    const { name, role } = body as Record<string, unknown>
     if (typeof name !== 'string' || name.trim() === '') {
       return c.json({ error: 'VALIDATION_ERROR', message: '"name" must be a non-empty string' }, 400)
     }
     if (name.length > 255) {
       return c.json({ error: 'VALIDATION_ERROR', message: '"name" must not exceed 255 characters' }, 400)
     }
+    if (role !== undefined && !KEY_ROLES.includes(role as KeyRole)) {
+      return c.json({ error: 'VALIDATION_ERROR', message: `"role" must be one of: ${KEY_ROLES.join(', ')}` }, 400)
+    }
 
     const tenant = await store.getTenant(tenantId)
     if (!tenant) return c.json({ error: 'NOT_FOUND', message: `Tenant '${tenantId}' not found` }, 404)
     if (tenant.status !== 'active') return c.json({ error: 'FORBIDDEN', message: `Tenant '${tenantId}' is not active` }, 403)
 
-    const { key, plaintext } = await store.createApiKey(tenantId, name.trim())
-    // the key's id and name, never the key itself
-    await options.audit?.record({ action: 'key.create', actor: actorOf(c), tenantIds: [tenantId], target: key.id, details: { name: key.name } })
+    // least privilege unless a role is asked for; the person who creates it is recorded
+    const actor = actorOf(c)
+    const { key, plaintext } = await store.createApiKey(tenantId, name.trim(), {
+      ...(role ? { role: role as KeyRole } : {}),
+      createdBy: actor.kind === 'user' ? actor.id : null,
+    })
+    // the key's id, name and role, never the key itself
+    await options.audit?.record({ action: 'key.create', actor, tenantIds: [tenantId], target: key.id, details: { name: key.name, role: key.role } })
     return c.json({ key, plaintext }, 201)
   })
 
@@ -316,6 +324,44 @@ export function createTenantsRouter(
 
     const keys = await store.listApiKeys(tenantId)
     return c.json({ keys })
+  })
+
+  // ─── PATCH /tenants/:id/keys/:keyId: change what a key may do ─────────────
+  // The secret stays the same, so the program that uses the key does not have to change.
+
+  app.patch('/:id/keys/:keyId', async (c) => {
+    const tenantId = c.req.param('id')
+    const keyId = c.req.param('keyId')
+
+    let body: unknown
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'VALIDATION_ERROR', message: 'Invalid JSON body' }, 400)
+    }
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+      return c.json({ error: 'VALIDATION_ERROR', message: 'Body must be a JSON object' }, 400)
+    }
+    const { role } = body as Record<string, unknown>
+    if (!KEY_ROLES.includes(role as KeyRole)) {
+      return c.json({ error: 'VALIDATION_ERROR', message: `"role" must be one of: ${KEY_ROLES.join(', ')}` }, 400)
+    }
+
+    if (!(await store.getTenant(tenantId))) return c.json({ error: 'NOT_FOUND', message: `Tenant '${tenantId}' not found` }, 404)
+
+    const changed = await store.setApiKeyRole(tenantId, keyId, role as KeyRole)
+    if (!changed) return c.json({ error: 'NOT_FOUND', message: `Key '${keyId}' not found or revoked` }, 404)
+
+    if (changed.previous !== changed.key.role) {
+      await options.audit?.record({
+        action: 'key.role',
+        actor: actorOf(c),
+        tenantIds: [tenantId],
+        target: keyId,
+        details: { name: changed.key.name, from: changed.previous, to: changed.key.role },
+      })
+    }
+    return c.json({ key: changed.key })
   })
 
   // ─── DELETE /tenants/:id/keys/:keyId ─────────────────────────────────────

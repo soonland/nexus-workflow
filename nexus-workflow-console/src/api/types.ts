@@ -18,10 +18,16 @@ export interface Tenant {
   counts?: TenantCounts | null
 }
 
+/** What a tenant API key may do: `service` is the runtime API, `tenant_manager` everything in its tenant. */
+export type KeyRole = 'service' | 'tenant_manager'
+
 export interface ApiKey {
   id: string
   tenantId: string
   name: string
+  role: KeyRole
+  /** The person who created it, if known. */
+  createdBy: string | null
   createdAt: string
   lastUsedAt: string | null
   revokedAt: string | null
