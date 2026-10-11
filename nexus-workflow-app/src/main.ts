@@ -30,6 +30,8 @@ import { createOperatorGuard, createOperatorKeyAdminGuard, createPeopleAdminGuar
 import { createOperatorKeysRouter } from './http/operatorKeys.js'
 import { PostgresWebhookStore } from './webhooks/WebhookStore.js'
 import { WebhookDispatcher } from './webhooks/WebhookDispatcher.js'
+import { createSafeFetch } from './webhooks/safeFetch.js'
+import type { WebhookUrlPolicy } from './webhooks/urlPolicy.js'
 import { PostgresEventLog } from './db/EventLog.js'
 import { HttpCallHandler } from './worker/handlers/HttpCallHandler.js'
 import { LogHandler } from './worker/handlers/LogHandler.js'
@@ -78,7 +80,13 @@ if (config.redisUrl) {
   redisPublisher.attach(eventHub)
 }
 
-const webhookDispatcher = new WebhookDispatcher(webhookStoreFor, eventHub)
+const webhookUrlPolicy: WebhookUrlPolicy = {
+  allowHttp: config.webhookAllowHttp,
+  allowedHosts: config.webhookAllowedHosts,
+}
+const webhookDispatcher = new WebhookDispatcher(webhookStoreFor, eventHub, {
+  fetch: createSafeFetch({ policy: webhookUrlPolicy }),
+})
 webhookDispatcher.start()
 
 // ─── Per-tenant background workers ────────────────────────────────────────────
@@ -238,7 +246,7 @@ app.route('/', createTasksRouter(storeFactory, eventBusFor))
 app.route('/', createAdminRouter(storeFactory, eventBusFor))
 app.route('/', createEventsRouter(storeFactory, eventBusFor))
 app.route('/', createObservabilityRouter(storeFactory, eventLogFor))
-app.route('/', createWebhooksRouter(webhookStoreFor))
+app.route('/', createWebhooksRouter(webhookStoreFor, { policy: webhookUrlPolicy }))
 
 const server = serve({ fetch: app.fetch, port: config.port }, () => {
   console.log(`nexus-workflow-app listening on port ${config.port}`)

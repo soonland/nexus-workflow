@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { STRICT_WEBHOOK_URL_POLICY, WebhookUrlError, dnsResolver, resolveWebhookTarget, type HostResolver, type WebhookUrlPolicy } from '../webhooks/urlPolicy.js'
 import type { WebhookStore } from '../webhooks/WebhookStore.js'
 import type { AppVariables } from './middleware/auth.js'
 import { validationError } from './validation.js'
@@ -14,7 +15,18 @@ const CreateWebhookSchema = z.object({
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
-export function createWebhooksRouter(storeFor: (tenantId: string) => WebhookStore): Hono<{ Variables: AppVariables }> {
+export interface WebhooksRouterOptions {
+  policy?: WebhookUrlPolicy
+  /** Injectable for tests; defaults to DNS. */
+  resolver?: HostResolver
+}
+
+export function createWebhooksRouter(
+  storeFor: (tenantId: string) => WebhookStore,
+  options: WebhooksRouterOptions = {},
+): Hono<{ Variables: AppVariables }> {
+  const policy = options.policy ?? STRICT_WEBHOOK_URL_POLICY
+  const resolver = options.resolver ?? dnsResolver
   const app = new Hono<{ Variables: AppVariables }>()
 
   // POST /webhooks — register a new webhook
@@ -28,6 +40,16 @@ export function createWebhooksRouter(storeFor: (tenantId: string) => WebhookStor
 
     const parsed = CreateWebhookSchema.safeParse(body)
     if (!parsed.success) return c.json(validationError(parsed.error), 400)
+
+    // The address is checked again at every delivery; this gives the caller an immediate answer.
+    try {
+      await resolveWebhookTarget(parsed.data.url, policy, resolver)
+    } catch (err) {
+      if (err instanceof WebhookUrlError) {
+        return c.json({ error: 'INVALID_WEBHOOK_URL', message: err.message }, 400)
+      }
+      throw err
+    }
 
     const reg = await storeFor(c.get('tenantId')).save(parsed.data)
     return c.json(reg, 201)

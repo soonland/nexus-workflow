@@ -263,6 +263,16 @@ Every key that existed before the migration became `service`. A program that nee
 
 `nexus-erp` needs `tenant_manager`: its admin screens suspend, resume, restart and cancel instances and delete definitions. Raise its key (or provision a new one: `tenant:provision` defaults to `tenant_manager`). Until then those screens get 403 with a message naming the role.
 
+### Webhook targets
+
+A webhook is a request the server makes on a tenant's behalf, so the target is restricted:
+
+- **https only.** `http://` is refused unless `WEBHOOK_ALLOW_HTTP=true` (local development).
+- **No internal addresses.** A URL is refused (`400 INVALID_WEBHOOK_URL`) when its host is, or resolves to, a loopback, private, shared (CGNAT), link-local, multicast, reserved or documentation address, or carries credentials. The check runs when the webhook is registered **and again at every delivery**, and every address a name resolves to must pass.
+- **The checked address is the one connected to.** The name is resolved once per delivery and the connection goes to that address (TLS still verifies the certificate against the host name), so a name that changes its answer cannot redirect the request.
+- **No redirects, bounded time.** A `3xx` answer is a failed delivery and is not followed; a target that does not answer within 10 s is a failed attempt. Response bodies are never read.
+- **Allow-list for internal targets.** `WEBHOOK_ALLOWED_HOSTS` takes a comma-separated list of host names, addresses or CIDR ranges (`erp.internal,10.1.0.0/16`) that may be reached although they are internal. Link-local addresses (cloud metadata services such as `169.254.169.254`) cannot be allow-listed.
+
 ### Managing tenants (admin API)
 
 The `/tenants` endpoints are for platform operators: a signed-in operator, or `Authorization: Bearer $ADMIN_API_KEY` (set `ADMIN_API_KEY` when starting the workflow app). Tenant managers and tenant API keys cannot use them.

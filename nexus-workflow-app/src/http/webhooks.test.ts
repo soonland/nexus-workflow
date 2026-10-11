@@ -12,7 +12,7 @@ describe('webhooks HTTP API', () => {
   beforeEach(() => {
     store = new InMemoryWebhookStore()
     app = new Hono()
-    app.route('/', createWebhooksRouter(() => store))
+    app.route('/', createWebhooksRouter(() => store, { resolver: async () => ['93.184.216.34'] }))
   })
 
   // ─── POST /webhooks ───────────────────────────────────────────────────────
@@ -271,6 +271,139 @@ describe('webhooks HTTP API', () => {
       expect(res.status).toBe(404)
     })
   })
+
+  // ─── URL restrictions (SSRF) ──────────────────────────────────────────────
+
+  describe('POST /webhooks — target restrictions', () => {
+    const register = (url: string, resolved: string[] = ['93.184.216.34']) => {
+      const router = new Hono()
+      router.route('/', createWebhooksRouter(() => store, { resolver: async () => resolved }))
+      return router.fetch(
+        new Request('http://localhost/webhooks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        }),
+      )
+    }
+
+    it.each([
+      'http://example.com/hook',
+      'ftp://example.com/hook',
+      'https://user:pw@example.com/hook',
+      'https://127.0.0.1/hook',
+      'https://[::1]/hook',
+      'https://localhost/hook',
+      'https://169.254.169.254/latest/meta-data',
+      'https://10.0.0.5/hook',
+      'https://192.168.1.1/hook',
+      'https://172.16.0.1/hook',
+      'https://0.0.0.0/hook',
+      'https://[::ffff:127.0.0.1]/hook',
+      'https://2130706433/hook',
+    ])('400: refuses %s', async (url) => {
+      const res = await register(url)
+      expect(res.status).toBe(400)
+      expect(((await res.json()) as { error: string }).error).toBe('INVALID_WEBHOOK_URL')
+      expect(await store.list()).toHaveLength(0)
+    })
+
+    it('400: refuses a name that resolves to an internal address', async () => {
+      const res = await register('https://hooks.example.com/x', ['10.1.2.3'])
+      expect(res.status).toBe(400)
+    })
+
+    it('400: refuses a name that resolves to a mix of public and internal addresses', async () => {
+      const res = await register('https://hooks.example.com/x', ['93.184.216.34', '127.0.0.1'])
+      expect(res.status).toBe(400)
+    })
+
+    it('400: refuses a name that does not resolve', async () => {
+      const router = new Hono()
+      router.route(
+        '/',
+        createWebhooksRouter(() => store, {
+          resolver: async () => {
+            throw new Error('ENOTFOUND')
+          },
+        }),
+      )
+      const res = await router.fetch(
+        new Request('http://localhost/webhooks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: 'https://nope.example.com/x' }),
+        }),
+      )
+      expect(res.status).toBe(400)
+    })
+
+    it('201: accepts a public https target', async () => {
+      expect((await register('https://hooks.example.com/x')).status).toBe(201)
+    })
+
+    it('201: accepts http when the policy allows it', async () => {
+      const router = new Hono()
+      router.route(
+        '/',
+        createWebhooksRouter(() => store, {
+          policy: { allowHttp: true, allowedHosts: [] },
+          resolver: async () => ['93.184.216.34'],
+        }),
+      )
+      const res = await router.fetch(
+        new Request('http://localhost/webhooks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: 'http://hooks.example.com/x' }),
+        }),
+      )
+      expect(res.status).toBe(201)
+    })
+
+    it('201: accepts an internal target the operator allow-listed', async () => {
+      const router = new Hono()
+      router.route(
+        '/',
+        createWebhooksRouter(() => store, {
+          policy: { allowHttp: false, allowedHosts: ['10.0.0.0/8', 'erp.internal'] },
+          resolver: async (host) => (host === 'erp.internal' ? ['192.168.1.9'] : ['93.184.216.34']),
+        }),
+      )
+      const post = (url: string) =>
+        router.fetch(
+          new Request('http://localhost/webhooks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url }),
+          }),
+        )
+      expect((await post('https://10.4.4.4/hook')).status).toBe(201)
+      expect((await post('https://erp.internal/hook')).status).toBe(201)
+      expect((await post('https://192.168.1.9/hook')).status).toBe(400)
+    })
+
+    it('400: cloud metadata stays blocked even when allow-listed', async () => {
+      const router = new Hono()
+      router.route(
+        '/',
+        createWebhooksRouter(() => store, {
+          policy: { allowHttp: false, allowedHosts: ['169.254.169.254', '169.254.0.0/16', 'meta.internal'] },
+          resolver: async () => ['169.254.169.254'],
+        }),
+      )
+      for (const url of ['https://169.254.169.254/x', 'https://meta.internal/x']) {
+        const res = await router.fetch(
+          new Request('http://localhost/webhooks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url }),
+          }),
+        )
+        expect(res.status).toBe(400)
+      }
+    })
+  })
 })
 
 // ─── Tenant isolation ─────────────────────────────────────────────────────────
@@ -287,7 +420,7 @@ describe('webhooks HTTP API — tenant isolation', () => {
       c.set('tenantId', c.req.header('X-Tenant')!)
       return next()
     })
-    app.route('/', createWebhooksRouter((tenantId) => stores[tenantId]!))
+    app.route('/', createWebhooksRouter((tenantId) => stores[tenantId]!, { resolver: async () => ['93.184.216.34'] }))
     return app
   }
 
