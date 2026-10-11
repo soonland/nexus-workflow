@@ -7,6 +7,7 @@ import { TenantStore } from '../db/TenantStore.js'
 import { dropTenantSchema, provisionTenantSchema } from '../db/tenantProvisioner.js'
 import { UserStore } from '../db/UserStore.js'
 import { createAuthMiddleware, type AppVariables } from './middleware/auth.js'
+import { createKeyRoleMiddleware } from './middleware/keyRole.js'
 import { createOperatorGuard } from './middleware/operator.js'
 import { createTenantsRouter } from './tenants.js'
 
@@ -30,6 +31,7 @@ describe('authorization (Postgres)', () => {
   // credentials, by name
   const token: Record<string, string> = {}
   let keyOfA = ''
+  let serviceKeyOfA = ''
 
   beforeAll(async () => {
     await runMigrations(DATABASE_URL)
@@ -41,7 +43,8 @@ describe('authorization (Postgres)', () => {
     await tenants.createTenant(tenantA, 'Tenant A')
     await tenants.createTenant(tenantB, 'Tenant B')
     await provisionTenantSchema(tenantA, sql) // A has a real schema (so it can be counted); B is only a registry row
-    keyOfA = (await tenants.createApiKey(tenantA, 'service')).plaintext
+    keyOfA = (await tenants.createApiKey(tenantA, 'integration', { role: 'tenant_manager' })).plaintext
+    serviceKeyOfA = (await tenants.createApiKey(tenantA, 'worker', { role: 'service' })).plaintext
 
     const make = async (name: string, roles: Array<['operator', null] | ['tenant_manager', string]>) => {
       const user = await users.createUser({ email: `${prefix}.${name}@example.com`, name })
@@ -63,6 +66,7 @@ describe('authorization (Postgres)', () => {
       }),
     )
     app.use('*', createAuthMiddleware(sql, HMAC, { sessions, users }))
+    app.use('*', createKeyRoleMiddleware())
     for (const path of ['/definitions', '/instances', '/tasks', '/admin/instances/summary', '/instances/x/events', '/webhooks', '/metrics']) {
       app.all(path, (c) => c.json({ tenantId: c.get('tenantId') }))
     }
@@ -222,6 +226,45 @@ describe('authorization (Postgres)', () => {
       })
     },
   )
+
+  describe('what a tenant key may do, by role', () => {
+    it('a service key reaches the runtime routes of its tenant', async () => {
+      for (const path of ['/definitions', '/instances', '/tasks', '/instances/x/events']) {
+        const res = await call(path, { bearer: serviceKeyOfA })
+        expect({ path, status: res.status }).toEqual({ path, status: 200 })
+        expect(res.body['tenantId']).toBe(tenantA)
+      }
+    })
+
+    it('a service key is refused the administrative routes with a message that says what to ask for', async () => {
+      for (const path of ['/webhooks', '/metrics', '/admin/instances/summary']) {
+        const res = await call(path, { bearer: serviceKeyOfA })
+        expect({ path, status: res.status }).toEqual({ path, status: 403 })
+        expect(res.body['message']).toMatch(/role "service".*tenant_manager/)
+      }
+      expect(await status('/webhooks', { method: 'POST', bearer: serviceKeyOfA })).toBe(403)
+      expect(await status('/definitions', { method: 'DELETE', bearer: serviceKeyOfA })).toBe(403)
+    })
+
+    it('a tenant_manager key reaches everything in its tenant', async () => {
+      for (const path of ['/definitions', '/webhooks', '/metrics', '/admin/instances/summary']) {
+        expect(await status(path, { bearer: keyOfA })).toBe(200)
+      }
+    })
+
+    it('raising a key\'s role takes effect on its next request, with the same secret', async () => {
+      const { key, plaintext } = await tenants.createApiKey(tenantA, 'to be raised')
+      expect(await status('/webhooks', { bearer: plaintext })).toBe(403)
+
+      await tenants.setApiKeyRole(tenantA, key.id, 'tenant_manager')
+
+      expect(await status('/webhooks', { bearer: plaintext })).toBe(200)
+    })
+
+    it('people are not held to a key role: a tenant manager session still reaches the administrative routes', async () => {
+      expect(await status('/webhooks', { session: 'managerA', tenant: tenantA })).toBe(200)
+    })
+  })
 
   describe('tenant routes: cross-cutting rules', () => {
     it('Bearer credentials win over a cookie: an API key is never combined with a session', async () => {

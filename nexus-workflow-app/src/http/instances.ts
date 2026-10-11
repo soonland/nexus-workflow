@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { execute, RuntimeError, DefinitionError, type StateStore, type EngineCommand, type InstanceQuery, type InstanceStatus, type VariableValue, type EventBus } from 'nexus-workflow-core'
+import { keyMayRunCommand } from '../auth/keyPermissions.js'
 import { loadEngineState, computeStoreOps, buildUserTaskCreationOps, normalizeVariables, unwrapVariables } from './engineHelpers.js'
 import { validationError, startInstanceBodySchema, listInstancesQuerySchema, instanceStatusSchema, commandBodySchema } from './validation.js'
 import type { AppVariables } from './middleware/auth.js'
@@ -128,6 +129,12 @@ export function createInstancesRouter(storeFactory: (tenantId: string) => StateS
     if (!parsed.success) return c.json(validationError(parsed.error), 400)
 
     const command = parsed.data as EngineCommand
+
+    // Ending, pausing or resuming an instance is administrative, whichever route it arrives by
+    const principal = c.get('principal')
+    if (principal?.kind === 'apiKey' && !keyMayRunCommand(principal.role, command.type)) {
+      return c.json({ error: 'FORBIDDEN', message: `This API key has the role "${principal.role}", which cannot send ${command.type}.` }, 403)
+    }
 
     const state = await loadEngineState(store, id)
     if (!state) return c.json({ error: 'NOT_FOUND', message: `Instance '${id}' not found` }, 404)

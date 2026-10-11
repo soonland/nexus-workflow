@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto'
 import type { MiddlewareHandler } from 'hono'
 import type postgres from 'postgres'
-import { canUseTenant, type Principal } from '../../auth/principal.js'
+import { canUseTenant, type KeyRole, type Principal } from '../../auth/principal.js'
 import { readSessionToken } from '../../auth/sessionCookie.js'
 import type { SessionStore } from '../../db/SessionStore.js'
 import type { UserStore } from '../../db/UserStore.js'
@@ -77,8 +77,8 @@ export function createAuthMiddleware(
     }
 
     const keyHash = hashKey(key, hmacSecret)
-    const rows = await sql<{ tenant_id: string; revoked_at: Date | null }[]>`
-      SELECT k.tenant_id, k.revoked_at
+    const rows = await sql<{ id: string; name: string; role: KeyRole; tenant_id: string; revoked_at: Date | null }[]>`
+      SELECT k.id, k.name, k.role, k.tenant_id, k.revoked_at
       FROM public.api_keys k
       JOIN public.tenants t ON t.id = k.tenant_id
       WHERE k.key_hash = ${keyHash}
@@ -94,7 +94,7 @@ export function createAuthMiddleware(
     }
 
     c.set('tenantId', row.tenant_id)
-    c.set('principal', { kind: 'apiKey', tenantId: row.tenant_id })
+    c.set('principal', { kind: 'apiKey', tenantId: row.tenant_id, keyId: row.id, keyName: row.name, role: row.role })
 
     // Fire-and-forget: update last_used_at without blocking the request
     sql`UPDATE public.api_keys SET last_used_at = now() WHERE key_hash = ${keyHash}`.catch(err => {

@@ -593,4 +593,50 @@ describe('auth HTTP API (Postgres)', () => {
       expect(res.status).toBe(200)
     })
   })
+
+  describe('GET /auth/me with a key', () => {
+    const key = { id: 'k-1', name: 'worker', tenantId: 'acme', role: 'service', createdBy: 'u-1', createdAt: new Date('2026-03-01T00:00:00Z'), lastUsedAt: null, revokedAt: null }
+    const withKeys = () => {
+      const keyed = new Hono()
+      keyed.route(
+        '/auth',
+        createAuthRouter({
+          users, sessions, invites, hasher,
+          describeBearer: async (token) => (token === 'good-key' ? { kind: 'apiKey', key: key as never } : token === 'the-admin-key' ? { kind: 'adminKey' } : null),
+          accountIpThrottle: new LoginThrottle({ maxFailures: 3, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE }),
+          accountThrottle: new LoginThrottle({ maxFailures: 8, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE }),
+          ipThrottle: new LoginThrottle({ maxFailures: 10, windowMs: 15 * MINUTE, lockMs: 10 * MINUTE }),
+          sessionMaxAgeSeconds: 3600,
+          trustedProxies: 0,
+        }),
+      )
+      return (authorization: string) => keyed.fetch(new Request('http://localhost/auth/me', { headers: { Authorization: authorization } }))
+    }
+
+    it('describes a tenant key the way a person is described: what it is, whose, and what it may do', async () => {
+      const res = await withKeys()('Bearer good-key')
+
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({
+        apiKey: { id: 'k-1', name: 'worker', tenantId: 'acme', role: 'service', createdBy: 'u-1', createdAt: '2026-03-01T00:00:00.000Z' },
+      })
+    })
+
+    it('never says the key itself or its hash', async () => {
+      const text = JSON.stringify(await (await withKeys()('Bearer good-key')).json())
+
+      expect(text).not.toMatch(/good-key|hash|plaintext/i)
+    })
+
+    it('describes the admin key as an operator credential', async () => {
+      const res = await withKeys()('Bearer the-admin-key')
+
+      expect(await res.json()).toEqual({ adminKey: true, role: 'operator' })
+    })
+
+    it('401 for a key that is unknown or revoked, and for a credential that is not a Bearer one', async () => {
+      expect((await withKeys()('Bearer nope')).status).toBe(401)
+      expect((await withKeys()('Basic dXNlcjpwYXNz')).status).toBe(401)
+    })
+  })
 })

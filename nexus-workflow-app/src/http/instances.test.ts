@@ -760,6 +760,53 @@ describe('instances HTTP API', () => {
     })
   })
 
+  // ─── Key roles ─────────────────────────────────────────────────────────────
+
+  describe('administrative commands and key roles', () => {
+    const asKey = (role: 'service' | 'tenant_manager') => {
+      const guarded = new Hono<{ Variables: { principal?: unknown } }>()
+      guarded.use('*', async (c, next) => {
+        c.set('principal', { kind: 'apiKey', tenantId: 't', keyId: 'k', keyName: 'key', role })
+        return next()
+      })
+      guarded.route('/', createInstancesRouter(() => store, () => eventBus) as never)
+      return guarded
+    }
+    const send = (target: Hono<{ Variables: { principal?: unknown } }>, instanceId: string, type: string) =>
+      target.fetch(new Request(`http://localhost/instances/${instanceId}/commands`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type }) }))
+
+    it.each(['SuspendInstance', 'CancelInstance'])('a service key cannot send %s, and the instance is left alone', async (type) => {
+      await seedDefinition(store, USER_TASK_BPMN)
+      const { instance } = await startInstance(app, 'usertask-proc')
+
+      const res = await send(asKey('service'), instance.id as string, type)
+
+      expect(res.status).toBe(403)
+      expect((await res.json()).message).toMatch(new RegExp(`role "service".*${type}`))
+      expect((await store.getInstance(instance.id as string))!.status).toBe('active')
+    })
+
+    it('a tenant_manager key can', async () => {
+      await seedDefinition(store, USER_TASK_BPMN)
+      const { instance } = await startInstance(app, 'usertask-proc')
+
+      const res = await send(asKey('tenant_manager'), instance.id as string, 'SuspendInstance')
+
+      expect(res.status).toBe(200)
+      expect((await store.getInstance(instance.id as string))!.status).toBe('suspended')
+    })
+
+    it('a service key can send the commands a program needs', async () => {
+      await seedDefinition(store, USER_TASK_BPMN)
+      const { instance } = await startInstance(app, 'usertask-proc')
+
+      const res = await send(asKey('service'), instance.id as string, 'FireTimer')
+
+      // refused by the engine (no timer there), not by the role
+      expect(res.status).not.toBe(403)
+    })
+  })
+
   // ─── History ───────────────────────────────────────────────────────────────
 
   describe('step history', () => {

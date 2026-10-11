@@ -1,5 +1,5 @@
 import type postgres from 'postgres'
-import { TenantStore } from './TenantStore.js'
+import { TenantStore, type KeyRole } from './TenantStore.js'
 import { provisionTenantSchema, VALID_TENANT_ID } from './tenantProvisioner.js'
 
 export interface ProvisionTenantInput {
@@ -8,6 +8,11 @@ export interface ProvisionTenantInput {
   name?: string
   /** Label for the API key that is created. */
   keyName?: string
+  /**
+   * What the key may do. Defaults to `tenant_manager`: this is the tenant's main integration key
+   * (the ERP's), which needs the administrative commands too. Pass `service` for a runtime-only key.
+   */
+  keyRole?: KeyRole
 }
 
 export interface ProvisionTenantResult {
@@ -53,6 +58,6 @@ export async function provisionTenantWithKey(
     await provisionTenantSchema(tenantId, sql)
   }
 
-  const { plaintext } = await store.createApiKey(tenantId, input.keyName ?? 'provisioned key')
+  const { plaintext } = await store.createApiKey(tenantId, input.keyName ?? 'provisioned key', { role: input.keyRole ?? 'tenant_manager' })
   return { tenantId, tenantCreated, plaintextKey: plaintext }
 }

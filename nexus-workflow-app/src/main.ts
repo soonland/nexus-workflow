@@ -12,7 +12,9 @@ import { createAdminRouter } from './http/admin.js'
 import { createEventsRouter } from './http/events.js'
 import { createObservabilityRouter } from './http/observability.js'
 import { createWebhooksRouter } from './http/webhooks.js'
+import { isAdminKeyHeader } from './auth/adminKey.js'
 import { AuditLog } from './db/AuditLog.js'
+import { TenantStore } from './db/TenantStore.js'
 import { UserAdmin } from './auth/UserAdmin.js'
 import { InviteStore } from './db/InviteStore.js'
 import { createAuthRouter } from './http/auth.js'
@@ -22,6 +24,7 @@ import { createUsersRouter } from './http/users.js'
 import { mountConsole } from './http/console.js'
 import { createTenantsRouter } from './http/tenants.js'
 import { createAuthMiddleware, type AppVariables } from './http/middleware/auth.js'
+import { createKeyRoleMiddleware } from './http/middleware/keyRole.js'
 import { createOperatorGuard, createPeopleAdminGuard } from './http/middleware/operator.js'
 import { PostgresWebhookStore } from './webhooks/WebhookStore.js'
 import { WebhookDispatcher } from './webhooks/WebhookDispatcher.js'
@@ -121,7 +124,13 @@ const sessionStore = new SessionStore(authSql, {
   maxMs: config.sessionMaxMs,
 })
 const inviteStore = new InviteStore(authSql, { hmacSecret: config.apiKeyHmacSecret, ttlMs: config.inviteTtlMs })
+const keyStore = new TenantStore(authSql, config.apiKeyHmacSecret)
 app.route('/auth', createAuthRouter({
+  describeBearer: async (token) => {
+    if (isAdminKeyHeader(`Bearer ${token}`, config.adminApiKey)) return { kind: 'adminKey' }
+    const key = await keyStore.findActiveKey(token)
+    return key ? { kind: 'apiKey', key } : null
+  },
   audit: auditLog,
   users: userStore,
   sessions: sessionStore,
@@ -190,6 +199,8 @@ app.use('*', createAuthMiddleware(authSql, config.apiKeyHmacSecret, {
   users: userStore,
   publicOrigin: config.publicOrigin,
 }))
+// A tenant key is held to its role (service keys: the runtime API only)
+app.use('*', createKeyRoleMiddleware())
 // Workers must be running before the tenant's first event is published (they subscribe to
 // in-process events), so start them here rather than waiting for the next registry sync.
 app.use('*', async (c, next) => {

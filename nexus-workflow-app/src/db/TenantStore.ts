@@ -10,10 +10,15 @@ export interface Tenant {
   createdAt: Date
 }
 
+export type KeyRole = 'service' | 'tenant_manager'
+
 export interface ApiKey {
   id: string
   tenantId: string
   name: string
+  role: KeyRole
+  /** The person who created it; null for the admin key, the command line, or once that person is gone. */
+  createdBy: string | null
   keyHash: string
   createdAt: Date
   lastUsedAt: Date | null
@@ -125,18 +130,22 @@ export class TenantStore {
   async createApiKey(
     tenantId: string,
     name: string,
+    options: { role?: KeyRole; createdBy?: string | null } = {},
   ): Promise<{ key: ApiKeyPublic; plaintext: string }> {
+    const role = options.role ?? 'service' // least privilege unless asked for more
     const plaintext = randomBytes(32).toString('hex')
     const keyHash = createHmac('sha256', this.hmacSecret).update(plaintext).digest('hex')
     const id = randomBytes(16).toString('hex')
 
     const rows = await this.sql<ApiKeyPublic[]>`
-      INSERT INTO public.api_keys (id, tenant_id, name, key_hash)
-      VALUES (${id}, ${tenantId}, ${name}, ${keyHash})
+      INSERT INTO public.api_keys (id, tenant_id, name, key_hash, role, created_by)
+      VALUES (${id}, ${tenantId}, ${name}, ${keyHash}, ${role}, ${options.createdBy ?? null})
       RETURNING
         id,
         tenant_id AS "tenantId",
         name,
+        role,
+        created_by AS "createdBy",
         created_at AS "createdAt",
         last_used_at AS "lastUsedAt",
         revoked_at AS "revokedAt"
@@ -158,6 +167,8 @@ export class TenantStore {
         id,
         tenant_id AS "tenantId",
         name,
+        role,
+        created_by AS "createdBy",
         created_at AS "createdAt",
         last_used_at AS "lastUsedAt",
         revoked_at AS "revokedAt"
@@ -165,6 +176,47 @@ export class TenantStore {
       WHERE tenant_id = ${tenantId}
       ORDER BY created_at ASC
     `
+  }
+
+  /** The active key with this plaintext, or null (unknown, revoked, or its tenant is not active). */
+  async findActiveKey(plaintext: string): Promise<ApiKeyPublic | null> {
+    const keyHash = createHmac('sha256', this.hmacSecret).update(plaintext).digest('hex')
+    const rows = await this.sql<ApiKeyPublic[]>`
+      SELECT k.id, k.tenant_id AS "tenantId", k.name, k.role, k.created_by AS "createdBy",
+             k.created_at AS "createdAt", k.last_used_at AS "lastUsedAt", k.revoked_at AS "revokedAt"
+      FROM public.api_keys k
+      JOIN public.tenants t ON t.id = k.tenant_id
+      WHERE k.key_hash = ${keyHash} AND k.revoked_at IS NULL AND t.status = 'active'
+      LIMIT 1
+    `
+    return rows[0] ?? null
+  }
+
+  /**
+   * Changes what a key may do, keeping its secret (so the program using it does not have to change).
+   * Returns the key as it was and as it is now, or null if there is no such active key.
+   */
+  async setApiKeyRole(tenantId: string, keyId: string, role: KeyRole): Promise<{ key: ApiKeyPublic; previous: KeyRole } | null> {
+    const rows = await this.sql<Array<ApiKeyPublic & { previous: KeyRole }>>`
+      UPDATE public.api_keys AS k
+      SET role = ${role}
+      FROM (SELECT id, role AS previous FROM public.api_keys WHERE id = ${keyId} AND tenant_id = ${tenantId} AND revoked_at IS NULL FOR UPDATE) AS old
+      WHERE k.id = old.id
+      RETURNING
+        k.id,
+        k.tenant_id AS "tenantId",
+        k.name,
+        k.role,
+        k.created_by AS "createdBy",
+        k.created_at AS "createdAt",
+        k.last_used_at AS "lastUsedAt",
+        k.revoked_at AS "revokedAt",
+        old.previous
+    `
+    const row = rows[0]
+    if (!row) return null
+    const { previous, ...key } = row
+    return { key, previous }
   }
 
   async revokeApiKey(tenantId: string, keyId: string): Promise<boolean> {
