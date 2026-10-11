@@ -311,12 +311,13 @@ describe('TenantsPage', () => {
       expect(screen.getByRole('button', { name: 'Save the role of key erp' })).toBeDisabled() // nothing changed yet
       await user.click(screen.getByRole('combobox', { name: 'Role of key erp' }))
       await user.click(await screen.findByRole('option', { name: 'Tenant manager' }))
-      expect(screen.getByText(/everything in this tenant, including webhooks and the administrative commands/i)).toBeInTheDocument()
-      expect(screen.getByText(/its secret does not change/i)).toBeInTheDocument()
+      expect(screen.queryByText(/its secret does not change/i)).not.toBeInTheDocument() // no caption under the select
       expect(api.setKeyRole).not.toHaveBeenCalled()
       await user.click(screen.getByRole('button', { name: 'Save the role of key erp' }))
-      // Save asks first, and nothing is sent until it is confirmed
+      // Save asks first, says what changes, and nothing is sent until it is confirmed
       expect(await screen.findByText('Give this key more access?')).toBeInTheDocument()
+      expect(screen.getByText(/everything in this tenant, including webhooks and the administrative commands/i)).toBeInTheDocument()
+      expect(screen.getByText(/its secret does not change/i)).toBeInTheDocument()
       expect(api.setKeyRole).not.toHaveBeenCalled()
       await user.click(screen.getByRole('button', { name: 'Raise to tenant manager' }))
 
@@ -325,7 +326,7 @@ describe('TenantsPage', () => {
       await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Role of key erp' })).not.toBeInTheDocument()) // back to text
     })
 
-    it('warns what a lowered key will lose, and changes nothing on Cancel', async () => {
+    it('changes nothing on Cancel, and no caption is shown while choosing', async () => {
       const { api, user } = setup()
       api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'erp', role: 'tenant_manager' })])
       await screen.findByText('Acme Corp')
@@ -334,7 +335,7 @@ describe('TenantsPage', () => {
       await user.click(await screen.findByRole('button', { name: 'Edit key erp' }))
       await user.click(screen.getByRole('combobox', { name: 'Role of key erp' }))
       await user.click(await screen.findByRole('option', { name: 'Service' }))
-      expect(screen.getByText(/will lose webhooks, metrics and the administrative commands straight away/i)).toBeInTheDocument()
+      expect(screen.queryByText(/will lose webhooks, metrics/i)).not.toBeInTheDocument()
       await user.click(screen.getByRole('button', { name: 'Cancel editing key erp' }))
 
       expect(api.setKeyRole).not.toHaveBeenCalled()

@@ -237,8 +237,7 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
                     <TableCell>{key.name}</TableCell>
                     <TableCell>
                       {editing?.keyId === key.id ? (
-                        <>
-                          <TextField
+                        <TextField
                             select
                             size="small"
                             value={editing.role}
@@ -253,14 +252,6 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
                               </MenuItem>
                             ))}
                           </TextField>
-                          {editing.role !== key.role && (
-                            <Typography variant="caption" color={editing.role === 'service' ? 'warning.main' : 'text.secondary'} sx={{ display: 'block', mt: 0.5 }}>
-                              {editing.role === 'tenant_manager'
-                                ? 'It will be able to do everything in this tenant, including webhooks and the administrative commands. Its secret does not change.'
-                                : 'It will lose webhooks, metrics and the administrative commands straight away: a program using them gets 403. Its secret does not change.'}
-                            </Typography>
-                          )}
-                        </>
                       ) : (
                         (ROLE_HELP[key.role]?.label ?? key.role)
                       )}
