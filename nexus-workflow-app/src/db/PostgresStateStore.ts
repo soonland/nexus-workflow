@@ -120,6 +120,7 @@ function reviveHistoryEntry(raw: RawHistoryEntry): HistoryEntry {
     completedAt: reviveRequiredDate(raw.completedAt),
   }
   if (raw.variablesSnapshot !== undefined) base.variablesSnapshot = raw.variablesSnapshot
+  if (raw.forced !== undefined) base.forced = raw.forced
   return base
 }
 

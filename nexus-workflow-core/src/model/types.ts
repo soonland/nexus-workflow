@@ -59,6 +59,9 @@ export interface ProcessError {
   tokenId?: string
 }
 
+/** The ways a person can push a stuck step along (see the `StepForced` event). */
+export type ForcedAction = 'completeServiceTask' | 'failServiceTask' | 'fireTimer' | 'completeUserTask'
+
 export interface HistoryEntry {
   id: string
   instanceId: string
@@ -71,7 +74,7 @@ export interface HistoryEntry {
   variablesSnapshot?: Record<string, VariableValue>
   /** Set when a person pushed this step along by hand rather than the instance doing it itself. */
   forced?: {
-    action: 'completeServiceTask' | 'failServiceTask' | 'fireTimer' | 'completeUserTask'
+    action: ForcedAction
     by: string
     reason: string
     /** For a user task: the person it was assigned to. */

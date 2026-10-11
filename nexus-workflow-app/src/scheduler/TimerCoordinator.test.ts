@@ -288,6 +288,47 @@ describe('TimerCoordinator', () => {
     })
   })
 
+  describe('StepForced (fireTimer) → scheduler.cancel()', () => {
+    it('drops the scheduled timer when a person fired it by hand, so it does not linger until it falls due', async () => {
+      coordinator.start()
+      await seedDefinition(store, INTERMEDIATE_TIMER_BPMN)
+      const { instanceId } = await startInstance(store, eventBus, 'timer-proc')
+      const timer = inMemoryScheduler.getAll()[0]!
+      expect(inMemoryScheduler.getAll()).toHaveLength(1)
+
+      await eventBus.publish({
+        type: 'StepForced',
+        instanceId,
+        tokenId: timer.tokenId,
+        elementId: 'timer-1',
+        action: 'fireTimer',
+        forcedBy: 'manager@example.com',
+        reason: 'No need to wait',
+      })
+
+      expect(inMemoryScheduler.getAll()).toHaveLength(0)
+    })
+
+    it('leaves timers alone when another kind of step was forced', async () => {
+      coordinator.start()
+      await seedDefinition(store, INTERMEDIATE_TIMER_BPMN)
+      const { instanceId } = await startInstance(store, eventBus, 'timer-proc')
+      const timer = inMemoryScheduler.getAll()[0]!
+
+      await eventBus.publish({
+        type: 'StepForced',
+        instanceId,
+        tokenId: timer.tokenId,
+        elementId: 'timer-1',
+        action: 'completeServiceTask',
+        forcedBy: 'manager@example.com',
+        reason: 'Different step',
+      })
+
+      expect(inMemoryScheduler.getAll()).toHaveLength(1)
+    })
+  })
+
   // ─── Gateway state cleanup via timer firing ────────────────────────────────
 
   describe('gateway join state is saved/deleted when timer fires in parallel process', () => {

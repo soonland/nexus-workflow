@@ -1,9 +1,6 @@
-import type { BpmnElementType, WaitCondition } from '../model/types.js'
+import type { BpmnElementType, ForcedAction, WaitCondition } from '../model/types.js'
 
 // ─── Execution Events ─────────────────────────────────────────────────────────
-
-/** The ways a person can push a stuck step along (see the `StepForced` event). */
-export type ForcedAction = 'completeServiceTask' | 'failServiceTask' | 'fireTimer' | 'completeUserTask'
 
 export type ExecutionEvent =
   | { type: 'ProcessInstanceStarted'; instanceId: string; definitionId: string; definitionVersion: number }
