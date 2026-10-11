@@ -1,4 +1,5 @@
-import { execute, RuntimeError, type StateStore, type EventBus, type Scheduler, type EngineState, type VariableScope, type GatewayJoinState, type StoreOperation, type ScheduledTimer, type IntermediateCatchEventElement, type BoundaryEventElement } from 'nexus-workflow-core'
+import { execute, RuntimeError, type StateStore, type EventBus, type Scheduler, type EngineState, type VariableScope, type GatewayJoinState, type StoreOperation, type ExecutionEvent, type ScheduledTimer, type IntermediateCatchEventElement, type BoundaryEventElement } from 'nexus-workflow-core'
+import { historyOps } from '../historyOps.js'
 import { parseTimerExpression } from './parseTimerExpression.js'
 
 /**
@@ -105,7 +106,7 @@ export class TimerCoordinator {
       throw e
     }
 
-    await this.store.executeTransaction(buildStoreOps(state, result.newState))
+    await this.store.executeTransaction(buildStoreOps(state, result.newState, result.events))
     await this.eventBus.publish({
       type: 'TimerFired',
       instanceId: timer.instanceId,
@@ -133,7 +134,7 @@ export class TimerCoordinator {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function buildStoreOps(oldState: EngineState, newState: EngineState): StoreOperation[] {
+function buildStoreOps(oldState: EngineState, newState: EngineState, events: ExecutionEvent[]): StoreOperation[] {
   const ops: StoreOperation[] = []
   ops.push({ op: 'updateInstance', instance: newState.instance })
   ops.push({ op: 'saveTokens', tokens: newState.tokens })
@@ -151,5 +152,7 @@ function buildStoreOps(oldState: EngineState, newState: EngineState): StoreOpera
       ops.push({ op: 'deleteGatewayState', gatewayId: gs.gatewayId, instanceId: gs.instanceId })
     }
   }
+  // The steps this cycle finished, written in the same transaction as the state change
+  ops.push(...historyOps(oldState, newState, events))
   return ops
 }

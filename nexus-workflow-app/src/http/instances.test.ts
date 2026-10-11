@@ -759,4 +759,48 @@ describe('instances HTTP API', () => {
       expect(afterCancel.items.every(t => t.status === 'cancelled')).toBe(true)
     })
   })
+
+  // ─── History ───────────────────────────────────────────────────────────────
+
+  describe('step history', () => {
+    const steps = async (instanceId: string) => (await store.getHistory(instanceId)).map((e) => `${e.elementId}:${e.status}`)
+
+    it('a process that runs straight through is written down element by element', async () => {
+      await seedDefinition(store, SIMPLE_BPMN)
+
+      const { instance } = await startInstance(app, 'simple-proc')
+
+      expect(await steps(instance.id as string)).toEqual(['start-1:completed', 'end-1:completed'])
+    })
+
+    it('an instance waiting at a task has the elements it passed, and not the task yet', async () => {
+      await seedDefinition(store, USER_TASK_BPMN)
+
+      const { instance } = await startInstance(app, 'usertask-proc')
+
+      expect(await steps(instance.id as string)).toEqual(['start-1:completed'])
+    })
+
+    it('cancelling records the element it was waiting at as cancelled, with when it arrived', async () => {
+      await seedDefinition(store, USER_TASK_BPMN)
+      const { instance } = await startInstance(app, 'usertask-proc')
+
+      await app.fetch(new Request(`http://localhost/instances/${instance.id}`, { method: 'DELETE' }))
+
+      const history = await store.getHistory(instance.id as string)
+      const task = history.find((e) => e.elementId === 'task-1')!
+      expect(task.status).toBe('cancelled')
+      expect(task.elementType).toBe('userTask')
+      expect(task.completedAt.getTime()).toBeGreaterThanOrEqual(task.startedAt.getTime())
+    })
+
+    it('keeps the variables the instance had, as a snapshot on each entry', async () => {
+      await seedDefinition(store, USER_TASK_BPMN)
+
+      const { instance } = await startInstance(app, 'usertask-proc', { variables: { amount: 120 } })
+
+      const [entry] = await store.getHistory(instance.id as string)
+      expect(entry?.variablesSnapshot).toEqual({ amount: { type: 'number', value: 120 } })
+    })
+  })
 })

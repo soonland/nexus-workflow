@@ -761,7 +761,8 @@ export class PostgresStateStore implements StateStore {
       started_at: entry.startedAt,
       data: sql.json(entry as unknown as postgres.JSONValue),
     }
-    await sql`INSERT INTO history_entries ${sql(row)}`
+    // A step is written once; repeating the same write (a retried cycle) changes nothing
+    await sql`INSERT INTO history_entries ${sql(row)} ON CONFLICT (id) DO NOTHING`
   }
 
   async getHistory(instanceId: string): Promise<HistoryEntry[]> {
@@ -769,7 +770,7 @@ export class PostgresStateStore implements StateStore {
     const rows = await this.sql<Row[]>`
       SELECT data FROM history_entries
       WHERE instance_id = ${instanceId}
-      ORDER BY started_at ASC
+      ORDER BY started_at ASC, data->>'completedAt' ASC, id ASC
     `
     return rows.map((r) => reviveHistoryEntry(r.data))
   }

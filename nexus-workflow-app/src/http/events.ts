@@ -59,7 +59,7 @@ export function createEventsRouter(storeFactory: (tenantId: string) => StateStor
     }
 
     const ops = [
-      ...computeStoreOps(false, state, result.newState),
+      ...computeStoreOps(false, state, result.newState, result.events),
       ...buildUserTaskCreationOps(result.events, definition, result.newState),
     ]
     await store.executeTransaction(ops)
@@ -109,7 +109,7 @@ export function createEventsRouter(storeFactory: (tenantId: string) => StateStor
       }
 
       const ops = [
-        ...computeStoreOps(false, state, result.newState),
+        ...computeStoreOps(false, state, result.newState, result.events),
         ...buildUserTaskCreationOps(result.events, definition, result.newState),
       ]
       await store.executeTransaction(ops)

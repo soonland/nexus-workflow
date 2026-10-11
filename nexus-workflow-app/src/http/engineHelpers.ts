@@ -1,3 +1,4 @@
+import { historyOps } from '../historyOps.js'
 import type {
   StateStore,
   EngineState,
@@ -71,6 +72,8 @@ export function computeStoreOps(
   isNew: boolean,
   oldState: EngineState | null,
   newState: EngineState,
+  /** The events of the cycle; with them, a step that threw an error is recorded as an error. */
+  events: ExecutionEvent[] = [],
 ): StoreOperation[] {
   const ops: StoreOperation[] = []
   const now = new Date()
@@ -153,6 +156,9 @@ export function computeStoreOps(
       ops.push({ op: 'deleteCompensationRecord', instanceId: r.instanceId, tokenId: r.tokenId })
     }
   }
+
+  // The steps this cycle finished, written in the same transaction as the state change
+  ops.push(...historyOps(oldState, newState, events))
 
   return ops
 }
