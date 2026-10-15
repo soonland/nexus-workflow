@@ -285,8 +285,8 @@ importers:
         specifier: ^10.12.0
         version: 10.12.0(jiti@2.7.0)
       eslint-config-next:
-        specifier: ^16.2.12
-        version: 16.3.6(@typescript-eslint/parser@8.70.1(eslint@10.12.0(jiti@2.7.0))(typescript@5.9.3))(eslint-plugin-import-x@4.17.1(@typescript-eslint/utils@8.70.1(eslint@10.12.0(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint@10.12.0(jiti@2.7.0)))(eslint@10.12.0(jiti@2.7.0))(typescript@5.9.3)
+        specifier: ^16.4.0
+        version: 16.4.0(@typescript-eslint/parser@8.70.1(eslint@10.12.0(jiti@2.7.0))(typescript@5.9.3))(eslint-plugin-import-x@4.17.1(@typescript-eslint/utils@8.70.1(eslint@10.12.0(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint@10.12.0(jiti@2.7.0)))(eslint@10.12.0(jiti@2.7.0))(typescript@5.9.3)
       eslint-config-prettier:
         specifier: ^10.1.8
         version: 10.1.8(eslint@10.12.0(jiti@2.7.0))
@@ -2860,8 +2860,8 @@ packages:
     resolution: {integrity: sha512-TtpcNJ3XAzx3Gq8sWRzJaVajRs0uVxA2YAkdb1jm2YkPz4G6egUFAyA3n5vtEIZefPk5Wa4UXbKuS5fKkJWdgA==}
     engines: {node: '>=10'}
 
-  eslint-config-next@16.3.6:
-    resolution: {integrity: sha512-1Upt3U7BDwU+ilpe2byZjAfts9oNq4d4fv/zXEvs8/4yS+cwOQW/WCxUNy8gCDquX67SzeehDvKblVC6ZBMocQ==}
+  eslint-config-next@16.4.0:
+    resolution: {integrity: sha512-2RHLYswzc+hNRktWAjIL6XAvwb1cKcjLawJ5KWywAxn/JivNHtG42ZigL1yobVXDqsimuuL2F9jcEcnHFzbppQ==}
     peerDependencies:
       eslint: '>=9.0.0'
       typescript: '>=3.3.1'
@@ -7009,9 +7009,9 @@ snapshots:
 
   escape-string-regexp@4.0.0: {}
 
-  eslint-config-next@16.3.6(@typescript-eslint/parser@8.70.1(eslint@10.12.0(jiti@2.7.0))(typescript@5.9.3))(eslint-plugin-import-x@4.17.1(@typescript-eslint/utils@8.70.1(eslint@10.12.0(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint@10.12.0(jiti@2.7.0)))(eslint@10.12.0(jiti@2.7.0))(typescript@5.9.3):
+  eslint-config-next@16.4.0(@typescript-eslint/parser@8.70.1(eslint@10.12.0(jiti@2.7.0))(typescript@5.9.3))(eslint-plugin-import-x@4.17.1(@typescript-eslint/utils@8.70.1(eslint@10.12.0(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint@10.12.0(jiti@2.7.0)))(eslint@10.12.0(jiti@2.7.0))(typescript@5.9.3):
     dependencies:
-      '@next/eslint-plugin-next': 16.3.6(eslint@10.12.0(jiti@2.7.0))
+      '@next/eslint-plugin-next': 16.4.0(eslint@10.12.0(jiti@2.7.0))
       eslint: 10.12.0(jiti@2.7.0)
       eslint-import-resolver-node: 0.3.10
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import-x@4.17.1(@typescript-eslint/utils@8.70.1(eslint@10.12.0(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint@10.12.0(jiti@2.7.0)))(eslint-plugin-import@2.32.0)(eslint@10.12.0(jiti@2.7.0))
