@@ -90,6 +90,9 @@ describe('users HTTP API (Postgres)', () => {
   const invite = (name: string, as: string, memberships?: unknown) =>
     call('', { method: 'POST', as, body: { email: email(name), name, ...(memberships ? { memberships } : {}) } })
 
+  const adminInvite = (name: string, memberships?: unknown) =>
+    call('', { method: 'POST', bearer: ADMIN_KEY, body: { email: email(name), name, ...(memberships ? { memberships } : {}) } })
+
   // ─── who gets in at all ────────────────────────────────────────────────────
 
   describe('access', () => {
@@ -126,8 +129,8 @@ describe('users HTTP API (Postgres)', () => {
   // ─── creating ──────────────────────────────────────────────────────────────
 
   describe('POST /users', () => {
-    it('an operator invites someone and gets the one-time link back', async () => {
-      const { status, body } = await invite('ada', 'operator', [{ role: 'tenant_manager', tenantId: tenantA }])
+    it('the admin key invites someone and gets the one-time link back', async () => {
+      const { status, body } = await adminInvite('ada', [{ role: 'tenant_manager', tenantId: tenantA }])
 
       expect(status).toBe(201)
       expect(body['user']).toMatchObject({ email: email('ada'), name: 'ada', status: 'active', hasPassword: false })
@@ -138,6 +141,12 @@ describe('users HTTP API (Postgres)', () => {
       expect(body['invite']).not.toHaveProperty('url')
       expect(Date.parse(body['invite'].expiresAt)).toBeGreaterThan(Date.now())
       expect(JSON.stringify(body)).not.toMatch(/passwordHash|scrypt/)
+    })
+
+    it('a signed-in operator cannot create a user with a tenant_manager role (403)', async () => {
+      const { status } = await invite('op-tm', 'operator', [{ role: 'tenant_manager', tenantId: tenantA }])
+      expect(status).toBe(403)
+      expect(await users.findByEmail(email('op-tm'))).toBeNull()
     })
 
     it('never builds a link from the Host header: a spoofed host cannot end up in an invite link', async () => {
@@ -209,7 +218,7 @@ describe('users HTTP API (Postgres)', () => {
     it('409 when the email is taken, 400 when something is wrong with the request', async () => {
       expect((await invite('operator', 'operator')).status).toBe(409)
       expect((await call('', { method: 'POST', as: 'operator', body: { email: 'not-an-email', name: 'X' } })).status).toBe(400)
-      expect((await invite('badtenant', 'operator', [{ role: 'tenant_manager', tenantId: `${prefix}_missing` }])).status).toBe(400)
+      expect((await adminInvite('badtenant', [{ role: 'tenant_manager', tenantId: `${prefix}_missing` }])).status).toBe(400)
     })
 
     it.each([
@@ -239,8 +248,8 @@ describe('users HTTP API (Postgres)', () => {
     let outsiderId: string
 
     beforeAll(async () => {
-      personId = (await invite('person', 'operator', [{ role: 'tenant_manager', tenantId: tenantA }])).body['user'].id
-      outsiderId = (await invite('outsider', 'operator', [{ role: 'tenant_manager', tenantId: tenantB }])).body['user'].id
+      personId = (await adminInvite('person', [{ role: 'tenant_manager', tenantId: tenantA }])).body['user'].id
+      outsiderId = (await adminInvite('outsider', [{ role: 'tenant_manager', tenantId: tenantB }])).body['user'].id
     })
 
     it('GET /users lists what the caller may see', async () => {
@@ -306,7 +315,7 @@ describe('users HTTP API (Postgres)', () => {
     it('nobody can disable themselves (409), and the admin key can disable anyone it can see', async () => {
       const me = (await call('', { as: 'operator' })).body['users'].find((u: any) => u.email === email('operator'))
       expect((await call(`/${me.id}`, { method: 'PATCH', as: 'operator', body: { status: 'disabled' } })).status).toBe(409)
-      const other = (await invite('byadmin', 'operator', [{ role: 'tenant_manager', tenantId: tenantA }])).body['user'].id
+      const other = (await adminInvite('byadmin', [{ role: 'tenant_manager', tenantId: tenantA }])).body['user'].id
       expect((await call(`/${other}`, { method: 'PATCH', bearer: ADMIN_KEY, body: { status: 'disabled' } })).status).toBe(200)
     })
 
