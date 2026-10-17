@@ -25,6 +25,20 @@ jobs:
         (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
       )
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: nexus
+          POSTGRES_PASSWORD: nexus
+          POSTGRES_DB: nexus_workflow
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     permissions:
       contents: write
       pull-requests: write
@@ -37,9 +51,25 @@ jobs:
         with:
           fetch-depth: 1
 
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build core
+        run: pnpm build
+        working-directory: nexus-workflow-core
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
+        env:
+          DATABASE_URL: postgres://nexus:nexus@localhost:5433/nexus_workflow
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           track_progress: true
@@ -79,15 +109,7 @@ jobs:
 
             Do NOT write or commit any code. Post the plan as a comment only.
 
-          claude_args: "--model claude-sonnet-5-5 --max-turns 50"
-
-          mcp_config: |
-            {
-              "mcpServers": {
-                "mui-mcp": {
-                  "command": "npx",
-                  "args": ["-y", "@mui/mcp@latest"]
-                }
-              }
-            }
-
+          claude_args: >-
+            --model claude-sonnet-5-5 --max-turns 50
+            --mcp-config '{"mcpServers":{"mui-mcp":{"command":"npx","args":["-y","@mui/mcp@latest"]}}}'
+            --allowedTools "Bash(pnpm lint:*),Bash(pnpm typecheck:*),Bash(pnpm test:*),Bash(pnpm build:*),Bash(npx vitest:*),Bash(pg_isready:*),mcp__mui-mcp__*"
