@@ -223,7 +223,7 @@ describe('audit log (Postgres, all routers)', () => {
 
     it('creating a person makes one entry (not one per role), filed under the tenants they manage', async () => {
       const created = await call('/users', {
-        session: 'operator',
+        ...ADMIN,
         body: { email: person(), name: 'Person', memberships: [{ role: 'tenant_manager', tenantId: tenantA }, { role: 'tenant_manager', tenantId: tenantB }] },
       })
       expect(created.status).toBe(201)
@@ -232,12 +232,12 @@ describe('audit log (Postgres, all routers)', () => {
 
       const found = await only('user.create', (e) => e.target === personId)
       expect(found).toHaveLength(1)
-      expect(found[0]).toMatchObject({ actor_kind: 'user', actor_id: id['operator'], tenant_ids: [tenantA, tenantB], details: { email: person() } })
+      expect(found[0]).toMatchObject({ actor_kind: 'adminKey', actor_id: null, tenant_ids: [tenantA, tenantB], details: { email: person() } })
       expect(await only('membership.add', (e) => e.target === personId)).toHaveLength(0)
     })
 
     it('the invite link never reaches the log', async () => {
-      const created = await call('/users', { session: 'operator', body: { email: email('linked'), name: 'Linked', memberships: [{ role: 'tenant_manager', tenantId: tenantA }] } })
+      const created = await call('/users', { ...ADMIN, body: { email: email('linked'), name: 'Linked', memberships: [{ role: 'tenant_manager', tenantId: tenantA }] } })
       const inviteToken: string = created.body['invite'].token
 
       expect(JSON.stringify(await entries())).not.toContain(inviteToken)
@@ -340,7 +340,7 @@ describe('audit log (Postgres, all routers)', () => {
     })
 
     it('accepting an invite makes one entry', async () => {
-      const created = await call('/users', { session: 'operator', body: { email: email('joiner'), name: 'Joiner', memberships: [{ role: 'tenant_manager', tenantId: tenantA }] } })
+      const created = await call('/users', { ...ADMIN, body: { email: email('joiner'), name: 'Joiner', memberships: [{ role: 'tenant_manager', tenantId: tenantA }] } })
       const inviteToken: string = created.body['invite'].token
       id['joiner'] = created.body['user'].id
 
