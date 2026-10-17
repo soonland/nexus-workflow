@@ -1,0 +1,396 @@
+openapi: 3.1.0
+info:
+  title: Nexus Workflow — tenant administration API
+  version: 0.1.0
+  description: |
+    Tenant lifecycle and API-key management. Covers the `/tenants` router only.
+
+    Callers are platform operators: a signed-in operator session, or the shared
+    `ADMIN_API_KEY` sent as `Authorization: Bearer <ADMIN_API_KEY>` (break-glass).
+    Anything else gets `403 FORBIDDEN`.
+servers:
+  - url: http://localhost:3000
+security:
+  - adminKey: []
+tags:
+  - name: Tenants
+  - name: Keys
+paths:
+  /tenants:
+    post:
+      tags: [Tenants]
+      summary: Create a tenant
+      description: Inserts the registry row, then provisions the tenant's schema. If provisioning fails the row is removed again, so the call can be retried.
+      operationId: createTenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, name]
+              properties:
+                id:
+                  type: string
+                  pattern: '^[A-Za-z0-9_-]+$'
+                  description: Alphanumeric characters, hyphens and underscores only.
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+      responses:
+        '201':
+          description: Tenant created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tenant]
+                properties:
+                  tenant: { $ref: '#/components/schemas/Tenant' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: A tenant with this id already exists.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          description: "`PROVISIONING_FAILED` — the schema could not be created; nothing was kept, retry."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    get:
+      tags: [Tenants]
+      summary: List tenants
+      description: Includes tenants in every status, `deleting` ones too, until they are fully gone.
+      operationId: listTenants
+      parameters:
+        - name: counts
+          in: query
+          required: false
+          description: With `true`, each tenant also carries `counts` (numbers only, never process content). `counts` is `null` for `deleting` tenants and for any tenant that could not be counted.
+          schema:
+            type: string
+            enum: ['true']
+      responses:
+        '200':
+          description: All tenants.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tenants]
+                properties:
+                  tenants:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/TenantSummary'
+                        - type: object
+                          properties:
+                            counts:
+                              oneOf:
+                                - $ref: '#/components/schemas/TenantCounts'
+                                - type: 'null'
+                              description: Present only with `?counts=true`.
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /tenants/{id}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [Tenants]
+      summary: Get a tenant
+      description: A `deleting` tenant is still returned until its deletion has completed.
+      operationId: getTenant
+      responses:
+        '200':
+          description: The tenant.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tenant]
+                properties:
+                  tenant: { $ref: '#/components/schemas/Tenant' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Tenants]
+      summary: Rename, suspend or reactivate a tenant
+      description: |
+        Send `name`, `status`, or both; at least one is required.
+
+        Suspending makes the tenant's API keys return 401 and stops its background workers.
+        Reactivating restores access. A tenant that is `deleting` cannot be changed (409).
+      operationId: updateTenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                status:
+                  type: string
+                  enum: [active, suspended]
+      responses:
+        '200':
+          description: The updated tenant.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tenant]
+                properties:
+                  tenant: { $ref: '#/components/schemas/Tenant' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The tenant is being deleted and cannot be changed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      tags: [Tenants]
+      summary: Delete a tenant and all of its data
+      description: |
+        Marks the tenant `deleting`, stops its workers, drops its schema, then removes the tenant
+        and its keys. Idempotent under failure: on `500 DELETE_FAILED` the tenant stays `deleting`
+        and the same `DELETE` can simply be retried.
+
+        The `default` tenant is protected and always answers 409.
+      operationId: deleteTenant
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The `default` tenant cannot be deleted.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          description: "`DELETE_FAILED` — a step failed; the tenant is marked `deleting`. Retry the DELETE."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /tenants/{id}/keys:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    post:
+      tags: [Keys]
+      summary: Create an API key
+      description: The plaintext key is returned **only** in this response and is never stored; keep it.
+      operationId: createKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                role:
+                  $ref: '#/components/schemas/KeyRole'
+                  description: Defaults to the least-privileged role when omitted.
+      responses:
+        '201':
+          description: The key and its one-time plaintext.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [key, plaintext]
+                properties:
+                  key: { $ref: '#/components/schemas/ApiKey' }
+                  plaintext:
+                    type: string
+                    description: The key itself. Shown once.
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403':
+          description: Not authorised, or the tenant is not `active` (suspended or deleting).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    get:
+      tags: [Keys]
+      summary: List a tenant's API keys
+      operationId: listKeys
+      responses:
+        '200':
+          description: The tenant's keys (hashes and plaintext are never included).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [keys]
+                properties:
+                  keys:
+                    type: array
+                    items: { $ref: '#/components/schemas/ApiKey' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /tenants/{id}/keys/{keyId}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/KeyId'
+    patch:
+      tags: [Keys]
+      summary: Change a key's role
+      description: The secret stays the same, so programs using the key need no change.
+      operationId: updateKeyRole
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { $ref: '#/components/schemas/KeyRole' }
+      responses:
+        '200':
+          description: The updated key.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [key]
+                properties:
+                  key: { $ref: '#/components/schemas/ApiKey' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Tenant not found, or key not found / already revoked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      tags: [Keys]
+      summary: Revoke an API key
+      operationId: revokeKey
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Tenant not found, or key not found / already revoked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+components:
+  securitySchemes:
+    adminKey:
+      type: http
+      scheme: bearer
+      description: The shared `ADMIN_API_KEY`. Operator sessions are accepted as well.
+  parameters:
+    TenantId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    KeyId:
+      name: keyId
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    Forbidden:
+      description: "`FORBIDDEN` — admin credentials required."
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: "`NOT_FOUND` — no such tenant."
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: "`VALIDATION_ERROR` — the body is missing, malformed or has invalid fields."
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Success:
+      description: Done.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success]
+            properties:
+              success: { type: boolean, const: true }
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          examples: [VALIDATION_ERROR, FORBIDDEN, NOT_FOUND, CONFLICT, PROVISIONING_FAILED, DELETE_FAILED]
+        message: { type: string }
+    TenantStatus:
+      type: string
+      enum: [active, suspended, deleting]
+    Tenant:
+      type: object
+      required: [id, name, status, createdAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status: { $ref: '#/components/schemas/TenantStatus' }
+        createdAt: { type: string, format: date-time }
+    TenantSummary:
+      allOf:
+        - $ref: '#/components/schemas/Tenant'
+        - type: object
+          required: [activeKeyCount]
+          properties:
+            activeKeyCount:
+              type: integer
+              description: Keys that are not revoked.
+    TenantCounts:
+      type: object
+      required: [instances, pendingTasks]
+      properties:
+        instances:
+          type: object
+          description: Process instances per status.
+          required: [pending, active, suspended, completed, terminated]
+          properties:
+            pending: { type: integer }
+            active: { type: integer }
+            suspended: { type: integer }
+            completed: { type: integer }
+            terminated: { type: integer }
+        pendingTasks:
+          type: integer
+          description: Tasks that are open or claimed, i.e. not yet done.
+    KeyRole:
+      type: string
+      enum: [service, tenant_manager]
+    ApiKey:
+      type: object
+      required: [id, tenantId, name, role, createdBy, createdAt, lastUsedAt, revokedAt]
+      properties:
+        id: { type: string }
+        tenantId: { type: string }
+        name: { type: string }
+        role: { $ref: '#/components/schemas/KeyRole' }
+        createdBy:
+          type: [string, 'null']
+          description: The person who created it; null for the admin key or the command line.
+        createdAt: { type: string, format: date-time }
+        lastUsedAt: { type: [string, 'null'], format: date-time }
+        revokedAt: { type: [string, 'null'], format: date-time }
