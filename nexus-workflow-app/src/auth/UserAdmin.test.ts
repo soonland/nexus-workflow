@@ -57,9 +57,9 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
   // ─── creating people ───────────────────────────────────────────────────────
 
   describe('create', () => {
-    it('an operator invites anyone with any roles, and gets a one-time invite back', async () => {
+    it('the admin key invites anyone with any roles, and gets a one-time invite back', async () => {
       const { user, invite } = expectOk(
-        await admin.create(operator, {
+        await admin.create(adminKey, {
           email: email('new-op'),
           name: 'New Op',
           memberships: [{ role: 'operator', tenantId: null }, { role: 'tenant_manager', tenantId: tenantA }],
@@ -70,6 +70,24 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
       expect(user.hasPassword).toBe(false)
       expect(invite.token).toMatch(/^[A-Za-z0-9_-]{43}$/)
       expect(invite.expiresAt.getTime()).toBeGreaterThan(Date.now())
+    })
+
+    it('a signed-in operator cannot create a user with a tenant_manager role', async () => {
+      const outcome = await admin.create(operator, {
+        email: email('op-create-tenant'),
+        name: 'Op Create Tenant',
+        memberships: [{ role: 'tenant_manager', tenantId: tenantA }],
+      })
+
+      expect(outcome).toMatchObject({ ok: false, error: 'FORBIDDEN' })
+      expect(await users.findByEmail(email('op-create-tenant'))).toBeNull()
+    })
+
+    it('a signed-in operator can create a user with only an operator role (no tenant_manager)', async () => {
+      const { user } = expectOk(
+        await admin.create(operator, { email: email('op-only'), name: 'Op Only', memberships: [{ role: 'operator', tenantId: null }] }),
+      )
+      expect(user.memberships.map((m) => m.role)).toEqual(['operator'])
     })
 
     it('the admin key counts as an operator', async () => {
@@ -105,7 +123,7 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
     })
 
     it('refuses a tenant that does not exist without leaving a half-created user behind', async () => {
-      const outcome = await admin.create(operator, {
+      const outcome = await admin.create(adminKey, {
         email: email('badtenant'),
         name: 'Bad Tenant',
         memberships: [{ role: 'tenant_manager', tenantId: `${prefix}_missing` }],
@@ -138,10 +156,10 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
     let aAndB: string
 
     beforeAll(async () => {
-      onlyA = expectOk(await admin.create(operator, { email: email('list-a'), name: 'A', memberships: [{ role: 'tenant_manager', tenantId: tenantA }] })).user.id
-      onlyB = expectOk(await admin.create(operator, { email: email('list-b'), name: 'B', memberships: [{ role: 'tenant_manager', tenantId: tenantB }] })).user.id
+      onlyA = expectOk(await admin.create(adminKey, { email: email('list-a'), name: 'A', memberships: [{ role: 'tenant_manager', tenantId: tenantA }] })).user.id
+      onlyB = expectOk(await admin.create(adminKey, { email: email('list-b'), name: 'B', memberships: [{ role: 'tenant_manager', tenantId: tenantB }] })).user.id
       aAndB = expectOk(
-        await admin.create(operator, {
+        await admin.create(adminKey, {
           email: email('list-ab'), name: 'AB',
           memberships: [{ role: 'tenant_manager', tenantId: tenantA }, { role: 'tenant_manager', tenantId: tenantB }],
         }),
@@ -185,7 +203,7 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
 
   describe('setStatus', () => {
     async function inTenantA(name: string) {
-      return expectOk(await admin.create(operator, { email: email(name), name, memberships: [{ role: 'tenant_manager', tenantId: tenantA }] })).user
+      return expectOk(await admin.create(adminKey, { email: email(name), name, memberships: [{ role: 'tenant_manager', tenantId: tenantA }] })).user
     }
 
     it('a manager can disable and re-enable someone in their tenant; sessions end on disable', async () => {
@@ -201,9 +219,9 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
     })
 
     it('a manager cannot touch someone in another tenant, or someone who also belongs elsewhere', async () => {
-      const other = expectOk(await admin.create(operator, { email: email('inb'), name: 'B', memberships: [{ role: 'tenant_manager', tenantId: tenantB }] })).user
+      const other = expectOk(await admin.create(adminKey, { email: email('inb'), name: 'B', memberships: [{ role: 'tenant_manager', tenantId: tenantB }] })).user
       const shared = expectOk(
-        await admin.create(operator, {
+        await admin.create(adminKey, {
           email: email('shared'), name: 'Shared',
           memberships: [{ role: 'tenant_manager', tenantId: tenantA }, { role: 'tenant_manager', tenantId: tenantB }],
         }),
@@ -248,6 +266,19 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
       expect((await admin.removeMembership(operator, person.id, mgr.id)).ok).toBe(true)
     })
 
+    it('an operator cannot grant themselves a tenant_manager role', async () => {
+      const selfOp = await principalFor('selfgrant', [['operator', null]])
+      if (selfOp.kind !== 'user') throw new Error('expected user')
+
+      expect(await admin.addMembership(selfOp, selfOp.user.id, { role: 'tenant_manager', tenantId: tenantA })).toMatchObject({ ok: false, error: 'FORBIDDEN' })
+    })
+
+    it('an operator can grant another user a tenant_manager role', async () => {
+      const person = expectOk(await admin.create(operator, { email: email('grantother'), name: 'Other' })).user
+
+      expect((await admin.addMembership(operator, person.id, { role: 'tenant_manager', tenantId: tenantA })).ok).toBe(true)
+    })
+
     it('a manager can add someone in their tenant to another of their own tenants, but never grant operator', async () => {
       const both = await principalFor('mgrBoth2', [['tenant_manager', tenantA], ['tenant_manager', tenantB]])
       const person = expectOk(await admin.create(both, { email: email('addmore'), name: 'Add', memberships: [{ role: 'tenant_manager', tenantId: tenantA }] })).user
@@ -263,20 +294,20 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
     })
 
     it('a manager cannot add roles to someone outside their tenants', async () => {
-      const outsider = expectOk(await admin.create(operator, { email: email('outsider'), name: 'Out', memberships: [{ role: 'tenant_manager', tenantId: tenantB }] })).user
+      const outsider = expectOk(await admin.create(adminKey, { email: email('outsider'), name: 'Out', memberships: [{ role: 'tenant_manager', tenantId: tenantB }] })).user
 
       expect(await admin.addMembership(managerA, outsider.id, { role: 'tenant_manager', tenantId: tenantA })).toMatchObject({ ok: false, error: 'NOT_FOUND' })
     })
 
     it('a manager can remove a role of someone in their tenant, and cannot reach anyone else', async () => {
       const colleague = expectOk(
-        await admin.create(operator, {
+        await admin.create(adminKey, {
           email: email('rmcolleague'), name: 'Rm',
           memberships: [{ role: 'tenant_manager', tenantId: tenantA }],
         }),
       ).user
       const m = (await users.listMemberships(colleague.id))[0]!
-      const outsider = expectOk(await admin.create(operator, { email: email('rmoutsider'), name: 'Rm2', memberships: [{ role: 'tenant_manager', tenantId: tenantB }] })).user
+      const outsider = expectOk(await admin.create(adminKey, { email: email('rmoutsider'), name: 'Rm2', memberships: [{ role: 'tenant_manager', tenantId: tenantB }] })).user
       const outsiderMembership = (await users.listMemberships(outsider.id))[0]!
 
       expect(await admin.removeMembership(managerA, outsider.id, outsiderMembership.id)).toMatchObject({ ok: false, error: 'NOT_FOUND' })
@@ -320,14 +351,14 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
     })
 
     it('a manager cannot re-invite someone outside their tenants (that would be a way to take over their account)', async () => {
-      const outsider = expectOk(await admin.create(operator, { email: email('reinv-out'), name: 'Out', memberships: [{ role: 'tenant_manager', tenantId: tenantB }] })).user
+      const outsider = expectOk(await admin.create(adminKey, { email: email('reinv-out'), name: 'Out', memberships: [{ role: 'tenant_manager', tenantId: tenantB }] })).user
       expect(await admin.reinvite(managerA, outsider.id)).toMatchObject({ ok: false, error: 'NOT_FOUND' })
       const opId = (operator as { user: { id: string } }).user.id
       expect(await admin.reinvite(managerA, opId)).toMatchObject({ ok: false, error: 'NOT_FOUND' })
     })
 
     it('refuses to invite a disabled user until they are enabled again', async () => {
-      const person = expectOk(await admin.create(operator, { email: email('reinv-dis'), name: 'Dis', memberships: [{ role: 'tenant_manager', tenantId: tenantA }] })).user
+      const person = expectOk(await admin.create(adminKey, { email: email('reinv-dis'), name: 'Dis', memberships: [{ role: 'tenant_manager', tenantId: tenantA }] })).user
       await admin.setStatus(operator, person.id, 'disabled')
 
       expect(await admin.reinvite(operator, person.id)).toMatchObject({ ok: false, error: 'CONFLICT' })
