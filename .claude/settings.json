@@ -5,6 +5,7 @@
       "Bash(gh *)",
       "Bash(npm *)",
       "Bash(npx *)",
+      "Bash(pnpm *)",
       "Bash(jq *)",
       "Bash(ls *)",
       "Bash(cat *)",
