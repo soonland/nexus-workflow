@@ -156,16 +156,19 @@ export function createForceRouter(
       ...buildUserTaskCreationOps(result.events, definition, result.newState),
       ...(task ? [{ op: 'updateUserTask' as const, task: { ...task, status: 'completed' as const, completedAt: new Date() } }] : []),
     ]
-    await store.executeTransaction(ops)
-    await eventBusFor(tenantId).publishMany(events)
-
-    await audit?.record({
+    // The instance lives in the tenant's own schema, so the entry cannot share its transaction. It is
+    // written first, strictly: a forced step is never unlogged. (If the step is then refused, the log
+    // holds an attempt that changed nothing; that errs on the safe side.)
+    await audit?.recordStrict({
       action: 'step.force',
       actor: auditActorOf(principal),
       tenantIds: [tenantId],
       target: instanceId,
       details: { step: forced, elementId: token.elementId, reason: why, ...(onBehalfOf ? { onBehalfOf } : {}) },
     })
+
+    await store.executeTransaction(ops)
+    await eventBusFor(tenantId).publishMany(events)
 
     return c.json({ instance: result.newState.instance, events: events.map((e) => e.type) })
   })

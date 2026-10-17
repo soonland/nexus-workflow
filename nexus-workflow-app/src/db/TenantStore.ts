@@ -1,5 +1,6 @@
 import { createHmac, randomBytes } from 'node:crypto'
 import type postgres from 'postgres'
+import { atomically, type Within } from './atomically.js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -125,35 +126,41 @@ export class TenantStore {
 
   /**
    * Creates a new API key for the tenant. Returns the plaintext key — this is
-   * the only time it will ever be available; it is not stored.
+   * the only time it will ever be available; it is not stored. `within` runs in the same transaction.
    */
   async createApiKey(
     tenantId: string,
     name: string,
     options: { role?: KeyRole; createdBy?: string | null } = {},
+    within?: Within<{ key: ApiKeyPublic; plaintext: string }>,
   ): Promise<{ key: ApiKeyPublic; plaintext: string }> {
     const role = options.role ?? 'service' // least privilege unless asked for more
     const plaintext = randomBytes(32).toString('hex')
     const keyHash = createHmac('sha256', this.hmacSecret).update(plaintext).digest('hex')
     const id = randomBytes(16).toString('hex')
 
-    const rows = await this.sql<ApiKeyPublic[]>`
-      INSERT INTO public.api_keys (id, tenant_id, name, key_hash, role, created_by)
-      VALUES (${id}, ${tenantId}, ${name}, ${keyHash}, ${role}, ${options.createdBy ?? null})
-      RETURNING
-        id,
-        tenant_id AS "tenantId",
-        name,
-        role,
-        created_by AS "createdBy",
-        created_at AS "createdAt",
-        last_used_at AS "lastUsedAt",
-        revoked_at AS "revokedAt"
-    `
-
-    const key = rows[0]
-    if (!key) throw new Error('Unexpected: INSERT INTO api_keys returned no rows')
-    return { key, plaintext }
+    return atomically(
+      this.sql,
+      async (db) => {
+        const rows = await db<ApiKeyPublic[]>`
+          INSERT INTO public.api_keys (id, tenant_id, name, key_hash, role, created_by)
+          VALUES (${id}, ${tenantId}, ${name}, ${keyHash}, ${role}, ${options.createdBy ?? null})
+          RETURNING
+            id,
+            tenant_id AS "tenantId",
+            name,
+            role,
+            created_by AS "createdBy",
+            created_at AS "createdAt",
+            last_used_at AS "lastUsedAt",
+            revoked_at AS "revokedAt"
+        `
+        const key = rows[0]
+        if (!key) throw new Error('Unexpected: INSERT INTO api_keys returned no rows')
+        return { key, plaintext }
+      },
+      within,
+    )
   }
 
   /**
@@ -195,39 +202,58 @@ export class TenantStore {
   /**
    * Changes what a key may do, keeping its secret (so the program using it does not have to change).
    * Returns the key as it was and as it is now, or null if there is no such active key.
+   * `within` runs in the same transaction (also when the role did not actually change).
    */
-  async setApiKeyRole(tenantId: string, keyId: string, role: KeyRole): Promise<{ key: ApiKeyPublic; previous: KeyRole } | null> {
-    const rows = await this.sql<Array<ApiKeyPublic & { previous: KeyRole }>>`
-      UPDATE public.api_keys AS k
-      SET role = ${role}
-      FROM (SELECT id, role AS previous FROM public.api_keys WHERE id = ${keyId} AND tenant_id = ${tenantId} AND revoked_at IS NULL FOR UPDATE) AS old
-      WHERE k.id = old.id
-      RETURNING
-        k.id,
-        k.tenant_id AS "tenantId",
-        k.name,
-        k.role,
-        k.created_by AS "createdBy",
-        k.created_at AS "createdAt",
-        k.last_used_at AS "lastUsedAt",
-        k.revoked_at AS "revokedAt",
-        old.previous
-    `
-    const row = rows[0]
-    if (!row) return null
-    const { previous, ...key } = row
-    return { key, previous }
+  async setApiKeyRole(
+    tenantId: string,
+    keyId: string,
+    role: KeyRole,
+    within?: Within<{ key: ApiKeyPublic; previous: KeyRole }>,
+  ): Promise<{ key: ApiKeyPublic; previous: KeyRole } | null> {
+    return atomically(
+      this.sql,
+      async (db) => {
+        const rows = await db<Array<ApiKeyPublic & { previous: KeyRole }>>`
+          UPDATE public.api_keys AS k
+          SET role = ${role}
+          FROM (SELECT id, role AS previous FROM public.api_keys WHERE id = ${keyId} AND tenant_id = ${tenantId} AND revoked_at IS NULL FOR UPDATE) AS old
+          WHERE k.id = old.id
+          RETURNING
+            k.id,
+            k.tenant_id AS "tenantId",
+            k.name,
+            k.role,
+            k.created_by AS "createdBy",
+            k.created_at AS "createdAt",
+            k.last_used_at AS "lastUsedAt",
+            k.revoked_at AS "revokedAt",
+            old.previous
+        `
+        const row = rows[0]
+        if (!row) return null
+        const { previous, ...key } = row
+        return { key, previous }
+      },
+      within,
+    )
   }
 
-  async revokeApiKey(tenantId: string, keyId: string): Promise<boolean> {
-    const rows = await this.sql`
-      UPDATE public.api_keys
-      SET revoked_at = now()
-      WHERE id = ${keyId}
-        AND tenant_id = ${tenantId}
-        AND revoked_at IS NULL
-      RETURNING id
-    `
-    return rows.length > 0
+  /** `within` runs in the same transaction, only if a key was actually revoked. */
+  async revokeApiKey(tenantId: string, keyId: string, within?: Within<boolean>): Promise<boolean> {
+    return atomically(
+      this.sql,
+      async (db) => {
+        const rows = await db`
+          UPDATE public.api_keys
+          SET revoked_at = now()
+          WHERE id = ${keyId}
+            AND tenant_id = ${tenantId}
+            AND revoked_at IS NULL
+          RETURNING id
+        `
+        return rows.length > 0
+      },
+      within,
+    )
   }
 }

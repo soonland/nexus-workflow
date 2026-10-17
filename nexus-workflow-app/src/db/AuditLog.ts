@@ -103,20 +103,39 @@ export class AuditLog {
    */
   async record(input: AuditInput): Promise<void> {
     try {
-      const { actor } = input
-      const actorId = actor.kind === 'user' || actor.kind === 'apiKey' || actor.kind === 'operatorKey' ? (actor.id ?? null) : null
-      const actorLabel = actor.kind === 'adminKey' ? 'admin key' : clip('label' in actor ? actor.label : null)
-      await this.sql`
-        INSERT INTO public.audit_log (id, actor_kind, actor_id, actor_label, action, tenant_ids, target, details)
-        VALUES (
-          ${crypto.randomUUID()}, ${actor.kind}, ${actorId}, ${actorLabel}, ${input.action},
-          ${[...new Set(input.tenantIds ?? [])]}, ${clip(input.target)},
-          ${this.sql.json(scrub(input.details ?? {}) as postgres.JSONValue)}
-        )
-      `
+      await this.insert(this.sql, input)
     } catch (err) {
       console.error(`[audit] could not record '${input.action}':`, err)
     }
+  }
+
+  /**
+   * Writes one entry and throws if it cannot be written, for the actions that must never happen
+   * unlogged. Pass the transaction of the change (`tx`) so the entry and the change commit or roll back
+   * together; without one the entry is written on its own, so call it *before* an action that cannot be
+   * part of a transaction.
+   */
+  async recordStrict(input: AuditInput, tx: postgres.Sql = this.sql): Promise<void> {
+    try {
+      await this.insert(tx, input)
+    } catch (err) {
+      console.error(`[audit] could not record '${input.action}', refusing the action:`, err)
+      throw err
+    }
+  }
+
+  private async insert(db: postgres.Sql, input: AuditInput): Promise<void> {
+    const { actor } = input
+    const actorId = actor.kind === 'user' || actor.kind === 'apiKey' || actor.kind === 'operatorKey' ? (actor.id ?? null) : null
+    const actorLabel = actor.kind === 'adminKey' ? 'admin key' : clip('label' in actor ? actor.label : null)
+    await db`
+      INSERT INTO public.audit_log (id, actor_kind, actor_id, actor_label, action, tenant_ids, target, details)
+      VALUES (
+        ${crypto.randomUUID()}, ${actor.kind}, ${actorId}, ${actorLabel}, ${input.action},
+        ${[...new Set(input.tenantIds ?? [])]}, ${clip(input.target)},
+        ${db.json(scrub(input.details ?? {}) as postgres.JSONValue)}
+      )
+    `
   }
 
   /** Newest first. */
