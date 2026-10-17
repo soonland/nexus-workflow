@@ -53,7 +53,9 @@ export async function createSystemAdminWithInvite(
  */
 export async function removeSystemAdmin(sql: postgres.Sql, input: { email: string }): Promise<{ user: User; removed: boolean }> {
   const users = new UserStore(sql)
-  const user = await users.findByEmail(input.email)
+  const email = normalizeEmail(input.email)
+  if (!email) throw new UserInputError('Invalid email address')
+  const user = await users.findByEmail(email)
   if (!user) throw new UserInputError('No user with this email')
 
   const membership = (await users.listMemberships(user.id)).find((m) => m.role === 'system_admin')
