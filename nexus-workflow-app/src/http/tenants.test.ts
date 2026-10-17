@@ -716,6 +716,62 @@ describe('tenants HTTP API', () => {
       expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'ci', { createdBy: 'u-1' }, undefined)
     })
 
+    describe('who may hand out the tenant_manager role', () => {
+      const asUser = (role: 'system_admin' | 'operator') => ({ kind: 'user', user: { id: 'u-1', email: 'p@example.com' }, memberships: [{ role, tenantId: null }] })
+      const principals = {
+        'a system admin': asUser('system_admin'),
+        'an operator': asUser('operator'),
+        'an operator key': { kind: 'operatorKey', keyId: 'ok-1', keyName: 'ci' },
+        'the admin key': { kind: 'adminKey' },
+      } as const
+      const appFor = (principal: unknown) => {
+        const guarded = new Hono()
+        guarded.use('*', async (c, next) => {
+          c.set('principal' as never, principal as never)
+          return next()
+        })
+        guarded.route('/tenants', createTenantsRouter(vi.fn() as unknown as postgres.Sql, 'test-secret', ADMIN_KEY, { guard: async (_c, next) => next() }))
+        return guarded
+      }
+      const send = (a: Hono, method: 'POST' | 'PATCH', path: string, body: unknown) =>
+        a.fetch(new Request(`http://localhost${path}`, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }))
+
+      it.each(['an operator', 'an operator key'] as const)('%s cannot create a tenant_manager key (403), nothing is created', async (who) => {
+        const res = await send(appFor(principals[who]), 'POST', '/tenants/tenant-1/keys', { name: 'ERP', role: 'tenant_manager' })
+
+        expect(res.status).toBe(403)
+        expect(((await res.json()) as { message: string }).message).toMatch(/system admin/i)
+        expect(mockStore.createApiKey).not.toHaveBeenCalled()
+      })
+
+      it.each(['an operator', 'an operator key'] as const)('%s cannot raise a key to tenant_manager (403)', async (who) => {
+        const res = await send(appFor(principals[who]), 'PATCH', '/tenants/tenant-1/keys/key-id-1', { role: 'tenant_manager' })
+
+        expect(res.status).toBe(403)
+        expect(mockStore.setApiKeyRole).not.toHaveBeenCalled()
+      })
+
+      it.each(['an operator', 'an operator key'] as const)('%s can still create a service key and lower a key to service', async (who) => {
+        mockStore.getTenant.mockResolvedValue(makeTenant())
+        mockStore.createApiKey.mockResolvedValueOnce({ key: key(), plaintext: 'secret' })
+        mockStore.setApiKeyRole.mockResolvedValueOnce({ key: key(), previous: 'tenant_manager' })
+        const a = appFor(principals[who])
+
+        expect((await send(a, 'POST', '/tenants/tenant-1/keys', { name: 'ci', role: 'service' })).status).toBe(201)
+        expect((await send(a, 'PATCH', '/tenants/tenant-1/keys/key-id-1', { role: 'service' })).status).toBe(200)
+      })
+
+      it.each(['a system admin', 'the admin key'] as const)('%s can create a tenant_manager key and raise a key to it', async (who) => {
+        mockStore.getTenant.mockResolvedValue(makeTenant())
+        mockStore.createApiKey.mockResolvedValueOnce({ key: key({ role: 'tenant_manager' }), plaintext: 'secret' })
+        mockStore.setApiKeyRole.mockResolvedValueOnce({ key: key({ role: 'tenant_manager' }), previous: 'service' })
+        const a = appFor(principals[who])
+
+        expect((await send(a, 'POST', '/tenants/tenant-1/keys', { name: 'ERP', role: 'tenant_manager' })).status).toBe(201)
+        expect((await send(a, 'PATCH', '/tenants/tenant-1/keys/key-id-1', { role: 'tenant_manager' })).status).toBe(200)
+      })
+    })
+
     it('changes a key\'s role, keeping its secret, and writes it to the audit log', async () => {
       const recordStrict = vi.fn().mockResolvedValue(undefined)
       app = new Hono()

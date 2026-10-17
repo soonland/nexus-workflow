@@ -20,6 +20,7 @@ describe('describeAudit', () => {
     [entry('user.enable', { email: 'ada@example.com' }, 'u1'), 'Enabled ada@example.com'],
     [entry('membership.add', { email: 'ada@example.com', role: 'tenant_manager', tenantId: 'acme' }, 'u1'), 'Gave ada@example.com the role manager of acme'],
     [entry('membership.add', { email: 'ada@example.com', role: 'operator', tenantId: null }, 'u1'), 'Gave ada@example.com the role operator'],
+    [entry('membership.add', { email: 'ada@example.com', role: 'system_admin', tenantId: null }, 'u1'), 'Gave ada@example.com the role system admin'],
     [entry('membership.remove', { email: 'ada@example.com', role: 'operator' }, 'u1'), 'Removed the role operator from ada@example.com'],
     [entry('invite.create', { email: 'ada@example.com', reset: false }, 'u1'), 'Issued a new invitation for ada@example.com'],
     [entry('invite.create', { email: 'ada@example.com', reset: true }, 'u1'), 'Issued a new invitation (password reset) for ada@example.com'],

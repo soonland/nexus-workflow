@@ -21,10 +21,24 @@ export type Principal =
 export type KeyRole = 'service' | 'tenant_manager'
 export const KEY_ROLES: readonly KeyRole[] = ['service', 'tenant_manager']
 
-/** May administer the platform (tenants, users). Does not by itself open any tenant's data. */
+/**
+ * The top platform role: the only one that can create, disable or remove operators. Held by a user with
+ * the `system_admin` membership (granted from the command line only) and by the admin key. Operator
+ * keys are never system admins.
+ */
+export function isSystemAdmin(principal: Principal): boolean {
+  if (principal.kind === 'adminKey') return true
+  if (principal.kind === 'user') return principal.memberships.some((m) => m.role === 'system_admin')
+  return false
+}
+
+/**
+ * May administer the platform (tenants, users). A system admin can do everything an operator can.
+ * Does not by itself open any tenant's data.
+ */
 export function isOperator(principal: Principal): boolean {
   if (principal.kind === 'adminKey' || principal.kind === 'operatorKey') return true
-  if (principal.kind === 'user') return principal.memberships.some((m) => m.role === 'operator')
+  if (principal.kind === 'user') return principal.memberships.some((m) => m.role === 'operator' || m.role === 'system_admin')
   return false
 }
 

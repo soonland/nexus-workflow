@@ -47,9 +47,13 @@ interface KeysDrawerProps {
   onClose(): void
   /** Called after a key was created or revoked so the tenant list can refresh its key counts. */
   onChanged(): void
+  /** Only a system admin may create a tenant_manager key or raise a key to it; operators can still lower one. */
+  canGrantManagerKey?: boolean
 }
 
-export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps) {
+export function KeysDrawer({ api, tenant, onClose, onChanged, canGrantManagerKey = true }: KeysDrawerProps) {
+  // A role that cannot be handed out is not offered, except as the value a key already has
+  const roleOptions = (current?: KeyRole) => (Object.keys(ROLE_HELP) as KeyRole[]).filter((role) => canGrantManagerKey || role !== 'tenant_manager' || role === current)
   const tenantId = tenant?.id ?? null
   const [keys, setKeys] = useState<ApiKey[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -195,7 +199,7 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
               disabled={!canCreate}
               sx={{ minWidth: 170 }}
             >
-              {(Object.keys(ROLE_HELP) as KeyRole[]).map((role) => (
+              {roleOptions().map((role) => (
                 <MenuItem key={role} value={role}>
                   {ROLE_HELP[role].label}
                 </MenuItem>
@@ -246,7 +250,7 @@ export function KeysDrawer({ api, tenant, onClose, onChanged }: KeysDrawerProps)
                             slotProps={{ htmlInput: { 'aria-label': `Role of key ${key.name}` } }}
                             sx={{ minWidth: 150 }}
                           >
-                            {(Object.keys(ROLE_HELP) as KeyRole[]).map((role) => (
+                            {roleOptions(key.role).map((role) => (
                               <MenuItem key={role} value={role}>
                                 {ROLE_HELP[role].label}
                               </MenuItem>

@@ -64,7 +64,7 @@ describe('audit log (Postgres, all routers)', () => {
     tenants = new TenantStore(sql, HMAC)
     const hasher = new PasswordHasher({ N: 1024, r: 8, p: 1 })
 
-    const make = async (name: string, roles: Array<['operator', null] | ['tenant_manager', string]>, password?: string) => {
+    const make = async (name: string, roles: Array<['system_admin' | 'operator', null] | ['tenant_manager', string]>, password?: string) => {
       const user = await users.createUser({ email: email(name), name, ...(password ? { passwordHash: await hasher.hash(password) } : {}) })
       id[name] = user.id
       return { user, roles }
@@ -74,6 +74,7 @@ describe('audit log (Postgres, all routers)', () => {
     await tenants.createTenant(tenantB, 'Tenant B')
     tenantKeyOfA = (await tenants.createApiKey(tenantA, 'service')).plaintext
     for (const { user, roles } of [
+      await make('systemAdmin', [['system_admin', null]]),
       await make('operator', [['operator', null]], PASSWORD),
       await make('managerA', [['tenant_manager', tenantA]], PASSWORD),
       await make('managerB', [['tenant_manager', tenantB]]),
@@ -252,11 +253,11 @@ describe('audit log (Postgres, all routers)', () => {
     })
 
     it('adding and removing a role make one entry each, filed under that role\'s tenant', async () => {
-      const added = await call(`/users/${personId}/memberships`, { session: 'operator', body: { role: 'operator' } })
+      const added = await call(`/users/${personId}/memberships`, { session: 'systemAdmin', body: { role: 'operator' } })
       expect(added.status).toBe(201)
       const membershipId: string = added.body['membership'].id
 
-      await call(`/users/${personId}/memberships/${membershipId}`, { session: 'operator', method: 'DELETE' })
+      await call(`/users/${personId}/memberships/${membershipId}`, { session: 'systemAdmin', method: 'DELETE' })
 
       const add = await only('membership.add', (e) => e.target === personId)
       const remove = await only('membership.remove', (e) => e.target === personId)

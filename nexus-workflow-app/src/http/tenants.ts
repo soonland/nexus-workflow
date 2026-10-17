@@ -3,7 +3,7 @@ import type postgres from 'postgres'
 import { isAdminKeyHeader } from '../auth/adminKey.js'
 import { TenantStore } from '../db/TenantStore.js'
 import { auditActorOf } from '../auth/auditActor.js'
-import { KEY_ROLES, type KeyRole, type Principal } from '../auth/principal.js'
+import { isSystemAdmin, KEY_ROLES, type KeyRole, type Principal } from '../auth/principal.js'
 import type { AuditActor, AuditLog } from '../db/AuditLog.js'
 import { readTenantCounts, type TenantCounts } from '../db/tenantCounts.js'
 import { dropTenantSchema, provisionTenantSchema, VALID_TENANT_ID } from '../db/tenantProvisioner.js'
@@ -61,6 +61,21 @@ export function createTenantsRouter(
     const principal = c.get('principal') as Principal | undefined
     return principal ? auditActorOf(principal) : { kind: 'adminKey' }
   }
+
+  /**
+   * A `tenant_manager` key opens a tenant's own data and administration, which operators are kept out of
+   * (see `canUseTenant`): letting an operator mint one would hand them that access. Only a system admin
+   * (or the admin key) may create one, or raise a key to it. With the default guard there is no
+   * principal and the caller is the admin key.
+   */
+  const mayGrantManagerKey = (c: Context): boolean => {
+    const principal = c.get('principal') as Principal | undefined
+    return !principal || isSystemAdmin(principal)
+  }
+  const MANAGER_KEY_NEEDS_SYSTEM_ADMIN = {
+    error: 'FORBIDDEN',
+    message: 'Only a system admin can create a key with the "tenant_manager" role, or raise a key to it',
+  } as const
 
   // ─── Admin auth guard ─────────────────────────────────────────────────────
 
@@ -303,6 +318,8 @@ export function createTenantsRouter(
       return c.json({ error: 'VALIDATION_ERROR', message: `"role" must be one of: ${KEY_ROLES.join(', ')}` }, 400)
     }
 
+    if (role === 'tenant_manager' && !mayGrantManagerKey(c)) return c.json(MANAGER_KEY_NEEDS_SYSTEM_ADMIN, 403)
+
     const tenant = await store.getTenant(tenantId)
     if (!tenant) return c.json({ error: 'NOT_FOUND', message: `Tenant '${tenantId}' not found` }, 404)
     if (tenant.status !== 'active') return c.json({ error: 'FORBIDDEN', message: `Tenant '${tenantId}' is not active` }, 403)
@@ -361,6 +378,8 @@ export function createTenantsRouter(
     if (!KEY_ROLES.includes(role as KeyRole)) {
       return c.json({ error: 'VALIDATION_ERROR', message: `"role" must be one of: ${KEY_ROLES.join(', ')}` }, 400)
     }
+
+    if (role === 'tenant_manager' && !mayGrantManagerKey(c)) return c.json(MANAGER_KEY_NEEDS_SYSTEM_ADMIN, 403)
 
     if (!(await store.getTenant(tenantId))) return c.json({ error: 'NOT_FOUND', message: `Tenant '${tenantId}' not found` }, 404)
 

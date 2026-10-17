@@ -5,6 +5,7 @@ const text = (value: unknown): string | undefined => (typeof value === 'string' 
 const roleText = (details: Record<string, unknown>) => {
   const role = text(details['role'])
   const tenant = text(details['tenantId'])
+  if (role === 'system_admin') return 'system admin'
   if (role === 'operator') return 'operator'
   if (role === 'tenant_manager') return tenant ? `manager of ${tenant}` : 'tenant manager'
   return role ?? 'a role'

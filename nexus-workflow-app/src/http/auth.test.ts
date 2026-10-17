@@ -635,10 +635,10 @@ describe('auth HTTP API (Postgres)', () => {
       expect(text).not.toMatch(/good-key|hash|plaintext/i)
     })
 
-    it('describes the admin key as an operator credential', async () => {
+    it('describes the admin key as a system admin credential', async () => {
       const res = await withKeys()('Bearer the-admin-key')
 
-      expect(await res.json()).toEqual({ adminKey: true, role: 'operator' })
+      expect(await res.json()).toEqual({ adminKey: true, role: 'system_admin' })
     })
 
     it('describes an operator key: its name, who made it and when it expires, never the secret', async () => {

@@ -3,10 +3,11 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../api/client'
 import type { Session } from '../auth/roles'
-import { makeFakeApi, makeMembership, makeTenant, makeUser, managerSession, operatorSession } from '../test/fakeApi'
+import { makeFakeApi, makeMembership, makeTenant, makeUser, managerSession, operatorSession, systemAdminSession } from '../test/fakeApi'
 import { UsersPage } from './UsersPage'
 
 const operator: Session = { kind: 'user', ...operatorSession() }
+const systemAdmin: Session = { kind: 'user', ...systemAdminSession() }
 const manager = (...tenants: string[]): Session => ({ kind: 'user', ...managerSession(...tenants) })
 
 const ada = makeUser({
@@ -114,7 +115,7 @@ describe('UsersPage', () => {
     }
 
     it('creates the person and shows the link once, as an absolute address', async () => {
-      const { api, user } = setup(operator)
+      const { api, user } = setup(systemAdmin)
       await fillAndSubmit(user)
       await user.click(screen.getByRole('button', { name: /create and get link/i }))
 
@@ -124,7 +125,7 @@ describe('UsersPage', () => {
     })
 
     it("prefers the server's own address when it knows one", async () => {
-      const { api, user } = setup(operator)
+      const { api, user } = setup(systemAdmin)
       api.createUser.mockResolvedValue({
         user: makeUser(),
         invite: { token: 't', path: '/console/invite/t', url: 'https://nexus.example.com/console/invite/t', expiresAt: '2026-02-01T00:00:00.000Z' },
@@ -153,7 +154,7 @@ describe('UsersPage', () => {
     })
 
     it('shows the reason when the person cannot be created and keeps the form', async () => {
-      const { api, user } = setup(operator)
+      const { api, user } = setup(systemAdmin)
       api.createUser.mockRejectedValue(new ApiError(409, 'A user with this email already exists', 'CONFLICT'))
       await fillAndSubmit(user)
       await user.click(screen.getByRole('button', { name: /create and get link/i }))
@@ -163,7 +164,7 @@ describe('UsersPage', () => {
     })
 
     it('copies the link to the clipboard', async () => {
-      const { user } = setup(operator)
+      const { user } = setup(systemAdmin)
       await fillAndSubmit(user)
       await user.click(screen.getByRole('button', { name: /create and get link/i }))
       await screen.findByLabelText('Invitation link')
@@ -175,7 +176,7 @@ describe('UsersPage', () => {
     })
 
     it('forgets the link once the dialog is closed', async () => {
-      const { user } = setup(operator)
+      const { user } = setup(systemAdmin)
       await fillAndSubmit(user)
       await user.click(screen.getByRole('button', { name: /create and get link/i }))
       await screen.findByLabelText('Invitation link')
@@ -187,7 +188,7 @@ describe('UsersPage', () => {
   })
 
   it('issues a new link for someone who lost theirs', async () => {
-    const { api, user } = setup(operator)
+    const { api, user } = setup(systemAdmin)
     await rowOf('Grace')
 
     await user.click(screen.getByRole('button', { name: 'New invitation for grace@example.com' }))
@@ -226,7 +227,7 @@ describe('UsersPage', () => {
     })
 
     it("shows the server's refusal", async () => {
-      const { api, user } = setup(operator)
+      const { api, user } = setup(systemAdmin)
       api.setUserStatus.mockRejectedValue(new ApiError(409, 'There must always be one active operator', 'CONFLICT'))
       await rowOf('Grace')
 
@@ -239,7 +240,7 @@ describe('UsersPage', () => {
 
   describe('roles', () => {
     it('adds a role and removes one', async () => {
-      const { api, user } = setup(operator)
+      const { api, user } = setup(systemAdmin)
       await rowOf('Grace')
       await user.click(screen.getByRole('button', { name: 'Roles of grace@example.com' }))
       const dialog = await screen.findByRole('dialog')
@@ -252,7 +253,7 @@ describe('UsersPage', () => {
     })
 
     it("shows the server's refusal inside the dialog", async () => {
-      const { api, user } = setup(operator)
+      const { api, user } = setup(systemAdmin)
       api.removeMembership.mockRejectedValue(new ApiError(409, 'You cannot remove your own operator role', 'CONFLICT'))
       await rowOf('Grace')
       await user.click(screen.getByRole('button', { name: 'Roles of grace@example.com' }))
@@ -261,6 +262,68 @@ describe('UsersPage', () => {
       await user.click(within(dialog).getByRole('button', { name: 'Remove Operator' }))
 
       expect(await within(dialog).findByText('You cannot remove your own operator role')).toBeInTheDocument()
+    })
+  })
+
+  describe('what an operator and a system admin may do', () => {
+    const sam = makeUser({
+      id: 'sam',
+      name: 'Sam',
+      email: 'sam@example.com',
+      memberships: [makeMembership({ id: 's1', userId: 'sam', role: 'system_admin' })],
+    })
+
+    it('offers an operator only the tenant manager role when inviting', async () => {
+      const { user } = setup(operator)
+      await user.click(await screen.findByRole('button', { name: /invite person/i }))
+
+      await user.click(screen.getByRole('combobox', { name: 'Role' }))
+
+      expect(screen.queryByRole('option', { name: 'Operator' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: 'System admin' })).not.toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'Tenant manager' })).toBeInTheDocument()
+    })
+
+    it('offers a system admin the operator role too, but never the system admin role', async () => {
+      const { user } = setup(systemAdmin)
+      await user.click(await screen.findByRole('button', { name: /invite person/i }))
+
+      await user.click(screen.getByRole('combobox', { name: 'Role' }))
+
+      expect(screen.getByRole('option', { name: 'Operator' })).toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: 'System admin' })).not.toBeInTheDocument()
+    })
+
+    it('shows an operator the other operators but no way to change them', async () => {
+      setup(operator)
+      const row = await rowOf('Grace')
+
+      expect(within(row).getByText('operator')).toBeInTheDocument()
+      expect(within(row).getByText('System admin only')).toBeInTheDocument()
+      expect(within(row).queryByRole('button')).not.toBeInTheDocument()
+      // while a tenant manager is theirs to manage
+      expect(screen.getByRole('button', { name: 'Roles of ada@example.com' })).toBeInTheDocument()
+    })
+
+    it('lets a system admin manage operators', async () => {
+      setup(systemAdmin)
+      await rowOf('Grace')
+
+      expect(screen.getByRole('button', { name: 'Roles of grace@example.com' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'New invitation for grace@example.com' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Disable grace@example.com' })).toBeInTheDocument()
+    })
+
+    it.each([
+      ['an operator', operator],
+      ['a system admin', systemAdmin],
+    ])('shows %s a system admin as a command-line-only row, with no actions', async (_label, viewer) => {
+      setup(viewer, [sam, ada])
+      const row = await rowOf('Sam')
+
+      expect(within(row).getByText('system admin')).toBeInTheDocument()
+      expect(within(row).getByText('Command line only')).toBeInTheDocument()
+      expect(within(row).queryByRole('button')).not.toBeInTheDocument()
     })
   })
 

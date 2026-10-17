@@ -35,11 +35,12 @@ describe('users HTTP API (Postgres)', () => {
     await tenants.createTenant(tenantB, 'B')
     keyOfA = (await tenants.createApiKey(tenantA, 'service')).plaintext
 
-    const make = async (name: string, roles: Array<['operator', null] | ['tenant_manager', string]>) => {
+    const make = async (name: string, roles: Array<['system_admin' | 'operator', null] | ['tenant_manager', string]>) => {
       const user = await users.createUser({ email: email(name), name })
       for (const [role, tenantId] of roles) await users.addMembership(user.id, role, tenantId)
       cookie[name] = `nexus_session=${(await sessions.create(user.id, {})).token}`
     }
+    await make('systemAdmin', [['system_admin', null]])
     await make('operator', [['operator', null]])
     await make('managerA', [['tenant_manager', tenantA]])
     await make('managerB', [['tenant_manager', tenantB]])
@@ -143,10 +144,20 @@ describe('users HTTP API (Postgres)', () => {
       expect(JSON.stringify(body)).not.toMatch(/passwordHash|scrypt/)
     })
 
-    it('a signed-in operator cannot create a user with a tenant_manager role (403)', async () => {
+    it('a signed-in operator can create a tenant manager (201)', async () => {
       const { status } = await invite('op-tm', 'operator', [{ role: 'tenant_manager', tenantId: tenantA }])
-      expect(status).toBe(403)
-      expect(await users.findByEmail(email('op-tm'))).toBeNull()
+      expect(status).toBe(201)
+    })
+
+    it('a signed-in operator cannot create an operator (403), but a system admin can (201)', async () => {
+      expect((await invite('op-op', 'operator', [{ role: 'operator', tenantId: null }])).status).toBe(403)
+      expect(await users.findByEmail(email('op-op'))).toBeNull()
+      expect((await invite('sa-op', 'systemAdmin', [{ role: 'operator', tenantId: null }])).status).toBe(201)
+    })
+
+    it.each([['systemAdmin'], ['operator']])('%s cannot create a system admin through the API (403)', async (who) => {
+      expect((await invite(`sa-by-${who}`, who, [{ role: 'system_admin', tenantId: null }])).status).toBe(403)
+      expect(await users.findByEmail(email(`sa-by-${who}`))).toBeNull()
     })
 
     it('never builds a link from the Host header: a spoofed host cannot end up in an invite link', async () => {

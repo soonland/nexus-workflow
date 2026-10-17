@@ -21,7 +21,8 @@ const STATUS: Record<FailureKind, 400 | 403 | 404 | 409> = {
   CONFLICT: 409,
 }
 
-const ROLES: readonly MembershipRole[] = ['operator', 'tenant_manager']
+// system_admin is parsed so that asking for it is refused (403) rather than reported as an unknown role
+const ROLES: readonly MembershipRole[] = ['system_admin', 'operator', 'tenant_manager']
 
 type Ctx = Context<{ Variables: AppVariables }>
 

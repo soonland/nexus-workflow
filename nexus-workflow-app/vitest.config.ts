@@ -15,6 +15,7 @@ export default defineConfig({
         'src/config.ts',       // env var reads — not unit-testable
         'src/main.ts',         // application entry point — not unit-testable
         'src/db/reset-cli.ts', // CLI utility — not unit-testable
+        'src/db/system-admin-create-cli.ts', // CLI utility — not unit-testable
         'src/db/migrate.ts',   // migration runner — not unit-testable
       ],
       reporter: ['text', 'lcov', 'html', 'json-summary', 'json'],

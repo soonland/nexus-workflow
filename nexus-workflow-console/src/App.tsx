@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext'
 import { AppShell, type Screen } from './components/AppShell'
 import { theme } from './theme'
 import { useTenantContext } from './auth/TenantContext'
-import { canManageUsers, describeSession, isOperator } from './auth/roles'
+import { canManageUsers, describeSession, isOperator, isSystemAdmin } from './auth/roles'
 import { InvitePage, readInviteToken } from './pages/InvitePage'
 import { LoginPage } from './pages/LoginPage'
 import { DefinitionsPage } from './pages/DefinitionsPage'
@@ -70,7 +70,7 @@ function Shell() {
         <TasksPage key={tenant.tenantId} api={tenant.api} tenantId={tenant.tenantId} actor={session.kind === 'user' ? session.user.email : describeSession(session)} />
       )}
       {screen === 'webhooks' && tenant.api && tenant.tenantId && <WebhooksPage key={tenant.tenantId} api={tenant.api} tenantId={tenant.tenantId} />}
-      {screen === 'tenants' && <TenantsPage api={api} />}
+      {screen === 'tenants' && <TenantsPage api={api} canGrantManagerKey={isSystemAdmin(session)} />}
       {screen === 'operatorKeys' && <OperatorKeysPage api={api} />}
       {screen === 'users' && <UsersPage api={api} session={session} />}
       {screen === 'audit' && <AuditPage api={api} session={session} />}

@@ -10,11 +10,11 @@ const suspended = makeTenant({ id: 'globex', name: 'Globex', status: 'suspended'
 const deleting = makeTenant({ id: 'initech', name: 'Initech', status: 'deleting' })
 const defaultTenant = makeTenant({ id: 'default', name: 'Default Tenant' })
 
-function setup(tenants = [acme, suspended, deleting, defaultTenant]) {
+function setup(tenants = [acme, suspended, deleting, defaultTenant], canGrantManagerKey?: boolean) {
   const api = makeFakeApi()
   api.listTenants.mockResolvedValue(tenants)
   const user = userEvent.setup()
-  render(<TenantsPage api={api} />)
+  render(<TenantsPage api={api} {...(canGrantManagerKey !== undefined ? { canGrantManagerKey } : {})} />)
   return { api, user }
 }
 
@@ -284,6 +284,36 @@ describe('TenantsPage', () => {
       await user.click(screen.getByRole('button', { name: 'Create key' }))
 
       await waitFor(() => expect(api.createKey).toHaveBeenCalledWith('acme', 'erp', 'tenant_manager'))
+    })
+
+    describe('when the viewer is an operator, not a system admin', () => {
+      it('does not offer the tenant manager role for a new key', async () => {
+        const { user } = setup(undefined, false)
+        await screen.findByText('Acme Corp')
+        await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
+
+        await user.click(await screen.findByRole('combobox', { name: 'Role' }))
+
+        expect(screen.getByRole('option', { name: 'Service' })).toBeInTheDocument()
+        expect(screen.queryByRole('option', { name: 'Tenant manager' })).not.toBeInTheDocument()
+      })
+
+      it('lets a key be lowered to service, but not raised to tenant manager', async () => {
+        const { api, user } = setup(undefined, false)
+        api.listKeys.mockResolvedValue([makeKey({ id: 'k1', name: 'erp', role: 'tenant_manager' }), makeKey({ id: 'k2', name: 'worker', role: 'service' })])
+        await screen.findByText('Acme Corp')
+        await user.click(screen.getByRole('button', { name: 'Keys for acme' }))
+
+        await user.click(await screen.findByRole('button', { name: 'Edit key erp' }))
+        await user.click(screen.getByRole('combobox', { name: 'Role of key erp' }))
+        expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Service', 'Tenant manager']) // its own role is still shown
+        await user.click(screen.getByRole('option', { name: 'Service' }))
+        await user.click(screen.getByRole('button', { name: 'Cancel editing key erp' }))
+
+        await user.click(screen.getByRole('button', { name: 'Edit key worker' }))
+        await user.click(screen.getByRole('combobox', { name: 'Role of key worker' }))
+        expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Service'])
+      })
     })
 
     it('shows each key\'s role as text, with an Edit button, and no select until you edit', async () => {

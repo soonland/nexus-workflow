@@ -277,7 +277,7 @@ export function createAuthRouter(deps: AuthRouterDeps): Hono {
       const [scheme, bearer] = authorization.split(' ')
       const described = scheme === 'Bearer' && bearer && deps.describeBearer ? await deps.describeBearer(bearer) : null
       if (!described) return c.json({ error: 'UNAUTHENTICATED', message: 'Not signed in' }, 401)
-      if (described.kind === 'adminKey') return c.json({ adminKey: true, role: 'operator' })
+      if (described.kind === 'adminKey') return c.json({ adminKey: true, role: 'system_admin' })
       if (described.kind === 'operatorKey') {
         const { id, name, createdBy, createdAt, expiresAt } = described.key
         return c.json({ operatorKey: { id, name, createdBy, createdAt, expiresAt }, role: 'operator' })
