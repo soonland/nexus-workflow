@@ -1,4 +1,5 @@
-import type { AuditLog } from '../db/AuditLog.js'
+import type { Within } from '../db/atomically.js'
+import type { AuditInput, AuditLog } from '../db/AuditLog.js'
 import type { InviteStore } from '../db/InviteStore.js'
 import {
   EmailTakenError,
@@ -85,6 +86,16 @@ export class UserAdmin {
     private readonly audit?: AuditLog,
   ) {}
 
+  /**
+   * The audit entry for a change, to be written in the same transaction as the change (so no entry, no
+   * change). None without an audit log.
+   */
+  private entry<R>(input: AuditInput | ((result: R) => AuditInput)): Within<R> | undefined {
+    const audit = this.audit
+    if (!audit) return undefined
+    return (tx, result) => audit.recordStrict(typeof input === 'function' ? input(result) : input, tx)
+  }
+
   /** The tenants a person belongs to: what an audit entry about them is filed under. */
   private tenantsOf(memberships: Array<{ tenantId: string | null }>): string[] {
     return [...new Set(memberships.flatMap((m) => (m.tenantId ? [m.tenantId] : [])))]
@@ -136,7 +147,8 @@ export class UserAdmin {
       const invite = await this.invites.create(created.id, scope.actorUserId)
       const user = await this.users.getWithMemberships(created.id)
       if (!user) throw new Error('Unexpected: the user just created was not found')
-      await this.audit?.record({
+      // strict: if the entry cannot be written the person is removed again just below and the caller gets an error
+      await this.audit?.recordStrict({
         action: 'user.create',
         actor: auditActorOf(actor),
         tenantIds: this.tenantsOf(memberships),
@@ -160,17 +172,21 @@ export class UserAdmin {
     }
 
     try {
-      await this.users.setStatus(userId, status)
+      // the entry is written in the same transaction: no entry, no change
+      await this.users.setStatus(
+        userId,
+        status,
+        this.entry({
+          action: status === 'disabled' ? 'user.disable' : 'user.enable',
+          actor: auditActorOf(actor),
+          tenantIds: this.tenantsOf(target.value.memberships),
+          target: userId,
+          details: { email: target.value.email },
+        }),
+      )
     } catch (err) {
       return this.fromStoreError(err)
     }
-    await this.audit?.record({
-      action: status === 'disabled' ? 'user.disable' : 'user.enable',
-      actor: auditActorOf(actor),
-      tenantIds: this.tenantsOf(target.value.memberships),
-      target: userId,
-      details: { email: target.value.email },
-    })
     return this.reach(scope, userId)
   }
 
@@ -191,17 +207,21 @@ export class UserAdmin {
 
     let created: Membership
     try {
-      created = await this.users.addMembership(userId, request.role, request.tenantId)
+      created = await this.users.addMembership(
+        userId,
+        request.role,
+        request.tenantId,
+        this.entry((m: Membership) => ({
+          action: 'membership.add',
+          actor: auditActorOf(actor),
+          tenantIds: this.tenantsOf([m]),
+          target: userId,
+          details: { email: target.value.email, role: m.role, tenantId: m.tenantId },
+        })),
+      )
     } catch (err) {
       return this.fromStoreError(err)
     }
-    await this.audit?.record({
-      action: 'membership.add',
-      actor: auditActorOf(actor),
-      tenantIds: this.tenantsOf([created]),
-      target: userId,
-      details: { email: target.value.email, role: created.role, tenantId: created.tenantId },
-    })
     return ok(created)
   }
 
@@ -219,17 +239,20 @@ export class UserAdmin {
     }
 
     try {
-      await this.users.removeMembership(userId, membershipId)
+      await this.users.removeMembership(
+        userId,
+        membershipId,
+        this.entry({
+          action: 'membership.remove',
+          actor: auditActorOf(actor),
+          tenantIds: this.tenantsOf([membership]),
+          target: userId,
+          details: { email: target.value.email, role: membership.role, tenantId: membership.tenantId },
+        }),
+      )
     } catch (err) {
       return this.fromStoreError(err)
     }
-    await this.audit?.record({
-      action: 'membership.remove',
-      actor: auditActorOf(actor),
-      tenantIds: this.tenantsOf([membership]),
-      target: userId,
-      details: { email: target.value.email, role: membership.role, tenantId: membership.tenantId },
-    })
     return ok(null)
   }
 
@@ -246,15 +269,18 @@ export class UserAdmin {
     // A new invite is how an account is taken over: not an operator's, and not by a key
     if (scope.viaOperatorKey && target.value.memberships.some((m) => m.role === 'operator')) return fail('FORBIDDEN', KEY_CANNOT_ESCALATE)
 
-    const invite = await this.invites.create(userId, scope.actorUserId)
-    await this.audit?.record({
-      action: 'invite.create',
-      actor: auditActorOf(actor),
-      tenantIds: this.tenantsOf(target.value.memberships),
-      target: userId,
-      // for someone who already has a password this is a password reset
-      details: { email: target.value.email, reset: target.value.hasPassword },
-    })
+    const invite = await this.invites.create(
+      userId,
+      scope.actorUserId,
+      this.entry({
+        action: 'invite.create',
+        actor: auditActorOf(actor),
+        tenantIds: this.tenantsOf(target.value.memberships),
+        target: userId,
+        // for someone who already has a password this is a password reset
+        details: { email: target.value.email, reset: target.value.hasPassword },
+      }),
+    )
     return ok({ user: target.value, invite })
   }
 

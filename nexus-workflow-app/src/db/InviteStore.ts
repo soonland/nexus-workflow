@@ -1,5 +1,6 @@
 import { createHmac, randomBytes } from 'node:crypto'
 import type postgres from 'postgres'
+import type { Within } from './atomically.js'
 import type { User } from './UserStore.js'
 
 export interface InviteStoreOptions {
@@ -36,9 +37,9 @@ export class InviteStore {
 
   /**
    * Issues an invite for the user and invalidates their earlier unused ones. The token is
-   * returned once and never stored.
+   * returned once and never stored. `within` runs in the same transaction.
    */
-  async create(userId: string, createdBy: string | null): Promise<{ token: string; expiresAt: Date }> {
+  async create(userId: string, createdBy: string | null, within?: Within<{ token: string; expiresAt: Date }>): Promise<{ token: string; expiresAt: Date }> {
     const token = randomBytes(32).toString('base64url')
     return this.sql.begin(async (txRaw) => {
       const tx = txRaw as unknown as postgres.Sql
@@ -53,7 +54,9 @@ export class InviteStore {
       `
       const created = rows[0]
       if (!created) throw new Error('Unexpected: INSERT INTO invites returned no rows')
-      return { token, expiresAt: created.expiresAt }
+      const invite = { token, expiresAt: created.expiresAt }
+      await within?.(tx, invite)
+      return invite
     })
   }
 

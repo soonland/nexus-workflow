@@ -53,32 +53,48 @@ export function createOperatorKeysRouter(deps: OperatorKeysRouterDeps): Hono<{ V
 
     const principal = c.get('principal')
     const actor = principal ? auditActorOf(principal) : ({ kind: 'adminKey' } as const)
-    const { key, plaintext } = await deps.keys.create(name.trim(), {
-      createdBy: actor.kind === 'user' ? actor.id : null,
-      expiresAt: expires,
-    })
-    // the key's id, name and expiry, never the key itself
-    await deps.audit?.record({
-      action: 'operator-key.create',
-      actor,
-      target: key.id,
-      details: { name: key.name, expiresAt: key.expiresAt?.toISOString() ?? null },
-    })
+    // The entry is written in the same transaction as the key (the key's id, name and expiry, never the
+    // key itself): if it cannot be written there is no key and the request fails.
+    const audit = deps.audit
+    const { key, plaintext } = await deps.keys.create(
+      name.trim(),
+      { createdBy: actor.kind === 'user' ? actor.id : null, expiresAt: expires },
+      audit &&
+        ((tx, created) =>
+          audit.recordStrict(
+            {
+              action: 'operator-key.create',
+              actor,
+              target: created.key.id,
+              details: { name: created.key.name, expiresAt: created.key.expiresAt?.toISOString() ?? null },
+            },
+            tx,
+          )),
+    )
     return c.json({ key, plaintext }, 201)
   })
 
   app.delete('/:id', async (c) => {
     const id = c.req.param('id')
     // one statement: the key comes back only to the request that actually revoked it
-    const key = await deps.keys.revoke(id)
-    if (!key) return c.json({ error: 'NOT_FOUND', message: `Operator key '${id}' not found or already revoked` }, 404)
+    // and the entry is written in the same transaction: no entry, no revocation
     const principal = c.get('principal')
-    await deps.audit?.record({
-      action: 'operator-key.revoke',
-      actor: principal ? auditActorOf(principal) : { kind: 'adminKey' },
-      target: id,
-      details: { name: key.name },
-    })
+    const audit = deps.audit
+    const key = await deps.keys.revoke(
+      id,
+      audit &&
+        ((tx, revoked) =>
+          audit.recordStrict(
+            {
+              action: 'operator-key.revoke',
+              actor: principal ? auditActorOf(principal) : { kind: 'adminKey' },
+              target: id,
+              details: { name: revoked.name },
+            },
+            tx,
+          )),
+    )
+    if (!key) return c.json({ error: 'NOT_FOUND', message: `Operator key '${id}' not found or already revoked` }, 404)
     return c.json({ success: true })
   })
 

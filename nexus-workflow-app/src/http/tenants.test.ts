@@ -494,7 +494,7 @@ describe('tenants HTTP API', () => {
 
       await post(app, '/tenants/tenant-1/keys', { name: 'Production Key' }, AUTH)
 
-      expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'Production Key', { createdBy: null }) // the admin key: nobody to record
+      expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'Production Key', { createdBy: null }, undefined) // the admin key: nobody to record
     })
 
     it('should return 404 when the tenant does not exist', async () => {
@@ -569,7 +569,7 @@ describe('tenants HTTP API', () => {
 
       await post(app, '/tenants/tenant-1/keys', { name: '  Production Key  ' }, AUTH)
 
-      expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'Production Key', { createdBy: null })
+      expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'Production Key', { createdBy: null }, undefined)
     })
 
     it('should return 400 when body is non-JSON', async () => {
@@ -678,7 +678,7 @@ describe('tenants HTTP API', () => {
       const res = await post(app, '/tenants/tenant-1/keys', { name: 'ERP', role: 'tenant_manager' }, AUTH)
 
       expect(res.status).toBe(201)
-      expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'ERP', { role: 'tenant_manager', createdBy: null })
+      expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'ERP', { role: 'tenant_manager', createdBy: null }, undefined)
     })
 
     it('leaves the role to the store (least privilege) when none is asked for', async () => {
@@ -713,35 +713,64 @@ describe('tenants HTTP API', () => {
 
       await guarded.fetch(new Request('http://localhost/tenants/tenant-1/keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'ci' }) }))
 
-      expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'ci', { createdBy: 'u-1' })
+      expect(mockStore.createApiKey).toHaveBeenCalledWith('tenant-1', 'ci', { createdBy: 'u-1' }, undefined)
     })
 
     it('changes a key\'s role, keeping its secret, and writes it to the audit log', async () => {
-      const record = vi.fn().mockResolvedValue(undefined)
+      const recordStrict = vi.fn().mockResolvedValue(undefined)
       app = new Hono()
-      app.route('/tenants', createTenantsRouter(vi.fn() as unknown as postgres.Sql, 'test-secret', ADMIN_KEY, { audit: { record } as never }))
+      app.route('/tenants', createTenantsRouter(vi.fn() as unknown as postgres.Sql, 'test-secret', ADMIN_KEY, { audit: { recordStrict } as never }))
+      const changed = { key: key({ role: 'tenant_manager', name: 'ERP' }), previous: 'service' }
+      const tx = {}
       mockStore.getTenant.mockResolvedValueOnce(makeTenant())
-      mockStore.setApiKeyRole.mockResolvedValueOnce({ key: key({ role: 'tenant_manager', name: 'ERP' }), previous: 'service' })
+      // the store runs the entry inside its transaction, as the real one does
+      mockStore.setApiKeyRole.mockImplementationOnce(async (_t: string, _k: string, _r: string, within: (tx: unknown, r: unknown) => Promise<void>) => {
+        await within(tx, changed)
+        return changed
+      })
 
       const res = await patch('/tenants/tenant-1/keys/key-id-1', { role: 'tenant_manager' })
 
       expect(res.status).toBe(200)
       expect((await res.json()).key.role).toBe('tenant_manager')
-      expect(mockStore.setApiKeyRole).toHaveBeenCalledWith('tenant-1', 'key-id-1', 'tenant_manager')
-      expect(record).toHaveBeenCalledWith(expect.objectContaining({ action: 'key.role', target: 'key-id-1', tenantIds: ['tenant-1'], details: { name: 'ERP', from: 'service', to: 'tenant_manager' } }))
+      expect(mockStore.setApiKeyRole).toHaveBeenCalledWith('tenant-1', 'key-id-1', 'tenant_manager', expect.any(Function))
+      expect(recordStrict).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'key.role', target: 'key-id-1', tenantIds: ['tenant-1'], details: { name: 'ERP', from: 'service', to: 'tenant_manager' } }),
+        tx,
+      )
     })
 
     it('writes nothing to the audit log when the role was already that', async () => {
-      const record = vi.fn().mockResolvedValue(undefined)
+      const recordStrict = vi.fn().mockResolvedValue(undefined)
       app = new Hono()
-      app.route('/tenants', createTenantsRouter(vi.fn() as unknown as postgres.Sql, 'test-secret', ADMIN_KEY, { audit: { record } as never }))
+      app.route('/tenants', createTenantsRouter(vi.fn() as unknown as postgres.Sql, 'test-secret', ADMIN_KEY, { audit: { recordStrict } as never }))
+      const unchanged = { key: key({ role: 'service' }), previous: 'service' }
       mockStore.getTenant.mockResolvedValueOnce(makeTenant())
-      mockStore.setApiKeyRole.mockResolvedValueOnce({ key: key({ role: 'service' }), previous: 'service' })
+      mockStore.setApiKeyRole.mockImplementationOnce(async (_t: string, _k: string, _r: string, within: (tx: unknown, r: unknown) => Promise<void>) => {
+        await within({}, unchanged)
+        return unchanged
+      })
 
       const res = await patch('/tenants/tenant-1/keys/key-id-1', { role: 'service' })
 
       expect(res.status).toBe(200)
-      expect(record).not.toHaveBeenCalled()
+      expect(recordStrict).not.toHaveBeenCalled()
+    })
+
+    it('500 when the audit entry of a role change cannot be written (the store rolls the change back)', async () => {
+      const recordStrict = vi.fn().mockRejectedValue(new Error('audit down'))
+      app = new Hono()
+      app.route('/tenants', createTenantsRouter(vi.fn() as unknown as postgres.Sql, 'test-secret', ADMIN_KEY, { audit: { recordStrict } as never }))
+      const changed = { key: key({ role: 'tenant_manager' }), previous: 'service' }
+      mockStore.getTenant.mockResolvedValueOnce(makeTenant())
+      mockStore.setApiKeyRole.mockImplementationOnce(async (_t: string, _k: string, _r: string, within: (tx: unknown, r: unknown) => Promise<void>) => {
+        await within({}, changed)
+        return changed
+      })
+
+      const res = await patch('/tenants/tenant-1/keys/key-id-1', { role: 'tenant_manager' })
+
+      expect(res.status).toBe(500)
     })
 
     it('400 for a missing or unknown role, 404 for an unknown tenant or a revoked key, 403 without the admin key', async () => {
@@ -777,7 +806,37 @@ describe('tenants HTTP API', () => {
 
       await del(app, '/tenants/tenant-1/keys/key-id-1', AUTH)
 
-      expect(mockStore.revokeApiKey).toHaveBeenCalledWith('tenant-1', 'key-id-1')
+      expect(mockStore.revokeApiKey).toHaveBeenCalledWith('tenant-1', 'key-id-1', undefined)
+    })
+
+    it('writes the audit entry in the same transaction as the revocation, and not when nothing was revoked', async () => {
+      const recordStrict = vi.fn().mockResolvedValue(undefined)
+      const audited = new Hono()
+      audited.route('/tenants', createTenantsRouter(vi.fn() as unknown as postgres.Sql, 'test-secret', ADMIN_KEY, { audit: { recordStrict } as never }))
+      mockStore.getTenant.mockResolvedValueOnce(makeTenant())
+      mockStore.revokeApiKey.mockResolvedValueOnce(true)
+
+      await del(audited, '/tenants/tenant-1/keys/key-id-1', AUTH)
+
+      const within = mockStore.revokeApiKey.mock.calls[0]![2] as (tx: unknown) => Promise<void>
+      const tx = {}
+      await within(tx)
+      expect(recordStrict).toHaveBeenCalledWith(expect.objectContaining({ action: 'key.revoke', target: 'key-id-1', tenantIds: ['tenant-1'] }), tx)
+    })
+
+    it('500 when the audit entry cannot be written (the store rolls the revocation back)', async () => {
+      const recordStrict = vi.fn().mockRejectedValue(new Error('audit down'))
+      const audited = new Hono()
+      audited.route('/tenants', createTenantsRouter(vi.fn() as unknown as postgres.Sql, 'test-secret', ADMIN_KEY, { audit: { recordStrict } as never }))
+      mockStore.getTenant.mockResolvedValueOnce(makeTenant())
+      mockStore.revokeApiKey.mockImplementationOnce(async (_t: string, _k: string, within: (tx: unknown, r: boolean) => Promise<void>) => {
+        await within({}, true)
+        return true
+      })
+
+      const res = await del(audited, '/tenants/tenant-1/keys/key-id-1', AUTH)
+
+      expect(res.status).toBe(500)
     })
 
     it('should return 404 when revokeApiKey returns false (key not found or already revoked)', async () => {
@@ -1039,6 +1098,21 @@ describe('tenants HTTP API', () => {
       expect(res.status).toBe(409)
       expect(mockStore.markTenantDeleting).not.toHaveBeenCalled()
       expect(dropTenantSchema).not.toHaveBeenCalled()
+    })
+
+    it('writes the intent to the audit log before anything is touched, and refuses to start when it cannot', async () => {
+      const recordStrict = vi.fn().mockRejectedValue(new Error('audit down'))
+      const audited = new Hono()
+      audited.route('/tenants', createTenantsRouter(vi.fn() as unknown as postgres.Sql, 'test-secret', ADMIN_KEY, { audit: { recordStrict } as never }))
+      mockStore.getTenant.mockResolvedValue(makeTenant())
+
+      const res = await del(audited, '/tenants/tenant-1', AUTH)
+
+      expect(res.status).toBe(500)
+      expect(recordStrict).toHaveBeenCalledWith(expect.objectContaining({ action: 'tenant.delete.requested', target: 'tenant-1', tenantIds: ['tenant-1'] }))
+      expect(mockStore.markTenantDeleting).not.toHaveBeenCalled()
+      expect(dropTenantSchema).not.toHaveBeenCalled()
+      expect(mockStore.deleteTenantAndKeys).not.toHaveBeenCalled()
     })
 
     it('can be retried: deleting a tenant that is already "deleting" runs the delete again', async () => {

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import type postgres from 'postgres'
 import { normalizeEmail } from '../auth/email.js'
+import { atomically, type Within } from './atomically.js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -173,9 +174,9 @@ export class UserStore {
 
   /**
    * Disabling also ends all of the user's sessions. Disabling the last active operator is
-   * refused (LastOperatorError). False if the user does not exist.
+   * refused (LastOperatorError). False if the user does not exist. `within` runs in the same transaction.
    */
-  async setStatus(userId: string, status: UserStatus): Promise<boolean> {
+  async setStatus(userId: string, status: UserStatus, within?: Within<true>): Promise<boolean> {
     return this.sql.begin(async (txRaw) => {
       const tx = txRaw as unknown as postgres.Sql
       if (status === 'disabled') {
@@ -185,6 +186,7 @@ export class UserStore {
       const rows = await tx`UPDATE public.users SET status = ${status} WHERE id = ${userId} RETURNING id`
       if (rows.length === 0) return false
       if (status === 'disabled') await tx`DELETE FROM public.sessions WHERE user_id = ${userId}`
+      await within?.(tx, true)
       return true
     })
   }
@@ -259,28 +261,35 @@ export class UserStore {
 
   /**
    * Grants a role. Idempotent: granting what the user already has returns the existing
-   * membership. `operator` must have no tenant; `tenant_manager` needs one.
+   * membership. `operator` must have no tenant; `tenant_manager` needs one. `within` runs in the same
+   * transaction as the grant.
    */
-  async addMembership(userId: string, role: MembershipRole, tenantId: string | null): Promise<Membership> {
+  async addMembership(userId: string, role: MembershipRole, tenantId: string | null, within?: Within<Membership>): Promise<Membership> {
     if (role === 'operator' && tenantId !== null) throw new UserInputError('An operator is platform-wide and cannot be tied to a tenant')
     if (role === 'tenant_manager' && tenantId === null) throw new UserInputError('A tenant manager needs a tenant')
 
     try {
-      const inserted = await this.sql<Membership[]>`
-        INSERT INTO public.memberships (id, user_id, role, tenant_id)
-        VALUES (${randomBytes(16).toString('hex')}, ${userId}, ${role}, ${tenantId})
-        ON CONFLICT DO NOTHING
-        RETURNING ${this.sql.unsafe(MEMBERSHIP_COLUMNS)}
-      `
-      if (inserted[0]) return inserted[0]
+      return await atomically(
+        this.sql,
+        async (db) => {
+          const inserted = await db<Membership[]>`
+            INSERT INTO public.memberships (id, user_id, role, tenant_id)
+            VALUES (${randomBytes(16).toString('hex')}, ${userId}, ${role}, ${tenantId})
+            ON CONFLICT DO NOTHING
+            RETURNING ${db.unsafe(MEMBERSHIP_COLUMNS)}
+          `
+          if (inserted[0]) return inserted[0]
 
-      const existing = await this.sql<Membership[]>`
-        SELECT ${this.sql.unsafe(MEMBERSHIP_COLUMNS)} FROM public.memberships
-        WHERE user_id = ${userId} AND role = ${role} AND tenant_id IS NOT DISTINCT FROM ${tenantId}
-      `
-      // The conflict was another request granting the same role a moment ago; it is there now.
-      if (!existing[0]) throw new Error('Unexpected: membership neither inserted nor found')
-      return existing[0]
+          const existing = await db<Membership[]>`
+            SELECT ${db.unsafe(MEMBERSHIP_COLUMNS)} FROM public.memberships
+            WHERE user_id = ${userId} AND role = ${role} AND tenant_id IS NOT DISTINCT FROM ${tenantId}
+          `
+          // The conflict was another request granting the same role a moment ago; it is there now.
+          if (!existing[0]) throw new Error('Unexpected: membership neither inserted nor found')
+          return existing[0]
+        },
+        within,
+      )
     } catch (err) {
       if (isPgError(err, '23503')) {
         throw new UserInputError(err.constraint_name?.includes('tenant') ? 'Tenant not found' : 'User not found')
@@ -292,8 +301,9 @@ export class UserStore {
   /**
    * Removes one of the user's memberships. Removing the operator role of the last active
    * operator is refused (LastOperatorError). False if it does not exist or belongs to someone else.
+   * `within` runs in the same transaction, only if a membership was removed.
    */
-  async removeMembership(userId: string, membershipId: string): Promise<boolean> {
+  async removeMembership(userId: string, membershipId: string, within?: Within<true>): Promise<boolean> {
     return this.sql.begin(async (txRaw) => {
       const tx = txRaw as unknown as postgres.Sql
       await tx`SELECT pg_advisory_xact_lock(${OPERATOR_LOCK_KEY})`
@@ -302,7 +312,9 @@ export class UserStore {
       if (!found[0]) return false
       if (found[0].role === 'operator') await assertNotLastOperator(tx, userId)
       const rows = await tx`DELETE FROM public.memberships WHERE id = ${membershipId} AND user_id = ${userId} RETURNING id`
-      return rows.length > 0
+      if (rows.length === 0) return false
+      await within?.(tx, true)
+      return true
     })
   }
 

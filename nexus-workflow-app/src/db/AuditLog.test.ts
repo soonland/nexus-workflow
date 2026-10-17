@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import postgres from 'postgres'
 import { runMigrations } from './migrate.js'
 import { AuditLog, scrub } from './AuditLog.js'
+import { TenantStore } from './TenantStore.js'
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? 'postgres://nexus:nexus@localhost:5433/nexus_workflow'
 
@@ -116,6 +117,57 @@ describe('AuditLog (Postgres)', () => {
 
     expect(error).toHaveBeenCalled()
     error.mockRestore()
+  })
+
+  describe('recordStrict', () => {
+    it('writes the entry like record does', async () => {
+      await log.recordStrict({ action: `${run}.strict.ok`, actor: { kind: 'adminKey' }, tenantIds: [tenantA], target: 't1' })
+
+      const { entries } = await mine({ action: `${run}.strict.ok` })
+
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).toMatchObject({ actor: { kind: 'adminKey' }, tenantIds: [tenantA], target: 't1' })
+    })
+
+    it('throws when it cannot write, so the action can be refused, and says so on the console', async () => {
+      const broken = new AuditLog(postgres(DATABASE_URL.replace(/\/[^/]+$/, '/no_such_database')))
+      const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+      await expect(broken.recordStrict({ action: `${run}.x`, actor: { kind: 'adminKey' } })).rejects.toThrow()
+
+      expect(error).toHaveBeenCalled()
+      error.mockRestore()
+    })
+
+    it('commits with the transaction it is given, and rolls back with it', async () => {
+      await sql.begin(async (txRaw) => {
+        await log.recordStrict({ action: `${run}.strict.commit`, actor: { kind: 'adminKey' } }, txRaw as unknown as postgres.Sql)
+      })
+      await expect(
+        sql.begin(async (txRaw) => {
+          await log.recordStrict({ action: `${run}.strict.rollback`, actor: { kind: 'adminKey' } }, txRaw as unknown as postgres.Sql)
+          throw new Error('the change failed after the entry was written')
+        }),
+      ).rejects.toThrow('the change failed')
+
+      expect((await mine({ action: `${run}.strict.commit` })).entries).toHaveLength(1)
+      expect((await mine({ action: `${run}.strict.rollback` })).entries).toHaveLength(0)
+    })
+
+    it('undoes the change when the entry is refused by the database (an actor kind it does not know)', async () => {
+      const tenantId = `${run}_atomic`
+      const tenants = new TenantStore(sql, 'secret')
+      await tenants.createTenant(tenantId, 'Atomic')
+      const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+      await expect(
+        tenants.createApiKey(tenantId, 'k', {}, (tx) => log.recordStrict({ action: `${run}.strict.bad`, actor: { kind: 'nobody' } as never }, tx)),
+      ).rejects.toThrow()
+
+      expect(await tenants.listApiKeys(tenantId)).toHaveLength(0)
+      error.mockRestore()
+      await tenants.deleteTenant(tenantId)
+    })
   })
 
   describe('list', () => {

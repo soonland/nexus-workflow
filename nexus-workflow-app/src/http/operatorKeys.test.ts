@@ -62,6 +62,11 @@ describe('operator keys (Postgres, real guards)', () => {
       recorded.push(entry as unknown as Record<string, any>)
       await realRecord(entry)
     })
+    const realStrict = audit.recordStrict.bind(audit)
+    vi.spyOn(audit, 'recordStrict').mockImplementation(async (entry, tx) => {
+      recorded.push(entry as unknown as Record<string, any>)
+      await realStrict(entry, tx)
+    })
 
     const deps = { adminApiKey: ADMIN_KEY, sessions, users, operatorKeys: store }
     app = new Hono<{ Variables: AppVariables }>()
@@ -322,6 +327,45 @@ describe('operator keys (Postgres, real guards)', () => {
       expect(created).toMatchObject({ actor: { kind: 'user', id: id['operator'] }, details: { name: `${prefix} audited`, expiresAt: null } })
       expect(revoked).toMatchObject({ actor: { kind: 'user', id: id['operator'] }, details: { name: `${prefix} audited` } })
       expect(JSON.stringify(recorded)).not.toContain(plaintext)
+    })
+
+    it('creates no key, and revokes none, when the audit entry cannot be written', async () => {
+      const { key } = await create('fail-closed')
+      const before = (await store.list()).length
+      vi.mocked(audit.recordStrict).mockRejectedValueOnce(new Error('audit down')).mockRejectedValueOnce(new Error('audit down'))
+
+      const created = await call('/operator-keys', { session: 'operator', body: { name: `${prefix} never` } })
+      const revoked = await call(`/operator-keys/${key['id']}`, { session: 'operator', method: 'DELETE' })
+
+      expect(created.status).toBe(500)
+      expect(revoked.status).toBe(500)
+      expect((await store.list()).length).toBe(before)
+      expect((await store.list()).find((k) => k.id === key['id'])?.revokedAt).toBeNull()
+    })
+
+    it('changes nothing about a person when the audit entry cannot be written', async () => {
+      const person = await users.createUser({ email: `${prefix}.failclosed@example.com`, name: 'Fail closed' })
+      const membership = await users.addMembership(person.id, 'tenant_manager', tenant)
+      const down = () => vi.mocked(audit.recordStrict).mockRejectedValueOnce(new Error('audit down'))
+
+      down()
+      const disabled = await call(`/users/${person.id}`, { session: 'operator', method: 'PATCH', body: { status: 'disabled' } })
+      down()
+      const removed = await call(`/users/${person.id}/memberships/${membership.id}`, { session: 'operator', method: 'DELETE' })
+      down()
+      const granted = await call(`/users/${person.id}/memberships`, { session: 'operator', body: { role: 'operator', tenantId: null } })
+      down()
+      const invited = await call(`/users/${person.id}/invite`, { session: 'operator', body: {} })
+      down()
+      const made = await call('/users', { session: 'operator', body: { email: `${prefix}.never@example.com`, name: 'Never', memberships: [] } })
+
+      expect([disabled.status, removed.status, granted.status, invited.status, made.status]).toEqual([500, 500, 500, 500, 500])
+      expect((await users.findById(person.id))?.status).toBe('active')
+      expect((await users.listMemberships(person.id)).map((m) => m.role)).toEqual(['tenant_manager'])
+      const [invites] = await sql<Array<{ n: number }>>`SELECT count(*)::int AS n FROM public.invites WHERE user_id = ${person.id}`
+      expect(invites?.n).toBe(0)
+      expect(await users.findByEmail(`${prefix}.never@example.com`)).toBeNull()
+      await users.deleteUser(person.id)
     })
 
     it('records what an operator key does under its own name', async () => {

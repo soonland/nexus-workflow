@@ -250,6 +250,10 @@ export function createTenantsRouter(
       return c.json({ error: 'NOT_FOUND', message: `Tenant '${id}' not found` }, 404)
     }
 
+    // Dropping a schema cannot join a transaction, so the intent is written first and strictly: if it
+    // cannot be written nothing is touched. The entry once it is done (below) stays best-effort.
+    await options.audit?.recordStrict({ action: 'tenant.delete.requested', actor: actorOf(c), tenantIds: [id], target: id })
+
     try {
       // "deleting" is stored first: the tenant's keys are rejected and it can no longer be
       // reactivated or renamed while the workers are stopped and the data is dropped. If a step
@@ -305,12 +309,23 @@ export function createTenantsRouter(
 
     // least privilege unless a role is asked for; the person who creates it is recorded
     const actor = actorOf(c)
-    const { key, plaintext } = await store.createApiKey(tenantId, name.trim(), {
-      ...(role ? { role: role as KeyRole } : {}),
-      createdBy: actor.kind === 'user' ? actor.id : null,
-    })
-    // the key's id, name and role, never the key itself
-    await options.audit?.record({ action: 'key.create', actor, tenantIds: [tenantId], target: key.id, details: { name: key.name, role: key.role } })
+    // The entry (the key's id, name and role, never the key itself) is written in the same transaction
+    // as the key: if it cannot be written there is no key and the request fails.
+    const audit = options.audit
+    const { key, plaintext } = await store.createApiKey(
+      tenantId,
+      name.trim(),
+      {
+        ...(role ? { role: role as KeyRole } : {}),
+        createdBy: actor.kind === 'user' ? actor.id : null,
+      },
+      audit &&
+        ((tx, created) =>
+          audit.recordStrict(
+            { action: 'key.create', actor, tenantIds: [tenantId], target: created.key.id, details: { name: created.key.name, role: created.key.role } },
+            tx,
+          )),
+    )
     return c.json({ key, plaintext }, 201)
   })
 
@@ -349,18 +364,30 @@ export function createTenantsRouter(
 
     if (!(await store.getTenant(tenantId))) return c.json({ error: 'NOT_FOUND', message: `Tenant '${tenantId}' not found` }, 404)
 
-    const changed = await store.setApiKeyRole(tenantId, keyId, role as KeyRole)
+    // The entry is written in the same transaction as the change (none when the role was already that):
+    // if it cannot be written the role is left as it was and the request fails.
+    const audit = options.audit
+    const actor = actorOf(c)
+    const changed = await store.setApiKeyRole(
+      tenantId,
+      keyId,
+      role as KeyRole,
+      audit &&
+        (async (tx, result) => {
+          if (result.previous === result.key.role) return
+          await audit.recordStrict(
+            {
+              action: 'key.role',
+              actor,
+              tenantIds: [tenantId],
+              target: keyId,
+              details: { name: result.key.name, from: result.previous, to: result.key.role },
+            },
+            tx,
+          )
+        }),
+    )
     if (!changed) return c.json({ error: 'NOT_FOUND', message: `Key '${keyId}' not found or revoked` }, 404)
-
-    if (changed.previous !== changed.key.role) {
-      await options.audit?.record({
-        action: 'key.role',
-        actor: actorOf(c),
-        tenantIds: [tenantId],
-        target: keyId,
-        details: { name: changed.key.name, from: changed.previous, to: changed.key.role },
-      })
-    }
     return c.json({ key: changed.key })
   })
 
@@ -373,10 +400,16 @@ export function createTenantsRouter(
     const tenant = await store.getTenant(tenantId)
     if (!tenant) return c.json({ error: 'NOT_FOUND', message: `Tenant '${tenantId}' not found` }, 404)
 
-    const revoked = await store.revokeApiKey(tenantId, keyId)
+    // the entry is written in the same transaction: no entry, no revocation
+    const audit = options.audit
+    const actor = actorOf(c)
+    const revoked = await store.revokeApiKey(
+      tenantId,
+      keyId,
+      audit && ((tx) => audit.recordStrict({ action: 'key.revoke', actor, tenantIds: [tenantId], target: keyId }, tx)),
+    )
     if (!revoked) return c.json({ error: 'NOT_FOUND', message: `Key '${keyId}' not found or already revoked` }, 404)
 
-    await options.audit?.record({ action: 'key.revoke', actor: actorOf(c), tenantIds: [tenantId], target: keyId })
     return c.json({ success: true })
   })
 

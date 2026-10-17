@@ -73,7 +73,7 @@ describe('POST /instances/:id/force', () => {
       return next()
     })
     app.route('/', createInstancesRouter(() => store, () => bus))
-    app.route('/', createForceRouter(() => store, () => bus, { record } as unknown as AuditLog))
+    app.route('/', createForceRouter(() => store, () => bus, { recordStrict: record } as unknown as AuditLog))
   })
 
   async function start(definitionId: string) {
@@ -169,6 +169,23 @@ describe('POST /instances/:id/force', () => {
     expect(step.forced).toEqual({ action: 'completeUserTask', by: 'manager@example.com', reason: 'Ada is on leave', onBehalfOf: 'ada@example.com' })
     expect(record).toHaveBeenCalledWith(expect.objectContaining({ details: expect.objectContaining({ onBehalfOf: 'ada@example.com' }) }))
     expect(published.find((e) => e.type === 'StepForced')).toMatchObject({ forcedBy: 'manager@example.com', onBehalfOf: 'ada@example.com' })
+  })
+
+  it('does nothing, and says so with a 500, when the audit entry cannot be written: a forced step is never unlogged', async () => {
+    const { instanceId, tokenId } = await start('service-proc')
+    record.mockRejectedValueOnce(new Error('audit down'))
+
+    const res = await app.fetch(
+      new Request(`http://localhost/instances/${instanceId}/force`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'completeServiceTask', tokenId, reason: 'The mail server is down' }),
+      }),
+    )
+
+    expect(res.status).toBe(500)
+    expect((await store.getInstance(instanceId))!.status).toBe('active')
+    expect(published.some((e) => e.type === 'StepForced')).toBe(false)
   })
 
   // ─── refusals ──────────────────────────────────────────────────────────────
