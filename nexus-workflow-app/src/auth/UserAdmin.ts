@@ -116,8 +116,9 @@ export class UserAdmin {
       if (denied) return fail('FORBIDDEN', 'Tenant managers can only grant a manager role in tenants they manage')
     }
     if (scope.viaOperatorKey && memberships.some((m) => m.role === 'operator')) return fail('FORBIDDEN', KEY_CANNOT_ESCALATE)
-    // Self-grant of tenant_manager cannot arise here: create always produces a *new* user whose id
-    // does not exist yet, so actorUserId !== newUser.id by construction.
+    if (scope.operator && scope.actorUserId !== null && memberships.some((m) => m.role === 'tenant_manager')) {
+      return fail('FORBIDDEN', 'An operator cannot grant a tenant role during user creation; ask another operator to add the membership')
+    }
     for (const membership of memberships) {
       const invalid = await this.validateMembership(membership)
       if (invalid) return invalid
