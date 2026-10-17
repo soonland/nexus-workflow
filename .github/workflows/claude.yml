@@ -112,4 +112,4 @@ jobs:
           claude_args: >-
             --model claude-sonnet-5-5 --max-turns 50
             --mcp-config '{"mcpServers":{"mui-mcp":{"command":"npx","args":["-y","@mui/mcp@latest"]}}}'
-            --allowedTools "Bash(pnpm:*),Bash(npx vitest:*),Bash(pg_isready:*),mcp__mui-mcp__*"
+            --allowedTools "Bash(pnpm lint:*),Bash(pnpm typecheck:*),Bash(pnpm test:*),Bash(pnpm build:*),Bash(npx vitest:*),Bash(pg_isready:*),mcp__mui-mcp__*"
