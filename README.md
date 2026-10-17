@@ -188,20 +188,28 @@ People sign in with an email and password and get a session cookie. (API keys ar
 
 There is no email server, so a person is invited with a **one-time link** that you hand them. They open it, choose their own password and are signed in.
 
-**The first operator** (nobody can invite them) is created from the command line, against the database, with the same `DATABASE_URL` and `API_KEY_HMAC_SECRET` the server uses:
+There are three platform roles, from the top: **system admin**, **operator** and **tenant manager**. A system admin is the only role that can create, disable or remove operators; operators create and manage tenant managers (and tenants). The `system_admin` role is **never granted through the API or the console**: it is created only from the command line, against the database, with the same `DATABASE_URL` and `API_KEY_HMAC_SECRET` the server uses:
 
 ```bash
-pnpm --filter nexus-workflow-app operator:create you@example.com --name "Your Name"
+pnpm --filter nexus-workflow-app system-admin:create you@example.com --name "Your Name"
 # prints: http://localhost:3000/console/invite/<token>
 ```
 
-It is safe to run again: an existing account is kept and re-enabled, gains the operator role once, and gets a new link. That makes it the way back in if every operator is ever locked out.
+It is safe to run again, and for as many people as you like: an existing account is kept and re-enabled, gains the system admin role once, and gets a new link. That makes it the way back in if access is ever lost. `--remove` takes the role away again (`pnpm --filter nexus-workflow-app system-admin:create them@example.com --remove`); the account and its other roles stay, and the last active operator or system admin is refused. System admins cannot be disabled, re-invited or have their roles changed through the API, by anyone, including other system admins: that is command-line only.
+
+`operator:create` still exists. It creates an operator directly from the command line, so it is a recovery path for someone with database access, not something an operator can do through the API:
+
+```bash
+pnpm --filter nexus-workflow-app operator:create you@example.com --name "Your Name"
+```
+
+**Upgrading:** existing operators keep working, but nobody is a system admin until `system-admin:create` has been run, and until then nobody can create new operators through the API. Run it as part of the upgrade.
 
 After that, people are managed through the API (the console screen comes next):
 
 | Request | Effect |
 |---|---|
-| `GET /users` | The people you may see: everyone for an operator; for a tenant manager, only people who belong *wholly* to tenants they manage |
+| `GET /users` | The people you may see: everyone for a system admin or operator; for a tenant manager, only people who belong *wholly* to tenants they manage |
 | `POST /users` `{email, name, memberships?}` | Create a person with roles and get their invite back, shown only once: `invite.token`, `invite.path` (`/console/invite/<token>`) and, if `PUBLIC_ORIGIN` is set, an absolute `invite.url` |
 | `GET /users/:id` | One person with their roles |
 | `PATCH /users/:id` `{status}` | Disable (`"disabled"`) or re-enable (`"active"`); disabling ends their sessions |
@@ -209,8 +217,8 @@ After that, people are managed through the API (the console screen comes next):
 | `POST /users/:id/invite` | A new link, which replaces the previous one. For someone who already has a password this is the **password reset** |
 | `POST /auth/invite-info` `{token}` · `POST /auth/accept-invite` `{token, password}` | Public. What the invite link calls |
 
-- **Who may do what:** operators administer anyone; a tenant manager can invite and manage people in their own tenants only, can never grant `operator` or a tenant they do not manage, and cannot see or touch anyone who also belongs elsewhere (those people are simply "not found").
-- **Guard rails:** nobody can disable themselves or take away their own operator role or last role (another administrator does that), and the platform always keeps at least one active operator.
+- **Who may do what:** a **system admin** administers everyone except other system admins, and is the only one who can grant the `operator` role or create, disable, re-invite or remove operators. An **operator** sees everyone but changes only people who hold neither `operator` nor `system_admin` (`403` otherwise): in practice, tenant managers, whom creating is their job. A tenant manager can invite and manage people in their own tenants only, can never grant `operator` or a tenant they do not manage, and cannot see or touch anyone who also belongs elsewhere (those people are simply "not found"). Nobody can grant `system_admin` through the API (`403`).
+- **Guard rails:** nobody can disable themselves or take away their own operator role or last role (another administrator does that), and the platform always keeps at least one active operator or system admin.
 - **Link origin:** the server never builds a link from request data such as the `Host` header (a spoofed host would end up in a link you then send on). It returns the `path`, and the console adds its own origin; set `PUBLIC_ORIGIN` to also get a ready-made absolute `url`. `PUBLIC_ORIGIN` is normalised to the form browsers send in the `Origin` header (`https://Example.com/` becomes `https://example.com`) and the server refuses to start if it is not an http(s) origin.
 - **Links:** valid for `INVITE_TTL_HOURS` (default 168 = 7 days), usable once, stored only as a hash, and replaced when a new one is issued. Accepting one sets the password and ends the person's other sessions. Guessing links is throttled per client address.
 
@@ -220,7 +228,8 @@ Every request is made by one of these, and what it may do follows from that:
 
 | Caller | Credential | Platform admin (`/tenants`) | A tenant's own data (definitions, instances, tasks, webhooks, ...) |
 |---|---|---|---|
-| **Operator** | signed-in user with the `operator` role, an **operator key**, or the admin key | yes | **no**: running the platform is not reading its customers' workflows |
+| **System admin** | signed-in user with the `system_admin` role (command line only), or the admin key | yes, and the only one that can create or manage operators | **no**, like an operator |
+| **Operator** | signed-in user with the `operator` role, or an **operator key** | yes | **no**: running the platform is not reading its customers' workflows |
 | **Tenant manager** | signed-in user with the `tenant_manager` role for that tenant | no | yes, for the tenants they manage only |
 | **Tenant API key** | `Authorization: Bearer <key>` | no | yes, for the key's own tenant, **as far as its role allows** (below) |
 | Anonymous | none | no | no |
@@ -228,7 +237,8 @@ Every request is made by one of these, and what it may do follows from that:
 - **Tenant routes with a session:** a signed-in tenant manager names the tenant in the `X-Tenant` header and must manage it (`400` if the header is missing, `403` for any other tenant, and also for one that does not exist, so tenants cannot be probed). A tenant API key always acts as its own tenant; `X-Tenant` is ignored for keys.
 - **Status codes:** `401` means "no valid credential, sign in"; `403` means "your credential is valid but not allowed". A suspended or deleting tenant rejects its managers with `403` and its keys with `401`.
 - **Cookies and CSRF:** state-changing requests made with a session cookie need the `X-Nexus-Console: 1` header (and a matching `Origin`), on these routes as well as on `/auth`. Bearer credentials need neither. If both are sent, the Bearer credential wins.
-- To look inside a tenant, an operator needs a membership or a key for it; this is deliberate. An operator **cannot grant themselves** a `tenant_manager` membership — another operator must do it. This is a privilege-escalation guard: the action is accountable (in the audit log), but it must involve a second person. Creating a `tenant_manager` API key for a tenant is an audited but unrestricted operator capability; the key's creator and creation time are always logged.
+- To look inside a tenant, an operator needs a membership or a key for it; this is deliberate. An operator **cannot grant themselves** a `tenant_manager` membership, and cannot create another operator (only a system admin can), so they cannot make a second account to do it for them. Only a system admin (or the admin key) can create a `tenant_manager` API key, or raise a key to that role; operators and operator keys can still create `service` keys. Every such action is audited, and a key's creator and creation time are always logged.
+- **What is still open:** an operator can create a *new* person with the `tenant_manager` role for a tenant, because that is their job. That account is a different identity that the operator controls the invite of, so the separation of duties is audit-based (`user.create`, `membership.add` in the audit log), not preventive. Stopping it would need an approval step.
 
 #### Operator keys
 
@@ -237,10 +247,10 @@ Programs that administer the platform (create tenants and keys, manage people, r
 - A key looks like `nxop_...`, is shown **once** when it is created, and only its hash is stored. It can have an **expiry date**; an expired key is refused like a revoked one.
 - It reaches what an operator reaches (`/tenants`, `/users`, `/audit`, ...) and, like an operator, **never a tenant's own data** (an operator key sent to a tenant route is a 401). It is kept in its own table (`operator_keys`), so it can never be looked up as a tenant key.
 - **Managing them:** `GET /operator-keys`, `POST /operator-keys` `{ name, expiresAt? }`, `DELETE /operator-keys/:id`, or the *Operator keys* screen in the console. This is for **signed-in operators and the admin key only: an operator key cannot create, list or revoke keys** (it could otherwise make itself a replacement and outlive being revoked).
-- **What it may not do to people:** grant the `operator` role (when creating a person or later), or re-issue an operator's invite (which would let whoever holds the link take that account over). Either would turn a key into a person with operator access, who could then create keys, so revoking the key would not end it. A signed-in operator or the admin key does these. It *can* create, invite, disable and offboard the people of tenants, so a provisioning program keeps working.
+- **What it may not do to people:** grant the `operator` role (when creating a person or later), manage operators or system admins in any way, or re-issue an operator's invite (which would let whoever holds the link take that account over). Either would turn a key into a person with operator access, who could then create keys, so revoking the key would not end it. A signed-in operator or the admin key does these. It *can* create, invite, disable and offboard the people of tenants, so a provisioning program keeps working.
 - **After a key leaks:** revoke it (effective at once), then review what it did: the audit log filters by actor, and it shows every tenant, tenant key and person it created (`key.create`, `user.create`, ...). Those are separate credentials and are not revoked with it. An operator key by design can create tenant keys and tenant managers, as an operator can.
 - Everything a key does is in the audit log under its own name (actor kind `operatorKey`), and creating and revoking keys is logged (`operator-key.create`, `operator-key.revoke`). `GET /auth/me` describes a key (`{ operatorKey: { id, name, createdBy, createdAt, expiresAt }, role: "operator" }`).
-- **`ADMIN_API_KEY` is break-glass, and best left unset in production.** It is one shared secret with full operator power, it never expires, and it cannot be rotated without a restart. Unset, it matches nothing. The way in is `nexus-workflow-app`'s first-operator command (see above), then people signing in and creating operator keys. Set it only to recover (for example when every operator is locked out), then unset it again. When it is set the server says so at startup: a warning in production, another when operator keys also exist, and it refuses to start in production with a key shorter than 16 characters. What it does shows in the audit log as "admin key", and `GET /auth/me` answers `{ adminKey: true, role: "operator" }` for it.
+- **`ADMIN_API_KEY` is break-glass, and best left unset in production.** It is one shared secret with full operator power, it never expires, and it cannot be rotated without a restart. Unset, it matches nothing. The way in is `nexus-workflow-app`'s `system-admin:create` command (see above), then people signing in and creating operator keys. Set it only to recover (for example when every operator is locked out), then unset it again. When it is set the server says so at startup: a warning in production, another when operator keys also exist, and it refuses to start in production with a key shorter than 16 characters. What it does shows in the audit log as "admin key", and `GET /auth/me` answers `{ adminKey: true, role: "system_admin" }` for it: the admin key acts as a system admin. Keep it break-glass.
 
 #### Roles of tenant API keys
 
@@ -252,8 +262,8 @@ A tenant key has a role, so a program gets only what it needs:
 | `tenant_manager` | everything in its tenant | |
 
 - **Deny by default:** any route that is not on the `service` list (see `src/auth/keyPermissions.ts`) is closed to service keys, including routes added later, until someone decides otherwise. A refused call says which role it needs.
-- **Who made a key:** a key records the person who created it (none for the admin key or the command line). `GET /auth/me` with `Authorization: Bearer <key>` describes the key (`{ apiKey: { id, name, tenantId, role, createdBy, createdAt } }`, never the secret), and the admin key as `{ adminKey: true, role: "operator" }`.
-- **Creating and changing:** `POST /tenants/:id/keys` takes `{ name, role? }` (default `service`). An operator changes an existing key's role, keeping its secret, with `PATCH /tenants/:id/keys/:keyId` `{ role }`; the change is in the audit log (`key.role`). The command line takes `--role` and defaults to `tenant_manager`, because it issues a tenant's main integration key (the ERP's).
+- **Who made a key:** a key records the person who created it (none for the admin key or the command line). `GET /auth/me` with `Authorization: Bearer <key>` describes the key (`{ apiKey: { id, name, tenantId, role, createdBy, createdAt } }`, never the secret), and the admin key as `{ adminKey: true, role: "system_admin" }`.
+- **Creating and changing:** `POST /tenants/:id/keys` takes `{ name, role? }` (default `service`). An operator changes an existing key's role, keeping its secret, with `PATCH /tenants/:id/keys/:keyId` `{ role }`; the change is in the audit log (`key.role`). Creating a `tenant_manager` key, or raising a key to it, needs a system admin (or the admin key): an operator gets a `403`. The command line takes `--role` and defaults to `tenant_manager`, because it issues a tenant's main integration key (the ERP's).
 
 ##### Upgrading existing keys (migration 013)
 

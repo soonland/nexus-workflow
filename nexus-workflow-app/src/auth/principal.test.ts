@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Membership, User } from '../db/UserStore.js'
-import { canUseTenant, isOperator, managedTenantIds, type Principal } from './principal.js'
+import { canUseTenant, isOperator, isSystemAdmin, managedTenantIds, type Principal } from './principal.js'
 
 const user: User = {
   id: 'u1', email: 'a@example.com', name: 'A', status: 'active',
@@ -13,6 +13,7 @@ const membership = (role: Membership['role'], tenantId: string | null): Membersh
 
 const asUser = (...memberships: Membership[]): Principal => ({ kind: 'user', user, memberships })
 const operator = asUser(membership('operator', null))
+const systemAdmin = asUser(membership('system_admin', null))
 const managerOfA = asUser(membership('tenant_manager', 'a'))
 const managerOfAandB = asUser(membership('tenant_manager', 'a'), membership('tenant_manager', 'b'))
 const both = asUser(membership('operator', null), membership('tenant_manager', 'a'))
@@ -24,6 +25,7 @@ const adminKey: Principal = { kind: 'adminKey' }
 describe('isOperator', () => {
   it.each([
     ['an operator user', operator, true],
+    ['a system admin (a superset of operator)', systemAdmin, true],
     ['a user who is both operator and manager', both, true],
     ['the admin key (break-glass)', adminKey, true],
     ['an operator key', operatorKey, true],
@@ -32,6 +34,21 @@ describe('isOperator', () => {
     ['a tenant API key', apiKeyOfA, false],
   ])('%s -> %s', (_label, principal, expected) => {
     expect(isOperator(principal)).toBe(expected)
+  })
+})
+
+describe('isSystemAdmin', () => {
+  it.each([
+    ['a system admin user', systemAdmin, true],
+    ['a system admin who also manages a tenant', asUser(membership('system_admin', null), membership('tenant_manager', 'a')), true],
+    ['the admin key (break-glass)', adminKey, true],
+    ['an operator user', operator, false],
+    ['an operator key (never)', operatorKey, false],
+    ['a tenant manager', managerOfA, false],
+    ['a user without roles', noRoles, false],
+    ['a tenant API key', apiKeyOfA, false],
+  ])('%s -> %s', (_label, principal, expected) => {
+    expect(isSystemAdmin(principal)).toBe(expected)
   })
 })
 

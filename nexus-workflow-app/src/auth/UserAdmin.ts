@@ -12,7 +12,7 @@ import {
   type UserWithMemberships,
 } from '../db/UserStore.js'
 import { auditActorOf } from './auditActor.js'
-import { isOperator, managedTenantIds, type Principal } from './principal.js'
+import { isOperator, isSystemAdmin, managedTenantIds, type Principal } from './principal.js'
 
 // ─── Results ──────────────────────────────────────────────────────────────────
 
@@ -34,7 +34,10 @@ const ok = <T>(value: T): Outcome<T> => ({ ok: true, value })
  * that person). Everything that does not hand out operator access stays available to keys, so a
  * provisioning program can still create and offboard the people of tenants.
  */
-const KEY_CANNOT_ESCALATE = 'An operator key cannot grant the operator role or reset an operator\'s access: do that as a signed-in operator'
+const KEY_CANNOT_ESCALATE = 'An operator key cannot grant the operator role or reset an operator\'s access: do that as a system admin'
+
+const OPERATORS_NEED_SYSTEM_ADMIN = 'Only a system admin can grant the operator role or manage operators'
+const SYSTEM_ADMIN_FROM_CLI = 'System admins are created and removed from the command line (pnpm system-admin:create), not through the API'
 
 // ─── Requests ─────────────────────────────────────────────────────────────────
 
@@ -60,7 +63,10 @@ interface Scope {
   actorUserId: string | null
   /** An operator key (not a person, not the admin key): see `KEY_CANNOT_ESCALATE`. */
   viaOperatorKey: boolean
+  /** An operator or a system admin (or the admin key). */
   operator: boolean
+  /** A system admin (or the admin key): the only rank that may administer operators. */
+  systemAdmin: boolean
   /** Tenants a non-operator may administer people in. */
   managed: string[]
 }
@@ -69,14 +75,18 @@ interface Scope {
  * Who may do what to whom when administering people. Every rule about users and memberships is
  * here, so the HTTP layer only translates results into status codes.
  *
- *  - An **operator** (or the admin key) administers anyone.
+ *  - A **system admin** (or the admin key) administers anyone except other system admins, who are
+ *    created and removed from the command line only. They are the only rank that may grant the
+ *    operator role or create, disable, re-invite or remove operators.
+ *  - An **operator** sees everyone but changes only people who hold neither operator nor system_admin:
+ *    in practice tenant managers, whom creating is their job. Nobody can grant `system_admin` here.
  *  - A **tenant manager** administers only people who belong *wholly* to tenants they manage:
  *    they hold a membership and every one of them is a manager role in one of those tenants. Anyone
  *    else (a person who also belongs to another tenant, any operator) is invisible to them (404),
  *    which also keeps a manager from taking over such an account by re-issuing its invite. They can
  *    never grant the operator role or a tenant they do not manage.
  *  - Nobody can disable themselves or strip their own operator role or last role; another
- *    administrator does that. The platform always keeps an active operator (enforced in UserStore).
+ *    administrator does that. The platform always keeps an active operator or system admin (enforced in UserStore).
  */
 export class UserAdmin {
   constructor(
@@ -126,9 +136,9 @@ export class UserAdmin {
       const denied = memberships.find((m) => !this.mayGrant(scope, m))
       if (denied) return fail('FORBIDDEN', 'Tenant managers can only grant a manager role in tenants they manage')
     }
-    if (scope.viaOperatorKey && memberships.some((m) => m.role === 'operator')) return fail('FORBIDDEN', KEY_CANNOT_ESCALATE)
-    if (scope.operator && scope.actorUserId !== null && memberships.some((m) => m.role === 'tenant_manager')) {
-      return fail('FORBIDDEN', 'An operator cannot grant a tenant role during user creation; ask another operator to add the membership')
+    for (const membership of memberships) {
+      const denied = this.mayNotGrantRole(scope, membership)
+      if (denied) return denied
     }
     for (const membership of memberships) {
       const invalid = await this.validateMembership(membership)
@@ -170,6 +180,8 @@ export class UserAdmin {
     if (status === 'disabled' && scope.actorUserId === userId) {
       return fail('CONFLICT', 'You cannot disable your own account')
     }
+    const protectedTarget = this.mayNotChange(scope, target.value)
+    if (protectedTarget) return protectedTarget
 
     try {
       // the entry is written in the same transaction: no entry, no change
@@ -201,7 +213,8 @@ export class UserAdmin {
     if (scope.operator && scope.actorUserId !== null && scope.actorUserId === userId && request.role === 'tenant_manager') {
       return fail('FORBIDDEN', 'An operator cannot grant themselves a tenant role; ask another operator to add the membership')
     }
-    if (scope.viaOperatorKey && request.role === 'operator') return fail('FORBIDDEN', KEY_CANNOT_ESCALATE)
+    const denied = this.mayNotGrantRole(scope, request) ?? this.mayNotChange(scope, target.value)
+    if (denied) return denied
     const invalid = await this.validateMembership(request)
     if (invalid) return invalid
 
@@ -237,6 +250,8 @@ export class UserAdmin {
     if (scope.actorUserId === userId && (membership.role === 'operator' || target.value.memberships.length === 1)) {
       return fail('CONFLICT', 'You cannot remove your own operator role or your last role; ask another administrator')
     }
+    const protectedTarget = this.mayNotChange(scope, target.value)
+    if (protectedTarget) return protectedTarget
 
     try {
       await this.users.removeMembership(
@@ -266,8 +281,9 @@ export class UserAdmin {
     const target = await this.reach(scope, userId)
     if (!target.ok) return target
     if (target.value.status !== 'active') return fail('CONFLICT', 'Enable the account before inviting the person again')
-    // A new invite is how an account is taken over: not an operator's, and not by a key
-    if (scope.viaOperatorKey && target.value.memberships.some((m) => m.role === 'operator')) return fail('FORBIDDEN', KEY_CANNOT_ESCALATE)
+    // A new invite is how an account is taken over: not an operator's unless by a system admin, never a system admin's
+    const protectedTarget = this.mayNotChange(scope, target.value)
+    if (protectedTarget) return protectedTarget
 
     const invite = await this.invites.create(
       userId,
@@ -291,7 +307,13 @@ export class UserAdmin {
     const operator = isOperator(actor)
     const managed = managedTenantIds(actor)
     if (!operator && managed.length === 0) return fail('FORBIDDEN', 'Operator or tenant manager role required')
-    return { actorUserId: actor.kind === 'user' ? actor.user.id : null, viaOperatorKey: actor.kind === 'operatorKey', operator, managed }
+    return {
+      actorUserId: actor.kind === 'user' ? actor.user.id : null,
+      viaOperatorKey: actor.kind === 'operatorKey',
+      operator,
+      systemAdmin: isSystemAdmin(actor),
+      managed,
+    }
   }
 
   /** The user, if this actor may see and administer them; otherwise "not found". */
@@ -304,6 +326,30 @@ export class UserAdmin {
   /** A non-operator may grant a manager role in a tenant they manage, and nothing else. */
   private mayGrant(scope: Scope, request: MembershipRequest): boolean {
     return request.role === 'tenant_manager' && request.tenantId !== null && scope.managed.includes(request.tenantId)
+  }
+
+  /**
+   * Why this actor may not hand out this role, if so. `system_admin` is never granted here; `operator`
+   * only by a system admin (and never by a key, which would outlive being revoked).
+   */
+  private mayNotGrantRole(scope: Scope, request: MembershipRequest): Failure | null {
+    if (request.role === 'system_admin') return fail('FORBIDDEN', SYSTEM_ADMIN_FROM_CLI)
+    if (request.role !== 'operator') return null
+    if (scope.viaOperatorKey) return fail('FORBIDDEN', KEY_CANNOT_ESCALATE)
+    if (!scope.systemAdmin) return fail('FORBIDDEN', OPERATORS_NEED_SYSTEM_ADMIN)
+    return null
+  }
+
+  /**
+   * Why this actor may not change this person, if so. A system admin is changed from the command line
+   * only; an operator only by a system admin. Seeing them (list, get) is not restricted.
+   */
+  private mayNotChange(scope: Scope, target: UserWithMemberships): Failure | null {
+    if (target.memberships.some((m) => m.role === 'system_admin')) return fail('FORBIDDEN', SYSTEM_ADMIN_FROM_CLI)
+    if (!scope.systemAdmin && scope.operator && target.memberships.some((m) => m.role === 'operator')) {
+      return fail('FORBIDDEN', scope.viaOperatorKey ? KEY_CANNOT_ESCALATE : OPERATORS_NEED_SYSTEM_ADMIN)
+    }
+    return null
   }
 
   private async validateMembership(request: MembershipRequest): Promise<Failure | null> {

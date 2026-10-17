@@ -22,6 +22,7 @@ interface Props {
   onChange(value: RoleChoice): void
   /** Tenants that can be picked: all of them for operators, only the managed ones for managers. */
   tenantIds: string[]
+  /** Only a system admin may grant the operator role. The system admin role is never offered. */
   canAssignOperator: boolean
 }
 

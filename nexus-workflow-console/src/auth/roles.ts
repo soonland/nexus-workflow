@@ -3,9 +3,17 @@ import type { Membership, User } from '../api/types'
 /** Who is using the console: a person with a session, or someone holding the admin key. */
 export type Session = { kind: 'user'; user: User; memberships: Membership[] } | { kind: 'adminKey' }
 
-/** Operators (and the admin key) run the platform: tenants and every person. */
+/**
+ * System admins (and the admin key) are the only ones who may create or manage operators. The role
+ * cannot be granted from the console: it is created from the command line.
+ */
+export function isSystemAdmin(session: Session): boolean {
+  return session.kind === 'adminKey' || session.memberships.some((m) => m.role === 'system_admin')
+}
+
+/** Operators and system admins (and the admin key) run the platform: tenants and every person. */
 export function isOperator(session: Session): boolean {
-  return session.kind === 'adminKey' || session.memberships.some((m) => m.role === 'operator')
+  return session.kind === 'adminKey' || session.memberships.some((m) => m.role === 'operator' || m.role === 'system_admin')
 }
 
 /** The tenants this person manages (empty for the admin key, which is not tied to any). */

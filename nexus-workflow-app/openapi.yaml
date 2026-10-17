@@ -187,7 +187,11 @@ paths:
     post:
       tags: [Keys]
       summary: Create an API key
-      description: The plaintext key is returned **only** in this response and is never stored; keep it.
+      description: |
+        The plaintext key is returned **only** in this response and is never stored; keep it.
+
+        A key with the `tenant_manager` role can only be created by a system admin (or the admin key):
+        an operator or operator key asking for it gets a `403`. Any caller may create a `service` key.
       operationId: createKey
       requestBody:
         required: true
@@ -219,7 +223,7 @@ paths:
                     description: The key itself. Shown once.
         '400': { $ref: '#/components/responses/ValidationError' }
         '403':
-          description: Not authorised, or the tenant is not `active` (suspended or deleting).
+          description: Not authorised (including an operator asking for the `tenant_manager` role, which needs a system admin), or the tenant is not `active` (suspended or deleting).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -249,7 +253,10 @@ paths:
     patch:
       tags: [Keys]
       summary: Change a key's role
-      description: The secret stays the same, so programs using the key need no change.
+      description: |
+        The secret stays the same, so programs using the key need no change. Raising a key to
+        `tenant_manager` needs a system admin (or the admin key); an operator gets a `403`. Lowering a
+        key to `service` is open to any operator.
       operationId: updateKeyRole
       requestBody:
         required: true

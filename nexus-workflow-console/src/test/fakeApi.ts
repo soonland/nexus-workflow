@@ -45,6 +45,11 @@ export function makeMembership(overrides: Partial<Membership> = {}): Membership 
   return { id: 'm1', userId: 'u1', role: 'operator', tenantId: null, createdAt: '2026-01-01T00:00:00.000Z', ...overrides }
 }
 
+export const systemAdminSession = (): SessionInfo => ({
+  user: makeUser({ id: 'sa', email: 'sa@example.com', name: 'Sam SystemAdmin' }) as User,
+  memberships: [makeMembership({ id: 'ms', userId: 'sa', role: 'system_admin' })],
+})
+
 export const operatorSession = (): SessionInfo => ({
   user: makeUser({ id: 'op', email: 'op@example.com', name: 'Olive Operator' }) as User,
   memberships: [makeMembership({ id: 'mo', userId: 'op', role: 'operator' })],

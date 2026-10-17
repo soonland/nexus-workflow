@@ -47,10 +47,10 @@ describe('operator keys (Postgres, real guards)', () => {
     await tenants.createTenant(tenant, 'Tenant')
     tenantKey = (await tenants.createApiKey(tenant, 'worker', { role: 'tenant_manager' })).plaintext
 
-    for (const [name, role] of [['operator', 'operator'], ['manager', 'tenant_manager']] as const) {
+    for (const [name, role] of [['systemAdmin', 'system_admin'], ['operator', 'operator'], ['manager', 'tenant_manager']] as const) {
       const user = await users.createUser({ email: `${prefix}.${name}@example.com`, name })
       id[name] = user.id
-      await users.addMembership(user.id, role, role === 'operator' ? null : tenant)
+      await users.addMembership(user.id, role, role === 'tenant_manager' ? tenant : null)
       token[name] = (await sessions.create(user.id, {})).token
     }
 
@@ -283,10 +283,10 @@ describe('operator keys (Postgres, real guards)', () => {
       expect(res.body).not.toHaveProperty('invite') // no link came back
     })
 
-    it('a signed-in operator can still do all three (the restriction is for keys)', async () => {
-      const created = await call('/users', { session: 'operator', body: { email: email('esc-by-person'), name: 'By person', memberships: [{ role: 'operator' }] } })
+    it('a signed-in system admin can still do all three (the restriction is for keys)', async () => {
+      const created = await call('/users', { session: 'systemAdmin', body: { email: email('esc-by-person'), name: 'By person', memberships: [{ role: 'operator' }] } })
       expect(created.status).toBe(201)
-      const reinvited = await call(`/users/${created.body['user'].id}/invite`, { session: 'operator', method: 'POST', body: {} })
+      const reinvited = await call(`/users/${created.body['user'].id}/invite`, { session: 'systemAdmin', method: 'POST', body: {} })
       expect(reinvited.status).toBe(200)
     })
 
@@ -353,7 +353,7 @@ describe('operator keys (Postgres, real guards)', () => {
       down()
       const removed = await call(`/users/${person.id}/memberships/${membership.id}`, { session: 'operator', method: 'DELETE' })
       down()
-      const granted = await call(`/users/${person.id}/memberships`, { session: 'operator', body: { role: 'operator', tenantId: null } })
+      const granted = await call(`/users/${person.id}/memberships`, { session: 'systemAdmin', body: { role: 'operator', tenantId: null } })
       down()
       const invited = await call(`/users/${person.id}/invite`, { session: 'operator', body: {} })
       down()

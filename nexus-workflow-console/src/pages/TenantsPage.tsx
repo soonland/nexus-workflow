@@ -51,7 +51,7 @@ const tenantSort = {
   created: (t: Tenant) => t.createdAt,
 }
 
-export function TenantsPage({ api }: { api: AdminApi }) {
+export function TenantsPage({ api, canGrantManagerKey }: { api: AdminApi; canGrantManagerKey?: boolean }) {
   const [tenants, setTenants] = useState<Tenant[] | null>(null)
   const view = useListView(tenants, { searchText: tenantText, sortValues: tenantSort })
   const [error, setError] = useState<string | null>(null)
@@ -232,7 +232,7 @@ export function TenantsPage({ api }: { api: AdminApi }) {
         keys. This cannot be undone.
       </ConfirmDialog>
 
-      <KeysDrawer api={api} tenant={keysTenant} onClose={() => setKeysFor(null)} onChanged={() => void load()} />
+      <KeysDrawer api={api} tenant={keysTenant} onClose={() => setKeysFor(null)} onChanged={() => void load()} {...(canGrantManagerKey !== undefined ? { canGrantManagerKey } : {})} />
 
       <Snackbar
         open={message !== null}

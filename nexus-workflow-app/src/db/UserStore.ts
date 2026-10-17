@@ -6,7 +6,10 @@ import { atomically, type Within } from './atomically.js'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type UserStatus = 'active' | 'disabled'
-export type MembershipRole = 'operator' | 'tenant_manager'
+export type MembershipRole = 'system_admin' | 'operator' | 'tenant_manager'
+
+/** The roles that administer the platform itself; the platform always keeps one active holder. */
+const PLATFORM_ROLES: readonly MembershipRole[] = ['system_admin', 'operator']
 
 /** A user as the rest of the app sees it: never carries the password hash. */
 export interface User {
@@ -31,7 +34,7 @@ export interface Membership {
   id: string
   userId: string
   role: MembershipRole
-  /** Null for platform-wide roles (operator). */
+  /** Null for platform-wide roles (system_admin, operator). */
   tenantId: string | null
   createdAt: Date
 }
@@ -51,10 +54,10 @@ export class UserInputError extends Error {
   }
 }
 
-/** The change would leave the platform without an active operator. */
+/** The change would leave the platform without an active operator or system admin. */
 export class LastOperatorError extends UserInputError {
   constructor() {
-    super('The platform needs at least one active operator')
+    super('The platform needs at least one active operator or system admin')
     this.name = 'LastOperatorError'
   }
 }
@@ -77,24 +80,32 @@ const USER_COLUMNS = `
 
 const MEMBERSHIP_COLUMNS = `id, user_id AS "userId", role, tenant_id AS "tenantId", created_at AS "createdAt"`
 
-// Changes that could remove the last operator take this lock, so two of them racing cannot both
-// look at "there are two operators" and each remove one.
+// Changes that could remove the last platform administrator take this lock, so two of them racing
+// cannot both look at "there are two" and each remove one.
 const OPERATOR_LOCK_KEY = 7_313_001
 
-/** Throws unless the user is not an active operator, or is one of at least two. Call under the lock. */
-async function assertNotLastOperator(tx: postgres.Sql, userId: string): Promise<void> {
-  const [row] = await tx<{ isActiveOperator: boolean; activeOperators: number }[]>`
+/**
+ * Throws if the change would leave the platform without an active operator or system admin: the user
+ * is one now, would stop being one, and nobody else active is. A disable (no `exceptMembershipId`) takes
+ * all the user's platform roles; removing one membership leaves the others. Call under the lock.
+ */
+async function assertNotLastAdmin(tx: postgres.Sql, userId: string, removal: { exceptMembershipId?: string } = {}): Promise<void> {
+  const [row] = await tx<{ isActiveAdmin: boolean; keepsRole: boolean; otherActiveAdmins: number }[]>`
     SELECT
       EXISTS (
         SELECT 1 FROM public.memberships m JOIN public.users u ON u.id = m.user_id
-        WHERE m.user_id = ${userId} AND m.role = 'operator' AND u.status = 'active'
-      ) AS "isActiveOperator",
+        WHERE m.user_id = ${userId} AND m.role = ANY(${tx.array([...PLATFORM_ROLES])}) AND u.status = 'active'
+      ) AS "isActiveAdmin",
+      EXISTS (
+        SELECT 1 FROM public.memberships m
+        WHERE m.user_id = ${userId} AND m.role = ANY(${tx.array([...PLATFORM_ROLES])}) AND m.id IS DISTINCT FROM ${removal.exceptMembershipId ?? null}
+      ) AS "keepsRole",
       (
-        SELECT count(*)::int FROM public.memberships m JOIN public.users u ON u.id = m.user_id
-        WHERE m.role = 'operator' AND u.status = 'active'
-      ) AS "activeOperators"
+        SELECT count(DISTINCT m.user_id)::int FROM public.memberships m JOIN public.users u ON u.id = m.user_id
+        WHERE m.user_id <> ${userId} AND m.role = ANY(${tx.array([...PLATFORM_ROLES])}) AND u.status = 'active'
+      ) AS "otherActiveAdmins"
   `
-  if (row?.isActiveOperator && row.activeOperators <= 1) throw new LastOperatorError()
+  if (row?.isActiveAdmin && row.otherActiveAdmins === 0 && !(removal.exceptMembershipId !== undefined && row.keepsRole)) throw new LastOperatorError()
 }
 
 function isPgError(err: unknown, code: string): err is { code: string; constraint_name?: string } {
@@ -173,7 +184,7 @@ export class UserStore {
   }
 
   /**
-   * Disabling also ends all of the user's sessions. Disabling the last active operator is
+   * Disabling also ends all of the user's sessions. Disabling the last active operator or system admin is
    * refused (LastOperatorError). False if the user does not exist. `within` runs in the same transaction.
    */
   async setStatus(userId: string, status: UserStatus, within?: Within<true>): Promise<boolean> {
@@ -181,7 +192,7 @@ export class UserStore {
       const tx = txRaw as unknown as postgres.Sql
       if (status === 'disabled') {
         await tx`SELECT pg_advisory_xact_lock(${OPERATOR_LOCK_KEY})`
-        await assertNotLastOperator(tx, userId)
+        await assertNotLastAdmin(tx, userId)
       }
       const rows = await tx`UPDATE public.users SET status = ${status} WHERE id = ${userId} RETURNING id`
       if (rows.length === 0) return false
@@ -261,11 +272,11 @@ export class UserStore {
 
   /**
    * Grants a role. Idempotent: granting what the user already has returns the existing
-   * membership. `operator` must have no tenant; `tenant_manager` needs one. `within` runs in the same
+   * membership. `system_admin` and `operator` must have no tenant; `tenant_manager` needs one. `within` runs in the same
    * transaction as the grant.
    */
   async addMembership(userId: string, role: MembershipRole, tenantId: string | null, within?: Within<Membership>): Promise<Membership> {
-    if (role === 'operator' && tenantId !== null) throw new UserInputError('An operator is platform-wide and cannot be tied to a tenant')
+    if (role !== 'tenant_manager' && tenantId !== null) throw new UserInputError('An operator or system admin is platform-wide and cannot be tied to a tenant')
     if (role === 'tenant_manager' && tenantId === null) throw new UserInputError('A tenant manager needs a tenant')
 
     try {
@@ -299,8 +310,8 @@ export class UserStore {
   }
 
   /**
-   * Removes one of the user's memberships. Removing the operator role of the last active
-   * operator is refused (LastOperatorError). False if it does not exist or belongs to someone else.
+   * Removes one of the user's memberships. Removing the platform role of the last active
+   * operator or system admin is refused (LastOperatorError). False if it does not exist or belongs to someone else.
    * `within` runs in the same transaction, only if a membership was removed.
    */
   async removeMembership(userId: string, membershipId: string, within?: Within<true>): Promise<boolean> {
@@ -310,7 +321,7 @@ export class UserStore {
       const found = await tx<{ role: MembershipRole }[]>`
         SELECT role FROM public.memberships WHERE id = ${membershipId} AND user_id = ${userId}`
       if (!found[0]) return false
-      if (found[0].role === 'operator') await assertNotLastOperator(tx, userId)
+      if (PLATFORM_ROLES.includes(found[0].role)) await assertNotLastAdmin(tx, userId, { exceptMembershipId: membershipId })
       const rows = await tx`DELETE FROM public.memberships WHERE id = ${membershipId} AND user_id = ${userId} RETURNING id`
       if (rows.length === 0) return false
       await within?.(tx, true)

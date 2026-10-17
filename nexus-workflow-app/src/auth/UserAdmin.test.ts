@@ -22,13 +22,14 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
   let sql: postgres.Sql
   let users: UserStore
   let admin: UserAdmin
+  let systemAdmin: Principal
   let operator: Principal
   let managerA: Principal
   let operatorAndManagerA: Principal
   const adminKey: Principal = { kind: 'adminKey' }
   const apiKey: Principal = { kind: 'apiKey', tenantId: tenantA }
 
-  async function principalFor(name: string, roles: Array<['operator', null] | ['tenant_manager', string]>): Promise<Principal> {
+  async function principalFor(name: string, roles: Array<['system_admin' | 'operator', null] | ['tenant_manager', string]>): Promise<Principal> {
     const user = await users.createUser({ email: email(name), name })
     for (const [role, tenantId] of roles) await users.addMembership(user.id, role, tenantId)
     return { kind: 'user', user, memberships: await users.listMemberships(user.id) }
@@ -42,6 +43,7 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
     const tenants = new TenantStore(sql, 'user-admin-secret')
     await tenants.createTenant(tenantA, 'A')
     await tenants.createTenant(tenantB, 'B')
+    systemAdmin = await principalFor('systemadmin', [['system_admin', null]])
     operator = await principalFor('operator', [['operator', null]])
     managerA = await principalFor('managerA', [['tenant_manager', tenantA]])
     await principalFor('managerB', [['tenant_manager', tenantB]])
@@ -72,22 +74,36 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
       expect(invite.expiresAt.getTime()).toBeGreaterThan(Date.now())
     })
 
-    it('a signed-in operator cannot create a user with a tenant_manager role', async () => {
-      const outcome = await admin.create(operator, {
-        email: email('op-create-tenant'),
-        name: 'Op Create Tenant',
-        memberships: [{ role: 'tenant_manager', tenantId: tenantA }],
-      })
-
-      expect(outcome).toMatchObject({ ok: false, error: 'FORBIDDEN' })
-      expect(await users.findByEmail(email('op-create-tenant'))).toBeNull()
+    it('a signed-in operator can create a tenant manager: that is their job', async () => {
+      const { user } = expectOk(
+        await admin.create(operator, { email: email('op-create-tenant'), name: 'Op Create Tenant', memberships: [{ role: 'tenant_manager', tenantId: tenantA }] }),
+      )
+      expect(user.memberships.map((m) => m.role)).toEqual(['tenant_manager'])
     })
 
-    it('a signed-in operator can create a user with only an operator role (no tenant_manager)', async () => {
+    it('a signed-in operator cannot create an operator (that is how a second operator account was made to bypass the self-grant rule)', async () => {
+      const outcome = await admin.create(operator, { email: email('op-create-op'), name: 'Op Create Op', memberships: [{ role: 'operator', tenantId: null }] })
+
+      expect(outcome).toMatchObject({ ok: false, error: 'FORBIDDEN' })
+      expect(await users.findByEmail(email('op-create-op'))).toBeNull()
+    })
+
+    it('a system admin can create an operator', async () => {
       const { user } = expectOk(
-        await admin.create(operator, { email: email('op-only'), name: 'Op Only', memberships: [{ role: 'operator', tenantId: null }] }),
+        await admin.create(systemAdmin, { email: email('sa-create-op'), name: 'Sa Create Op', memberships: [{ role: 'operator', tenantId: null }] }),
       )
       expect(user.memberships.map((m) => m.role)).toEqual(['operator'])
+    })
+
+    it.each([
+      ['a system admin', () => systemAdmin],
+      ['an operator', () => operator],
+      ['the admin key', () => adminKey],
+    ])('%s cannot create a system admin: that is done from the command line', async (label, who) => {
+      const outcome = await admin.create(who(), { email: email(`sa-${label.length}`), name: 'No', memberships: [{ role: 'system_admin', tenantId: null }] })
+
+      expect(outcome).toMatchObject({ ok: false, error: 'FORBIDDEN' })
+      expect(await users.findByEmail(email(`sa-${label.length}`))).toBeNull()
     })
 
     it('the admin key counts as an operator', async () => {
@@ -168,9 +184,10 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
 
     const idsOf = async (actor: Principal) => expectOk(await admin.list(actor)).map((u) => u.id)
 
-    it('an operator sees everyone', async () => {
+    it('an operator sees everyone, system admins included, even though they cannot change them', async () => {
       const ids = await idsOf(operator)
       expect(ids).toEqual(expect.arrayContaining([onlyA, onlyB, aAndB]))
+      expect(ids).toContain((systemAdmin as { user: { id: string } }).user.id)
     })
 
     it('a manager sees only the people who belong wholly to their tenants', async () => {
@@ -244,9 +261,27 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
       expect(await admin.setStatus(operator, (operator as { user: { id: string } }).user.id, 'disabled')).toMatchObject({ ok: false, error: 'CONFLICT' })
     })
 
-    it('an operator can disable anyone else', async () => {
+    it('an operator can disable a tenant manager', async () => {
       const person = await inTenantA('byoperator')
       expect((await admin.setStatus(operator, person.id, 'disabled')).ok).toBe(true)
+    })
+
+    it('an operator cannot disable or re-enable another operator, but a system admin can', async () => {
+      const otherOp = (await principalFor('disable-me', [['operator', null]])) as { user: { id: string } }
+
+      expect(await admin.setStatus(operator, otherOp.user.id, 'disabled')).toMatchObject({ ok: false, error: 'FORBIDDEN' })
+      expect(await users.findById(otherOp.user.id)).toMatchObject({ status: 'active' })
+      expect((await admin.setStatus(systemAdmin, otherOp.user.id, 'disabled')).ok).toBe(true)
+      expect((await admin.setStatus(systemAdmin, otherOp.user.id, 'active')).ok).toBe(true)
+    })
+
+    it('nobody can disable a system admin through the API', async () => {
+      const other = (await principalFor('sa-to-disable', [['system_admin', null]])) as { user: { id: string } }
+
+      for (const actor of [systemAdmin, operator, adminKey]) {
+        expect(await admin.setStatus(actor, other.user.id, 'disabled')).toMatchObject({ ok: false, error: 'FORBIDDEN' })
+      }
+      expect(await users.findById(other.user.id)).toMatchObject({ status: 'active' })
     })
 
     it('reports an unknown user as not found', async () => {
@@ -255,15 +290,46 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
   })
 
   describe('memberships', () => {
-    it('an operator grants and removes any role', async () => {
-      const person = expectOk(await admin.create(operator, { email: email('grant'), name: 'Grant' })).user
+    it('a system admin grants and removes operator and tenant manager roles', async () => {
+      const person = expectOk(await admin.create(systemAdmin, { email: email('grant'), name: 'Grant' })).user
 
-      const op = expectOk(await admin.addMembership(operator, person.id, { role: 'operator', tenantId: null }))
-      const mgr = expectOk(await admin.addMembership(operator, person.id, { role: 'tenant_manager', tenantId: tenantB }))
+      const op = expectOk(await admin.addMembership(systemAdmin, person.id, { role: 'operator', tenantId: null }))
+      const mgr = expectOk(await admin.addMembership(systemAdmin, person.id, { role: 'tenant_manager', tenantId: tenantB }))
 
       expect((await users.listMemberships(person.id)).map((m) => m.role).sort()).toEqual(['operator', 'tenant_manager'])
-      expect((await admin.removeMembership(operator, person.id, op.id)).ok).toBe(true)
+      expect((await admin.removeMembership(systemAdmin, person.id, op.id)).ok).toBe(true)
+      expect((await admin.removeMembership(systemAdmin, person.id, mgr.id)).ok).toBe(true)
+    })
+
+    it('an operator grants and removes the tenant manager role only', async () => {
+      const person = expectOk(await admin.create(operator, { email: email('op-grant'), name: 'Op Grant' })).user
+
+      expect(await admin.addMembership(operator, person.id, { role: 'operator', tenantId: null })).toMatchObject({ ok: false, error: 'FORBIDDEN' })
+      const mgr = expectOk(await admin.addMembership(operator, person.id, { role: 'tenant_manager', tenantId: tenantB }))
       expect((await admin.removeMembership(operator, person.id, mgr.id)).ok).toBe(true)
+      expect(await users.listMemberships(person.id)).toEqual([])
+    })
+
+    it('nobody can grant the system_admin role through the API', async () => {
+      const person = expectOk(await admin.create(systemAdmin, { email: email('no-sa-grant'), name: 'No Sa' })).user
+
+      for (const actor of [systemAdmin, operator, adminKey]) {
+        expect(await admin.addMembership(actor, person.id, { role: 'system_admin', tenantId: null })).toMatchObject({ ok: false, error: 'FORBIDDEN' })
+      }
+      expect(await users.listMemberships(person.id)).toEqual([])
+    })
+
+    it('an operator cannot change an operator\'s roles (the second-operator bypass), and nobody can change a system admin\'s', async () => {
+      const otherOp = (await principalFor('role-target-op', [['operator', null]])) as { user: { id: string }; memberships: Array<{ id: string; role: string }> }
+      const sa = (await principalFor('role-target-sa', [['system_admin', null]])) as { user: { id: string }; memberships: Array<{ id: string }> }
+
+      // the original bypass: an operator giving the other operator (or a second account) a tenant role
+      expect(await admin.addMembership(operator, otherOp.user.id, { role: 'tenant_manager', tenantId: tenantA })).toMatchObject({ ok: false, error: 'FORBIDDEN' })
+      expect(await admin.removeMembership(operator, otherOp.user.id, otherOp.memberships[0]!.id)).toMatchObject({ ok: false, error: 'FORBIDDEN' })
+      for (const actor of [systemAdmin, operator, adminKey]) {
+        expect(await admin.addMembership(actor, sa.user.id, { role: 'tenant_manager', tenantId: tenantA })).toMatchObject({ ok: false, error: 'FORBIDDEN' })
+        expect(await admin.removeMembership(actor, sa.user.id, sa.memberships[0]!.id)).toMatchObject({ ok: false, error: 'FORBIDDEN' })
+      }
     })
 
     it('an operator cannot grant themselves a tenant_manager role', async () => {
@@ -334,7 +400,7 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
 
     it('rejects a combination the model does not allow', async () => {
       const person = expectOk(await admin.create(operator, { email: email('badcombo'), name: 'Bad' })).user
-      expect(await admin.addMembership(operator, person.id, { role: 'operator', tenantId: tenantA })).toMatchObject({ ok: false, error: 'INVALID' })
+      expect(await admin.addMembership(systemAdmin, person.id, { role: 'operator', tenantId: tenantA })).toMatchObject({ ok: false, error: 'INVALID' })
       expect(await admin.addMembership(operator, person.id, { role: 'tenant_manager', tenantId: null })).toMatchObject({ ok: false, error: 'INVALID' })
       expect(await admin.addMembership(operator, person.id, { role: 'tenant_manager', tenantId: `${prefix}_missing` })).toMatchObject({ ok: false, error: 'INVALID' })
     })
@@ -364,8 +430,19 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
       expect(await admin.reinvite(operator, person.id)).toMatchObject({ ok: false, error: 'CONFLICT' })
     })
 
-    it('an operator can re-invite anyone, which is how a forgotten password is reset', async () => {
+    it('an operator can re-invite a tenant manager, which is how a forgotten password is reset', async () => {
       expect((await admin.reinvite(operator, (managerA as { user: { id: string } }).user.id)).ok).toBe(true)
+    })
+
+    it('only a system admin can re-invite an operator, and nobody a system admin (that would take over the account)', async () => {
+      const opId = (operator as { user: { id: string } }).user.id
+      const saId = (systemAdmin as { user: { id: string } }).user.id
+
+      expect(await admin.reinvite(operator, opId)).toMatchObject({ ok: false, error: 'FORBIDDEN' })
+      expect((await admin.reinvite(systemAdmin, opId)).ok).toBe(true)
+      for (const actor of [systemAdmin, operator, adminKey]) {
+        expect(await admin.reinvite(actor, saId)).toMatchObject({ ok: false, error: 'FORBIDDEN' })
+      }
     })
   })
 })

@@ -21,7 +21,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import type { AdminApi } from '../api/client'
 import type { Invite, Membership, UserWithMemberships } from '../api/types'
-import { isOperator, managedTenantIds, type Session } from '../auth/roles'
+import { isOperator, isSystemAdmin, managedTenantIds, type Session } from '../auth/roles'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { CreateUserDialog } from '../components/CreateUserDialog'
 import { InviteLinkDialog } from '../components/InviteLinkDialog'
@@ -31,7 +31,8 @@ import { ListFooter, ListToolbar, SortHeader } from '../list/ListControls'
 import { useListView } from '../list/useListView'
 import { formatDate } from '../format'
 
-const roleLabel = (m: Membership) => (m.role === 'operator' ? 'operator' : `manager · ${m.tenantId}`)
+const roleLabel = (m: Membership) => (m.role === 'system_admin' ? 'system admin' : m.role === 'operator' ? 'operator' : `manager · ${m.tenantId}`)
+const holds = (u: UserWithMemberships, role: Membership['role']) => u.memberships.some((m) => m.role === role)
 
 const roleText = (u: UserWithMemberships) => u.memberships.map(roleLabel).join(', ')
 const userStatus = (u: UserWithMemberships) => (u.status === 'disabled' ? 'disabled' : u.hasPassword ? 'active' : 'invited')
@@ -46,6 +47,7 @@ const userSort = {
 
 export function UsersPage({ api, session }: { api: AdminApi; session: Session }) {
   const operator = isOperator(session)
+  const systemAdmin = isSystemAdmin(session)
   const managed = managedTenantIds(session)
   const ownId = session.kind === 'user' ? session.user.id : null
 
@@ -100,7 +102,10 @@ export function UsersPage({ api, session }: { api: AdminApi; session: Session })
 
   // Read the person fresh from the list so the dialog reflects the changes made in it
   const rolesUser = users?.find((u) => u.id === rolesFor) ?? null
-  const canRemove = (m: Membership) => operator || (m.tenantId !== null && managed.includes(m.tenantId))
+  const canRemove = (m: Membership) =>
+    operator ? m.role !== 'system_admin' && (systemAdmin || m.role !== 'operator') : m.tenantId !== null && managed.includes(m.tenantId)
+  // System admins are changed from the command line only; operators only by a system admin
+  const lockedFor = (u: UserWithMemberships) => (holds(u, 'system_admin') ? 'Command line only' : !systemAdmin && operator && holds(u, 'operator') ? 'System admin only' : null)
 
   return (
     <Box>
@@ -156,6 +161,7 @@ export function UsersPage({ api, session }: { api: AdminApi; session: Session })
               {view.rows.map((user) => {
                 const busy = busyId === user.id
                 const self = user.id === ownId
+                const locked = lockedFor(user)
                 return (
                   <TableRow key={user.id} hover>
                     <TableCell>
@@ -183,31 +189,37 @@ export function UsersPage({ api, session }: { api: AdminApi; session: Session })
                     </TableCell>
                     <TableCell>{formatDate(user.lastLoginAt)}</TableCell>
                     <TableCell align="right">
-                      <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-                        <Button size="small" disabled={busy} onClick={() => setRolesFor(user.id)} aria-label={`Roles of ${user.email}`}>
-                          Roles
-                        </Button>
-                        {user.status === 'active' && (
-                          <Button size="small" disabled={busy} onClick={() => void reinvite(user)} aria-label={`New invitation for ${user.email}`}>
-                            New link
+                      {locked ? (
+                        <Typography variant="caption" color="text.secondary">
+                          {locked}
+                        </Typography>
+                      ) : (
+                        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+                          <Button size="small" disabled={busy} onClick={() => setRolesFor(user.id)} aria-label={`Roles of ${user.email}`}>
+                            Roles
                           </Button>
-                        )}
-                        {user.status === 'active' && !self && (
-                          <Button size="small" color="warning" disabled={busy} onClick={() => setDisabling(user)} aria-label={`Disable ${user.email}`}>
-                            Disable
-                          </Button>
-                        )}
-                        {user.status === 'disabled' && (
-                          <Button
-                            size="small"
-                            disabled={busy}
-                            onClick={() => void run(user, () => api.setUserStatus(user.id, 'active'), `Re-enabled ${user.name}`)}
-                            aria-label={`Enable ${user.email}`}
-                          >
-                            Enable
-                          </Button>
-                        )}
-                      </Stack>
+                          {user.status === 'active' && (
+                            <Button size="small" disabled={busy} onClick={() => void reinvite(user)} aria-label={`New invitation for ${user.email}`}>
+                              New link
+                            </Button>
+                          )}
+                          {user.status === 'active' && !self && (
+                            <Button size="small" color="warning" disabled={busy} onClick={() => setDisabling(user)} aria-label={`Disable ${user.email}`}>
+                              Disable
+                            </Button>
+                          )}
+                          {user.status === 'disabled' && (
+                            <Button
+                              size="small"
+                              disabled={busy}
+                              onClick={() => void run(user, () => api.setUserStatus(user.id, 'active'), `Re-enabled ${user.name}`)}
+                              aria-label={`Enable ${user.email}`}
+                            >
+                              Enable
+                            </Button>
+                          )}
+                        </Stack>
+                      )}
                     </TableCell>
                   </TableRow>
                 )
@@ -223,7 +235,7 @@ export function UsersPage({ api, session }: { api: AdminApi; session: Session })
         open={creating}
         api={api}
         tenantIds={tenantIds}
-        canAssignOperator={operator}
+        canAssignOperator={systemAdmin}
         onClose={() => setCreating(false)}
         onCreated={(user, created) => {
           setCreating(false)
@@ -238,7 +250,7 @@ export function UsersPage({ api, session }: { api: AdminApi; session: Session })
         user={rolesUser}
         api={api}
         tenantIds={tenantIds}
-        canAssignOperator={operator}
+        canAssignOperator={systemAdmin}
         canRemove={canRemove}
         onClose={() => setRolesFor(null)}
         onChanged={() => void load()}

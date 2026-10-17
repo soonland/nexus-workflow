@@ -29,7 +29,7 @@ interface Props {
   onChanged(): void
 }
 
-const describe = (m: Membership) => (m.role === 'operator' ? 'Operator' : `Tenant manager of ${m.tenantId}`)
+const describe = (m: Membership) => (m.role === 'system_admin' ? 'System admin' : m.role === 'operator' ? 'Operator' : `Tenant manager of ${m.tenantId}`)
 
 export function MembershipsDialog({ user, api, tenantIds, canAssignOperator, canRemove, onClose, onChanged }: Props) {
   const [choice, setChoice] = useState(() => emptyChoice(canAssignOperator))
