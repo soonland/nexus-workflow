@@ -248,6 +248,19 @@ describe('UserAdmin: who may do what to whom (Postgres)', () => {
       expect((await admin.removeMembership(operator, person.id, mgr.id)).ok).toBe(true)
     })
 
+    it('an operator cannot grant themselves a tenant_manager role', async () => {
+      const selfOp = await principalFor('selfgrant', [['operator', null]])
+      if (selfOp.kind !== 'user') throw new Error('expected user')
+
+      expect(await admin.addMembership(selfOp, selfOp.user.id, { role: 'tenant_manager', tenantId: tenantA })).toMatchObject({ ok: false, error: 'FORBIDDEN' })
+    })
+
+    it('an operator can grant another user a tenant_manager role', async () => {
+      const person = expectOk(await admin.create(operator, { email: email('grantother'), name: 'Other' })).user
+
+      expect((await admin.addMembership(operator, person.id, { role: 'tenant_manager', tenantId: tenantA })).ok).toBe(true)
+    })
+
     it('a manager can add someone in their tenant to another of their own tenants, but never grant operator', async () => {
       const both = await principalFor('mgrBoth2', [['tenant_manager', tenantA], ['tenant_manager', tenantB]])
       const person = expectOk(await admin.create(both, { email: email('addmore'), name: 'Add', memberships: [{ role: 'tenant_manager', tenantId: tenantA }] })).user
