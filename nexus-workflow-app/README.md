@@ -43,3 +43,7 @@ There is no operator CLI for suspend/delete; use the endpoints above or the oper
 ```bash
 pnpm --filter nexus-workflow-app tenant:provision <tenantId> [--name <name>] [--key-name <label>] [--role tenant_manager|service] [--write-env <path>]
 ```
+
+## Known limitations (dev only)
+
+Invite tokens are returned in the HTTP response when a person is created or re-invited. That is how invites work on a local dev server, but it lets a signed-in operator redeem an invite they issued, including a `tenant_manager` one for themselves. Invites must be delivered out-of-band (email to the invitee, never returned to the operator) before any multi-tenant or public deployment. Tracked in [#488](https://github.com/soonland/nexus-workflow/issues/488).
