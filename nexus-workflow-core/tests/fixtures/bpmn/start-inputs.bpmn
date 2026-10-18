@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  start-inputs.bpmn
+  Elements: StartEvent with declared nexus:input entries → UserTask → EndEvent
+  Covers valid inputs, an unknown type, invalid names, a duplicate, and an input on a non-start element
+  Used by: src/parser/BpmnXmlParser.test.ts
+-->
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:nexus="http://nexus-workflow/schema"
+  id="Definitions_inputs"
+  targetNamespace="http://nexus-workflow/schema">
+
+  <bpmn:process id="proc_inputs" name="Start Inputs" isExecutable="true">
+    <bpmn:startEvent id="start_1" name="Start">
+      <bpmn:extensionElements>
+        <nexus:input name="title" hint="What is being requested" />
+        <nexus:input name="amount" hint="Total in euros" type="number" />
+        <nexus:input name="urgent" type="boolean" />
+        <nexus:input name="weird" type="date" />
+        <nexus:input name="1bad" hint="invalid name" />
+        <nexus:input name="" hint="empty name" />
+        <nexus:input name="title" hint="duplicate, first wins" />
+      </bpmn:extensionElements>
+      <bpmn:outgoing>flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="task_1" name="Review">
+      <bpmn:extensionElements>
+        <nexus:input name="ignored" hint="not on a start event" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_1</bpmn:incoming>
+      <bpmn:outgoing>flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="end_1" name="End">
+      <bpmn:incoming>flow_2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_1" sourceRef="start_1" targetRef="task_1"/>
+    <bpmn:sequenceFlow id="flow_2" sourceRef="task_1" targetRef="end_1"/>
+  </bpmn:process>
+
+</bpmn:definitions>

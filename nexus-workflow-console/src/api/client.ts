@@ -4,6 +4,7 @@ import type {
   KeyRole,
   OperatorKey,
   AuditQuery,
+  DefinitionDetail,
   DefinitionSummary,
   DeployResult,
   ForcedAction,
@@ -294,6 +295,8 @@ export interface TenantApi {
   getInstanceHistory(id: string): Promise<HistoryEntry[]>
   /** The instance's audit trail, oldest first. */
   getInstanceEvents(id: string): Promise<InstanceEvent[]>
+  /** The latest version of a definition, as stored. */
+  getDefinition(id: string): Promise<DefinitionDetail>
   /** The BPMN XML a definition version was deployed from. */
   getDefinitionXml(id: string, version: number): Promise<string>
 
@@ -362,6 +365,9 @@ export function createTenantApi(
     },
     async getInstanceEvents(id) {
       return (await request<{ events: InstanceEvent[] }>('GET', `${instancePath(id)}/events`)).events
+    },
+    getDefinition(id) {
+      return request<DefinitionDetail>('GET', `/definitions/${encodeURIComponent(id)}`)
     },
     getDefinitionXml(id, version) {
       return request<string>('GET', `/definitions/${encodeURIComponent(id)}/xml?version=${version}`, undefined, { responseType: 'text' })

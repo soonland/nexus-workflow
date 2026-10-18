@@ -557,4 +557,35 @@ describe('definitions HTTP API', () => {
       expect(body).toHaveProperty('error', 'HAS_ACTIVE_INSTANCES')
     })
   })
+
+  // ─── Start inputs ───────────────────────────────────────────────────────────
+
+  describe('declared start inputs', () => {
+    const withInputs = VALID_BPMN
+      .replace('<definitions ', '<definitions xmlns:nexus="http://nexus-workflow/schema" ')
+      .replace(
+        '<outgoing>flow-1</outgoing>\n    </startEvent>',
+        '<extensionElements><nexus:input name="amount" type="number" hint="Total in euros" /></extensionElements><outgoing>flow-1</outgoing>\n    </startEvent>',
+      )
+
+    async function deployAndGet(xml: string) {
+      const post = await app.fetch(new Request('http://localhost/definitions', { method: 'POST', headers: { 'Content-Type': 'text/xml' }, body: xml }))
+      expect(post.status).toBe(201)
+      const { id } = await post.json()
+      const res = await app.fetch(new Request(`http://localhost/definitions/${id}`))
+      expect(res.status).toBe(200)
+      const def = await res.json() as { startEventId: string; elements: Array<{ id: string; inputs?: unknown }> }
+      return def.elements.find((e) => e.id === def.startEventId)!
+    }
+
+    it('returns declared start inputs on GET /definitions/:id', async () => {
+      const start = await deployAndGet(withInputs)
+      expect(start.inputs).toEqual([{ name: 'amount', hint: 'Total in euros', type: 'number' }])
+    })
+
+    it('a definition without inputs has no inputs key on its start event', async () => {
+      const start = await deployAndGet(VALID_BPMN)
+      expect('inputs' in start).toBe(false)
+    })
+  })
 })

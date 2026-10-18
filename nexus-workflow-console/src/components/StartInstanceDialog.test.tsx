@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../api/client'
+import type { DefinitionDetail } from '../api/types'
 import { makeDefinition, makeFakeTenantApi } from '../test/fakeApi'
 import { StartInstanceDialog } from './StartInstanceDialog'
 
@@ -91,5 +92,86 @@ describe('StartInstanceDialog', () => {
     finish('abc')
     await waitFor(() => expect(onStarted).toHaveBeenCalledWith('abc', expect.objectContaining({ id: 'approval' })))
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  describe('declared start inputs', () => {
+    const detail = (inputs?: DefinitionDetail['elements'][number]['inputs'], id = 'approval'): DefinitionDetail => ({
+      id,
+      version: 1,
+      startEventId: 'start',
+      elements: [{ id: 'start', type: 'startEvent', ...(inputs ? { inputs } : {}) }],
+    })
+    const variables = () => screen.getByLabelText(/variables/i)
+
+    it('pre-fills the template and lists the hints', async () => {
+      const api = makeFakeTenantApi()
+      api.getDefinition.mockResolvedValue(detail([{ name: 'title', hint: 'What is being requested' }, { name: 'amount', type: 'number' }]))
+      render(<StartInstanceDialog definition={makeDefinition()} api={api} onClose={vi.fn()} onStarted={vi.fn()} />)
+
+      await waitFor(() => expect(variables()).toHaveValue('{\n  "title": "",\n  "amount": 0\n}'))
+      expect(screen.getByText('title: What is being requested')).toBeInTheDocument()
+      expect(screen.getByText('amount')).toBeInTheDocument()
+      expect(screen.queryByText(/e\.g\. \{"amount": 120\}/)).not.toBeInTheDocument()
+    })
+
+    it("keeps today's behaviour without inputs", async () => {
+      const api = makeFakeTenantApi()
+      api.getDefinition.mockResolvedValue(detail())
+      render(<StartInstanceDialog definition={makeDefinition()} api={api} onClose={vi.fn()} onStarted={vi.fn()} />)
+
+      await waitFor(() => expect(api.getDefinition).toHaveBeenCalledWith('approval'))
+      expect(variables()).toHaveValue('')
+      expect(screen.getByText(/e\.g\. \{"amount": 120\}/)).toBeInTheDocument()
+    })
+
+    it("keeps today's behaviour when the fetch fails", async () => {
+      const api = makeFakeTenantApi()
+      api.getDefinition.mockRejectedValue(new ApiError(500, 'INTERNAL', 'boom'))
+      render(<StartInstanceDialog definition={makeDefinition()} api={api} onClose={vi.fn()} onStarted={vi.fn()} />)
+
+      await waitFor(() => expect(api.getDefinition).toHaveBeenCalled())
+      expect(variables()).toHaveValue('')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('does not overwrite what the person already typed', async () => {
+      const api = makeFakeTenantApi()
+      let finish: (value: DefinitionDetail) => void = () => undefined
+      api.getDefinition.mockImplementation(() => new Promise<DefinitionDetail>((resolve) => (finish = resolve)))
+      const user = userEvent.setup()
+      render(<StartInstanceDialog definition={makeDefinition()} api={api} onClose={vi.fn()} onStarted={vi.fn()} />)
+
+      await user.click(variables())
+      await user.paste('{"mine": 1}')
+      finish(detail([{ name: 'title' }]))
+
+      await waitFor(() => expect(screen.getByText('title')).toBeInTheDocument())
+      expect(variables()).toHaveValue('{"mine": 1}')
+    })
+
+    it('ignores a late response for another definition', async () => {
+      const api = makeFakeTenantApi()
+      const finishers: Record<string, (value: DefinitionDetail) => void> = {}
+      api.getDefinition.mockImplementation((id: string) => new Promise<DefinitionDetail>((resolve) => (finishers[id] = resolve)))
+      const props = { api, onClose: vi.fn(), onStarted: vi.fn() }
+      const { rerender } = render(<StartInstanceDialog definition={makeDefinition({ id: 'a' })} {...props} />)
+      rerender(<StartInstanceDialog definition={makeDefinition({ id: 'b' })} {...props} />)
+
+      finishers['b']!(detail([{ name: 'fromB' }], 'b'))
+      await waitFor(() => expect(variables()).toHaveValue('{\n  "fromB": ""\n}'))
+      finishers['a']!(detail([{ name: 'fromA' }], 'a'))
+
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(variables()).toHaveValue('{\n  "fromB": ""\n}')
+      expect(screen.queryByText('fromA')).not.toBeInTheDocument()
+    })
+
+    it('renders hints as plain text', async () => {
+      const api = makeFakeTenantApi()
+      api.getDefinition.mockResolvedValue(detail([{ name: 'title', hint: '<b>x</b>' }]))
+      render(<StartInstanceDialog definition={makeDefinition()} api={api} onClose={vi.fn()} onStarted={vi.fn()} />)
+
+      expect(await screen.findByText('title: <b>x</b>')).toBeInTheDocument()
+    })
   })
 })

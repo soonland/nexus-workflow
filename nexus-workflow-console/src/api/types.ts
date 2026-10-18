@@ -97,6 +97,21 @@ export interface DefinitionSummary {
   isDeployable: boolean
 }
 
+/** An input a workflow declares on its start event. */
+export interface StartInput {
+  name: string
+  hint?: string
+  type?: 'string' | 'number' | 'boolean'
+}
+
+/** The part of a stored definition the console reads (from GET /definitions/:id). */
+export interface DefinitionDetail {
+  id: string
+  version: number
+  startEventId: string
+  elements: Array<{ id: string; type: string; inputs?: StartInput[] }>
+}
+
 export interface DeployResult {
   id: string
   version: number
