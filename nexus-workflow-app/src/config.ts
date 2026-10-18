@@ -23,6 +23,9 @@ function parseMaxDays(value: string | undefined): number | undefined {
   return /^\d+$/.test(value.trim()) && Number(value) > 0 ? Number(value) : Number.NaN
 }
 
+/** HISTORY_SNAPSHOT_RETENTION_DAYS: undefined when unset (keep forever), NaN when not a positive whole number. */
+const parseRetentionDays = parseMaxDays
+
 /** Shortest ADMIN_API_KEY accepted in production. */
 export const ADMIN_API_KEY_MIN_LENGTH = 16
 
@@ -45,6 +48,11 @@ export const config = {
    * expiry no further away than this, so "never expires" is refused.
    */
   operatorKeyMaxDays: parseMaxDays(process.env['OPERATOR_KEY_MAX_DAYS']),
+  /**
+   * Days after an instance finishes (completed or terminated) when the variable snapshots in its
+   * step history are deleted. Unset (default): snapshots are kept as long as the instance.
+   */
+  historySnapshotRetentionDays: parseRetentionDays(process.env['HISTORY_SNAPSHOT_RETENTION_DAYS']),
   /** HMAC-SHA256 secret used to hash API keys before storing/comparing. Must be set in production. */
   apiKeyHmacSecret: process.env['API_KEY_HMAC_SECRET'] ?? '',
   /** Directory with the built operator console, served at /console when it exists. */
@@ -112,6 +120,11 @@ export function assertConfigValid(cfg: typeof config) {
 
   if (cfg.operatorKeyMaxDays !== undefined && !Number.isFinite(cfg.operatorKeyMaxDays)) {
     console.error('[config] OPERATOR_KEY_MAX_DAYS must be a positive whole number of days. Exiting.')
+    process.exit(1)
+  }
+
+  if (cfg.historySnapshotRetentionDays !== undefined && !Number.isFinite(cfg.historySnapshotRetentionDays)) {
+    console.error('[config] HISTORY_SNAPSHOT_RETENTION_DAYS must be a positive whole number of days. Exiting.')
     process.exit(1)
   }
 

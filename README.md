@@ -100,6 +100,10 @@ Optional:
 RESET_DB=true   # drop and recreate all tables on next startup (dev only)
 ```
 
+#### Step history and variable snapshots
+
+Every finished step stores a copy of the instance's variables (up to 64 KiB) in its history record, so any value held in a process variable (including a secret someone put there) is copied into each step and readable by anyone who can read the instance. By default snapshots are kept as long as the instance. Set `HISTORY_SNAPSHOT_RETENTION_DAYS` (a positive whole number; unset = keep, an invalid value stops startup) to delete the snapshots, hourly, from the steps of instances that completed or were terminated more than that many days ago. The step records themselves (element, status, timing) stay; running instances are never touched. Do not keep secrets in process variables.
+
 ### Install & run
 
 ```bash
