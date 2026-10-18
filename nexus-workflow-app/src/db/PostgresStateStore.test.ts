@@ -13,6 +13,7 @@ import type {
 } from 'nexus-workflow-core'
 import { PostgresStateStore } from './PostgresStateStore.js'
 import { runMigrations } from './migrate.js'
+import { migrateTenantSchema } from './tenantMigrations.js'
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -143,6 +144,8 @@ describe.skipIf(!hasDb)('PostgresStateStore', () => {
     store = new PostgresStateStore(TEST_DB_URL, 'default')
     cleanupSql = postgres(TEST_DB_URL)
     await runMigrations(TEST_DB_URL)
+    // runMigrations only creates tenant_default; the tenant migrations (instance version, ...) are separate.
+    await migrateTenantSchema(cleanupSql, 'tenant_default')
   })
 
   afterAll(async () => {
