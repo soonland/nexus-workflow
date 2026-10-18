@@ -245,9 +245,18 @@ export interface BpmnElement {
   outgoingFlows: string[]
 }
 
+/** An input a workflow declares on its start event: shown to the person starting it. */
+export interface ProcessInput {
+  name: string
+  hint?: string
+  /** Only picks the placeholder in the start template; not validated. Missing means string. */
+  type?: 'string' | 'number' | 'boolean'
+}
+
 export interface StartEventElement extends BpmnElement {
   type: 'startEvent'
   eventDefinition: EventDefinition
+  inputs?: ProcessInput[]
 }
 
 export interface EndEventElement extends BpmnElement {

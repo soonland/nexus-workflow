@@ -844,3 +844,43 @@ describe('BpmnXmlParser — transaction', () => {
     expect(boundary.cancelActivity).toBe(true)
   })
 })
+
+// ─── Start inputs ─────────────────────────────────────────────────────────────
+
+describe('BpmnXmlParser — start inputs', () => {
+  const startOf = (xml: string) => {
+    const { definition } = parseBpmn(xml)
+    return definition!.elements.find(e => e.id === definition!.startEventId) as { inputs?: unknown }
+  }
+
+  it('parses declared inputs in order', () => {
+    expect(startOf(loadFixture('start-inputs.bpmn')).inputs).toEqual([
+      { name: 'title', hint: 'What is being requested' },
+      { name: 'amount', hint: 'Total in euros', type: 'number' },
+      { name: 'urgent', type: 'boolean' },
+      { name: 'weird' },
+    ])
+  })
+
+  it('skips invalid and duplicate names without raising errors', () => {
+    const { definition, errors } = parseBpmn(loadFixture('start-inputs.bpmn'))
+    expect(errors).toEqual([])
+    expect(definition!.isDeployable).toBe(true)
+  })
+
+  it('ignores inputs declared on other elements', () => {
+    const { definition } = parseBpmn(loadFixture('start-inputs.bpmn'))
+    expect(JSON.stringify(definition)).not.toContain('ignored')
+  })
+
+  it('parses a single declared input', () => {
+    const xml = loadFixture('simple-sequence.bpmn')
+      .replace('xmlns:bpmn=', 'xmlns:nexus="http://nexus-workflow/schema" xmlns:bpmn=')
+      .replace('<bpmn:outgoing>flow_1</bpmn:outgoing>\n    </bpmn:startEvent>', '<bpmn:extensionElements><nexus:input name="amount" /></bpmn:extensionElements><bpmn:outgoing>flow_1</bpmn:outgoing>\n    </bpmn:startEvent>')
+    expect(startOf(xml).inputs).toEqual([{ name: 'amount' }])
+  })
+
+  it('leaves inputs undefined when none are declared', () => {
+    expect('inputs' in startOf(loadFixture('simple-sequence.bpmn'))).toBe(false)
+  })
+})

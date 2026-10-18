@@ -5,6 +5,7 @@ import type {
   BpmnFlowElement,
   SequenceFlow,
   StartEventElement,
+  ProcessInput,
   EndEventElement,
   IntermediateCatchEventElement,
   IntermediateThrowEventElement,
@@ -48,6 +49,7 @@ const ARRAY_ELEMENTS = new Set([
   'errorEventDefinition', 'terminateEventDefinition', 'compensateEventDefinition',
   'cancelEventDefinition',
   'conditionExpression',
+  'input',
 ])
 
 const xmlParser = new XMLParser({
@@ -187,11 +189,41 @@ function baseElement(raw: Record<string, unknown>, flows: SequenceFlow[]) {
 // ── Events ────────────────────────────────────────────────────────────────────
 
 function parseStartEvent(raw: Record<string, unknown>, flows: SequenceFlow[]): StartEventElement {
+  const inputs = parseInputs(raw)
   return {
     ...baseElement(raw, flows),
     type: 'startEvent',
     eventDefinition: parseEventDefinition(raw),
+    ...(inputs ? { inputs } : {}),
   }
+}
+
+const INPUT_NAME = /^[A-Za-z_$][A-Za-z0-9_$]*$/
+const INPUT_TYPES = new Set(['string', 'number', 'boolean'])
+
+/**
+ * Reads `<nexus:input>` entries from a start event's extensionElements. Invalid or duplicate names
+ * are skipped without an error: an error would make the whole definition non-deployable.
+ */
+function parseInputs(raw: Record<string, unknown>): ProcessInput[] | undefined {
+  const extension = raw['extensionElements']
+  const entries = extension && typeof extension === 'object' ? (extension as Record<string, unknown>)['input'] : undefined
+  if (!Array.isArray(entries)) return undefined
+
+  const inputs: ProcessInput[] = []
+  const seen = new Set<string>()
+  for (const entry of entries as Record<string, unknown>[]) {
+    const name = String(entry['@_name'] ?? '')
+    if (!INPUT_NAME.test(name) || seen.has(name)) continue
+    seen.add(name)
+    const type = String(entry['@_type'] ?? '')
+    inputs.push({
+      name,
+      ...(entry['@_hint'] !== undefined ? { hint: String(entry['@_hint']) } : {}),
+      ...(INPUT_TYPES.has(type) ? { type: type as NonNullable<ProcessInput['type']> } : {}),
+    })
+  }
+  return inputs.length > 0 ? inputs : undefined
 }
 
 function parseEndEvent(raw: Record<string, unknown>, flows: SequenceFlow[]): EndEventElement {
