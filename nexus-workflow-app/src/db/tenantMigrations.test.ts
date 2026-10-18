@@ -53,6 +53,7 @@ describe('tenant migrations', () => {
 
   it('provisioning applies and records every migration', async () => {
     await provisionTenantSchema(ids.a, sql)
+    await provisionTenantSchema(ids.b, sql)
     const rows = await sql`SELECT version FROM ${sql('tenant_' + ids.a)}.schema_migrations ORDER BY version`
     expect(rows.map(r => r['version'])).toEqual(TENANT_MIGRATIONS.map(m => m.version))
   })
@@ -119,6 +120,27 @@ describe('tenant migrations', () => {
     const result = await migrateAllTenants(sql)
     expect(result.upToDate).not.toContain(ids.old)
     await sql`UPDATE public.tenants SET status = 'active' WHERE id = ${ids.old}`
+  })
+
+  it('startup migration skips a tenant with no schema; provisioning creates and migrates it', async () => {
+    const id = `${prefix}_new`
+    await sql`INSERT INTO public.tenants (id, name) VALUES (${id}, ${id})`
+    try {
+      const schemaExists = async () =>
+        (await sql`SELECT 1 FROM pg_namespace WHERE nspname = ${'tenant_' + id}`).length > 0
+      const result = await migrateAllTenants(sql)
+      expect(result.upToDate).not.toContain(id)
+      expect(result.failed.map(f => f.tenantId)).not.toContain(id)
+      expect(await schemaExists()).toBe(false)
+
+      await provisionTenantSchema(id, sql)
+      expect(await schemaExists()).toBe(true)
+      const rows = await sql`SELECT version FROM ${sql('tenant_' + id)}.schema_migrations`
+      expect(rows.map(r => r['version'])).toEqual(TENANT_MIGRATIONS.map(m => m.version))
+    } finally {
+      await dropTenantSchema(id, sql)
+      await sql`DELETE FROM public.tenants WHERE id = ${id}`
+    }
   })
 
   it('serializes concurrent runners', async () => {

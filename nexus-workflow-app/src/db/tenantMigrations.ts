@@ -88,14 +88,20 @@ export interface MigrateAllTenantsResult {
 }
 
 /**
- * Brings every tenant (except those being deleted) up to date. A failure on one tenant is
+ * Brings every provisioned tenant (schema exists, not being deleted) up to date. A failure on one tenant is
  * recorded and logged and the others carry on. `health`, if given, is updated per tenant.
  */
 export async function migrateAllTenants(
   sql: postgres.Sql,
   options: { migrations?: readonly TenantMigration[]; health?: TenantSchemaHealth } = {},
 ): Promise<MigrateAllTenantsResult> {
-  const tenants = await sql<{ id: string }[]>`SELECT id FROM public.tenants WHERE status <> 'deleting' ORDER BY id`
+  // Only tenants whose schema already exists: creating schemas is provisioning's job, and the
+  // existence of the namespace is what marks a tenant as provisioned (see main.ts workers).
+  const tenants = await sql<{ id: string }[]>`
+    SELECT t.id FROM public.tenants t
+    WHERE t.status <> 'deleting'
+      AND EXISTS (SELECT 1 FROM pg_namespace n WHERE n.nspname = 'tenant_' || t.id)
+    ORDER BY t.id`
   const result: MigrateAllTenantsResult = { upToDate: [], failed: [] }
   for (const { id } of tenants) {
     try {

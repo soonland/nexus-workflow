@@ -75,6 +75,10 @@ When the engine emits a `ServiceTaskStarted` event, the worker (`src/worker/`) i
 
 Handlers must be idempotent — the worker uses at-least-once delivery semantics.
 
+### Tenant schema migrations
+
+`createTenantSchema` (`src/db/schema.ts`) is frozen as the baseline. Any later change to tenant tables must be a new entry appended to `TENANT_MIGRATIONS` in `src/db/tenantMigrations.ts`. Startup only migrates tenants whose schema already exists; `provisionTenantSchema` creates and migrates new ones.
+
 ### Environment configuration
 
 All runtime config is read from environment variables in `src/config.ts`. There are no hardcoded connection strings. For local development, set variables in a `.env` file (not committed) and load them with a tool like `dotenv` or the shell.
