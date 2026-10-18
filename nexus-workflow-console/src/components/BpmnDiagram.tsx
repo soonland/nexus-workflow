@@ -93,10 +93,11 @@ export default function BpmnDiagram({ xml, activeIds, doneIds, errorIds, onError
     return [rule('active', 'stroke-width: 3px !important;'), rule('done', ''), rule('error', '')].join('\n')
   }, [theme])
 
+  // bpmn-js draws dark strokes, so the canvas stays a light surface in every theme variant
   return (
     <>
       <style>{style}</style>
-      <Box ref={container} role="img" aria-label="Workflow diagram" sx={{ height: 360, border: 1, borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper' }} />
+      <Box ref={container} role="img" aria-label="Workflow diagram" sx={{ height: 360, border: 1, borderColor: 'divider', borderRadius: 1, bgcolor: '#fff' }} />
     </>
   )
 }

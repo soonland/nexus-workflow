@@ -82,7 +82,7 @@ function Shell() {
 export function App({ fetchImpl }: { fetchImpl?: typeof fetch }) {
   return (
     <AuthProvider {...(fetchImpl ? { fetchImpl } : {})}>
-      <ThemeProvider theme={theme}>
+      <ThemeProvider theme={theme} defaultMode="system">
         <CssBaseline />
         <Shell />
       </ThemeProvider>

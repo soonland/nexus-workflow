@@ -29,6 +29,7 @@ import PlayCircleOutlineRoundedIcon from '@mui/icons-material/PlayCircleOutlineR
 import VpnKeyRoundedIcon from '@mui/icons-material/VpnKeyRounded'
 import WebhookRoundedIcon from '@mui/icons-material/WebhookRounded'
 import { SIDEBAR_WIDTH } from '../theme'
+import { ThemeMenu } from './ThemeMenu'
 
 export type Screen = 'definitions' | 'instances' | 'tasks' | 'webhooks' | 'tenants' | 'operatorKeys' | 'users' | 'audit'
 
@@ -99,6 +100,7 @@ export function AppShell({ screens, screen, onSelect, tenantId, tenantIds, onSel
           <Typography variant="body2" sx={{ mr: 1, opacity: 0.85 }}>
             {who}
           </Typography>
+          <ThemeMenu />
           <Button color="inherit" size="small" startIcon={<LogoutRoundedIcon />} onClick={onSignOut}>
             Sign out
           </Button>
