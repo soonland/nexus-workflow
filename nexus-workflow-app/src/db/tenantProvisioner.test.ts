@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type postgres from 'postgres'
 
-// Mock schema.ts so we can observe calls without executing real DDL.
+// Mock tenantMigrations.ts so we can observe calls without executing real DDL.
 // The mock is hoisted above imports by Vitest.
-vi.mock('./schema.js', () => ({
-  createTenantSchema: vi.fn().mockResolvedValue(undefined),
+vi.mock('./tenantMigrations.js', () => ({
+  migrateTenantSchema: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { createTenantSchema } from './schema.js'
+import { migrateTenantSchema } from './tenantMigrations.js'
 import { provisionTenantSchema, dropTenantSchema } from './tenantProvisioner.js'
 
 function makeSqlMock() {
@@ -15,7 +15,7 @@ function makeSqlMock() {
   return { unsafe } as unknown as postgres.Sql
 }
 
-const mockedCreateTenantSchema = vi.mocked(createTenantSchema)
+const mockedMigrateTenantSchema = vi.mocked(migrateTenantSchema)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -24,16 +24,16 @@ beforeEach(() => {
 // ─── provisionTenantSchema ────────────────────────────────────────────────────
 
 describe('provisionTenantSchema', () => {
-  it('should call createTenantSchema with the prefixed schema name "tenant_{tenantId}"', async () => {
+  it('should call migrateTenantSchema with the prefixed schema name "tenant_{tenantId}"', async () => {
     const sql = makeSqlMock()
     await provisionTenantSchema('acme', sql)
-    expect(mockedCreateTenantSchema).toHaveBeenCalledExactlyOnceWith(sql, 'tenant_acme')
+    expect(mockedMigrateTenantSchema).toHaveBeenCalledExactlyOnceWith(sql, 'tenant_acme')
   })
 
-  it('should pass the sql instance through to createTenantSchema unchanged', async () => {
+  it('should pass the sql instance through to migrateTenantSchema unchanged', async () => {
     const sql = makeSqlMock()
     await provisionTenantSchema('my-tenant', sql)
-    const [receivedSql] = mockedCreateTenantSchema.mock.calls[0]!
+    const [receivedSql] = mockedMigrateTenantSchema.mock.calls[0]!
     expect(receivedSql).toBe(sql)
   })
 
@@ -57,7 +57,7 @@ describe('provisionTenantSchema', () => {
     await expect(provisionTenantSchema('abc def', sql)).rejects.toThrow(
       'Invalid tenantId: "abc def"'
     )
-    expect(mockedCreateTenantSchema).not.toHaveBeenCalled()
+    expect(mockedMigrateTenantSchema).not.toHaveBeenCalled()
   })
 
   it('should throw when tenantId contains a semicolon', async () => {
@@ -65,7 +65,7 @@ describe('provisionTenantSchema', () => {
     await expect(provisionTenantSchema('abc;drop', sql)).rejects.toThrow(
       'Invalid tenantId: "abc;drop"'
     )
-    expect(mockedCreateTenantSchema).not.toHaveBeenCalled()
+    expect(mockedMigrateTenantSchema).not.toHaveBeenCalled()
   })
 
   it('should throw when tenantId contains path traversal characters', async () => {
@@ -73,7 +73,7 @@ describe('provisionTenantSchema', () => {
     await expect(provisionTenantSchema('../../etc', sql)).rejects.toThrow(
       'Invalid tenantId: "../../etc"'
     )
-    expect(mockedCreateTenantSchema).not.toHaveBeenCalled()
+    expect(mockedMigrateTenantSchema).not.toHaveBeenCalled()
   })
 
   it('should throw when tenantId contains a dot', async () => {

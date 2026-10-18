@@ -1,5 +1,5 @@
 import type postgres from 'postgres'
-import { createTenantSchema } from './schema.js'
+import { migrateTenantSchema } from './tenantMigrations.js'
 
 export const VALID_TENANT_ID = /^[a-zA-Z0-9_-]+$/
 
@@ -12,14 +12,13 @@ export function schemaName(tenantId: string): string {
 }
 
 /**
- * Provisions a new tenant by creating their dedicated PostgreSQL schema
- * and all workflow tables within it.
+ * Provisions a tenant by creating their dedicated PostgreSQL schema and bringing it fully up to
+ * date (every tenant migration, tracked in the schema's own `schema_migrations` table).
  *
- * Safe to call multiple times — uses CREATE SCHEMA IF NOT EXISTS and
- * CREATE TABLE IF NOT EXISTS throughout.
+ * Safe to call multiple times — only migrations not yet recorded are applied.
  */
 export async function provisionTenantSchema(tenantId: string, sql: postgres.Sql): Promise<void> {
-  await createTenantSchema(sql, schemaName(tenantId))
+  await migrateTenantSchema(sql, schemaName(tenantId))
 }
 
 /**

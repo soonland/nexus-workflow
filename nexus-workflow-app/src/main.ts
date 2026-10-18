@@ -5,6 +5,8 @@ import postgres from 'postgres'
 import { config, assertConfigValid } from './config.js'
 import { PostgresStateStore } from './db/PostgresStateStore.js'
 import { runMigrations } from './db/migrate.js'
+import { migrateAllTenants, TenantSchemaHealth } from './db/tenantMigrations.js'
+import { createTenantSchemaGuard } from './http/middleware/tenantSchema.js'
 import { createDefinitionsRouter } from './http/definitions.js'
 import { createInstancesRouter } from './http/instances.js'
 import { createTasksRouter } from './http/tasks.js'
@@ -72,6 +74,10 @@ eventHub.subscribeAll((tenantId, event) => {
 })
 
 await runMigrations(config.databaseUrl)
+// Every tenant schema is brought up to date before serving. A tenant that fails is reported, kept
+// out of service (503, no workers) and does not hold up the others; restart to retry.
+const schemaHealth = new TenantSchemaHealth()
+await migrateAllTenants(authSql, { health: schemaHealth })
 
 let redisPublisher: RedisStreamPublisher | null = null
 if (config.redisUrl) {
@@ -101,7 +107,7 @@ const tenantWorkers = new TenantWorkerManager({
       WHERE t.status = 'active'
         AND EXISTS (SELECT 1 FROM pg_namespace n WHERE n.nspname = 'tenant_' || t.id)
     `
-    return rows.map(r => r.id)
+    return rows.map(r => r.id).filter(id => !schemaHealth.isBehind(id))
   },
   createWorkers: (tenantId) => createTenantWorkers(tenantId, {
     databaseUrl: config.databaseUrl,
@@ -240,6 +246,8 @@ app.use('*', createAuthMiddleware(authSql, config.apiKeyHmacSecret, {
 }))
 // A tenant key is held to its role (service keys: the runtime API only)
 app.use('*', createKeyRoleMiddleware())
+// A tenant whose schema failed to migrate is not served (nor given workers, see below)
+app.use('*', createTenantSchemaGuard(schemaHealth))
 // Workers must be running before the tenant's first event is published (they subscribe to
 // in-process events), so start them here rather than waiting for the next registry sync.
 app.use('*', async (c, next) => {
