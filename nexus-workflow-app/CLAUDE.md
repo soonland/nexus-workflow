@@ -64,6 +64,10 @@ Every call to `engine.execute(command)` must be wrapped in a single PostgreSQL t
 
 This ensures no partial state is ever persisted. If step 2 or 3 fails, the transaction rolls back and no events are emitted.
 
+### Optimistic concurrency on instances
+
+`instances.version` is read into `ProcessInstance.version` by `getInstance`, checked and bumped by `updateInstance` (including inside `executeTransaction`). A write from a stale version throws `ConcurrentModificationError` and writes nothing. HTTP routers map it to `409 CONFLICT` (`src/http/conflict.ts`, wired with `app.onError`); `TaskWorker`, `TimerCoordinator` and the signal broadcast re-load the instance and retry (up to `MAX_COMMIT_ATTEMPTS`).
+
 ### Task worker picks up ServiceTaskStarted events
 
 When the engine emits a `ServiceTaskStarted` event, the worker (`src/worker/`) is responsible for:

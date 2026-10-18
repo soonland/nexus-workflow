@@ -66,7 +66,7 @@ describe('tenant migrations', () => {
     const { createTenantSchema } = await import('./schema.js')
     await createTenantSchema(sql, `tenant_${ids.old}`)
     const applied = await migrateTenantSchema(sql, `tenant_${ids.old}`)
-    expect(applied).toEqual(['001_baseline'])
+    expect(applied).toEqual(TENANT_MIGRATIONS.map(m => m.version))
   })
 
   it('rejects an unsafe schema name', async () => {

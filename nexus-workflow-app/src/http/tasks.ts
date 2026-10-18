@@ -3,11 +3,13 @@ import { execute, RuntimeError, type StateStore, type UserTaskQuery, type Variab
 import { loadEngineState, computeStoreOps, buildUserTaskCreationOps, normalizeVariables, unwrapVariables } from './engineHelpers.js'
 import { validationError, listTasksQuerySchema, completeTaskBodySchema, claimTaskBodySchema } from './validation.js'
 import type { AppVariables } from './middleware/auth.js'
+import { conflictAwareErrorHandler } from './conflict.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export function createTasksRouter(storeFactory: (tenantId: string) => StateStore, eventBusFor: (tenantId: string) => EventBus): Hono<{ Variables: AppVariables }> {
   const app = new Hono<{ Variables: AppVariables }>()
+  app.onError(conflictAwareErrorHandler)
 
   // GET /tasks — list user tasks
   app.get('/tasks', async (c) => {

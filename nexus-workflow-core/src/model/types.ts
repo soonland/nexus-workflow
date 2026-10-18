@@ -95,6 +95,12 @@ export interface ProcessInstance {
   startedAt: Date
   completedAt?: Date
   errorInfo?: ProcessError
+  /**
+   * Optimistic-concurrency counter, owned by the StateStore: set when the instance is read and
+   * checked on update. A store rejects an update whose version is no longer current
+   * (ConcurrentModificationError). Absent on a freshly created instance and ignored by the engine.
+   */
+  version?: number
 }
 
 // ─── Event Subscriptions ──────────────────────────────────────────────────────

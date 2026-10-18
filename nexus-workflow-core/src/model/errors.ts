@@ -64,3 +64,13 @@ export class AmbiguousCorrelationError extends WorkflowError {
     )
   }
 }
+
+/**
+ * A write to an instance was based on a version that is no longer current: someone else changed
+ * the instance after it was loaded. Nothing was written; reload and retry.
+ */
+export class ConcurrentModificationError extends WorkflowError {
+  constructor(public readonly instanceId: string) {
+    super(`Instance '${instanceId}' was changed by someone else since it was loaded`, 'CONCURRENT_MODIFICATION')
+  }
+}
