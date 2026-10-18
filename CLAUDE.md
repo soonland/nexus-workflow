@@ -35,7 +35,7 @@ This repo runs two Claude workflows. Rules below apply to both.
 
 ### Workflow: Automatic PR Review (`claude-code-review.yml`)
 
-Triggers automatically on every PR (opened, updated, ready for review, reopened).
+Opt-in: a PR is reviewed only while it carries the `claude-review` label (`gh pr create --label claude-review`, or add the label later; remove it to stop). Once labeled, it runs on open, update, ready for review and reopen.
 Uses the `code-review` plugin to post inline review comments.
 
 - **Scope:** read-only (`contents: read`, `pull-requests: read`). Never commits or pushes.
