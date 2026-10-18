@@ -45,6 +45,12 @@ export const DEFAULT_EXPIRY_DAYS = 90
 const EXPIRING_SOON_DAYS = 7
 const DAY_MS = 86_400_000
 
+/**
+ * The pre-filled last day. The key works through the end of that day, so one day short of the
+ * nominal period keeps the default inside a 90-day OPERATOR_KEY_MAX_DAYS ceiling.
+ */
+const defaultExpiry = (): string => dayInputValue(DEFAULT_EXPIRY_DAYS - 1)
+
 /** A `date` input value (YYYY-MM-DD, local) for `days` from now. */
 const dayInputValue = (days: number): string => {
   const d = new Date(Date.now() + days * DAY_MS)
@@ -81,7 +87,7 @@ export function OperatorKeysPage({ api }: { api: AdminApi }) {
   const [message, setMessage] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
-  const [expires, setExpires] = useState(() => dayInputValue(DEFAULT_EXPIRY_DAYS))
+  const [expires, setExpires] = useState('')
   const [never, setNever] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -108,11 +114,17 @@ export function OperatorKeysPage({ api }: { api: AdminApi }) {
     void load()
   }, [load])
 
+  function openForm() {
+    setExpires(defaultExpiry()) // fresh each time, so a page left open past midnight is not stale
+    setNever(false)
+    setCreating(true)
+  }
+
   function closeForm() {
     if (busy) return // a request is in flight: its answer must land in an open dialog
     setCreating(false)
     setName('')
-    setExpires(dayInputValue(DEFAULT_EXPIRY_DAYS))
+    setExpires('')
     setNever(false)
     setFormError(null)
   }
@@ -131,7 +143,7 @@ export function OperatorKeysPage({ api }: { api: AdminApi }) {
       setBusy(false)
       setCreating(false)
       setName('')
-      setExpires(dayInputValue(DEFAULT_EXPIRY_DAYS))
+      setExpires('')
       setNever(false)
       setSecret(created.plaintext)
       setCopied(false)
@@ -170,7 +182,7 @@ export function OperatorKeysPage({ api }: { api: AdminApi }) {
             <RefreshRoundedIcon />
           </IconButton>
         </Tooltip>
-        <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setCreating(true)}>
+        <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openForm}>
           New operator key
         </Button>
       </PageHeader>
@@ -269,7 +281,7 @@ export function OperatorKeysPage({ api }: { api: AdminApi }) {
                 onChange={(e) => setExpires(e.target.value)}
                 disabled={never}
                 required={!never}
-                helperText={`Last day it works. Defaults to ${DEFAULT_EXPIRY_DAYS} days from today.`}
+                helperText={`Last day it works. Defaults to about ${DEFAULT_EXPIRY_DAYS} days from today.`}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
               <FormControlLabel

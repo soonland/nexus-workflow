@@ -105,8 +105,22 @@ describe('OperatorKeysPage', () => {
       await waitFor(() => expect(api.createOperatorKey).toHaveBeenCalled())
       const sent = api.createOperatorKey.mock.calls[0]![0] as { name: string; expiresAt?: string }
       const days = (new Date(sent.expiresAt!).getTime() - Date.now()) / 86_400_000
-      expect(days).toBeGreaterThan(89)
-      expect(days).toBeLessThan(91)
+      expect(days).toBeGreaterThan(88)
+      expect(days).toBeLessThanOrEqual(90) // never beyond a 90-day OPERATOR_KEY_MAX_DAYS ceiling
+    })
+
+    it('computes the default again each time the dialog opens', async () => {
+      const { user } = setup([])
+      await open(user)
+      const first = (screen.getByLabelText(/^expires/i) as HTMLInputElement).value
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date(Date.now() + 3 * 86_400_000))
+      await open(user)
+      const second = (screen.getByLabelText(/^expires/i) as HTMLInputElement).value
+
+      expect(new Date(second).getTime() - new Date(first).getTime()).toBe(3 * 86_400_000)
     })
 
     it('"Never expires" is a deliberate, warned choice and sends no expiry', async () => {
