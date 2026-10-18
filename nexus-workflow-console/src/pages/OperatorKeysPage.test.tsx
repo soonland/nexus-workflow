@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../api/client'
 import type { OperatorKey } from '../api/types'
@@ -34,6 +34,17 @@ describe('OperatorKeysPage', () => {
     expect(within(row('ci')).getByText('active')).toBeInTheDocument()
     expect(within(row('old ci')).getByText('expired')).toBeInTheDocument()
     expect(within(row('lost laptop')).getByText('revoked')).toBeInTheDocument()
+  })
+
+  it('flags a key that expires within a week', async () => {
+    const soon = makeOperatorKey({ id: 's', name: 'soon', expiresAt: new Date(Date.now() + 3 * 86_400_000).toISOString() })
+    setup([soon, expiring])
+
+    const row = (name: string) => screen.getByText(name).closest('tr')!
+    await screen.findByText('soon')
+    expect(within(row('soon')).getByText('expires soon')).toBeInTheDocument()
+    expect(within(row('soon')).getByRole('button', { name: /revoke/i })).toBeInTheDocument()
+    expect(within(row('ci')).getByText('active')).toBeInTheDocument()
   })
 
   it('offers Revoke on keys that still work, not on expired or revoked ones', async () => {
@@ -84,6 +95,44 @@ describe('OperatorKeysPage', () => {
       await user.click(await screen.findByRole('button', { name: /new operator key/i }))
     }
 
+    it('gives the key an expiry by default: 90 days from today, end of that day', async () => {
+      const { api, user } = setup([])
+      await open(user)
+
+      await user.type(screen.getByLabelText(/^name/i), 'default expiry')
+      await user.click(screen.getByRole('button', { name: 'Create key' }))
+
+      await waitFor(() => expect(api.createOperatorKey).toHaveBeenCalled())
+      const sent = api.createOperatorKey.mock.calls[0]![0] as { name: string; expiresAt?: string }
+      const days = (new Date(sent.expiresAt!).getTime() - Date.now()) / 86_400_000
+      expect(days).toBeGreaterThan(89)
+      expect(days).toBeLessThan(91)
+    })
+
+    it('"Never expires" is a deliberate, warned choice and sends no expiry', async () => {
+      const { api, user } = setup([])
+      await open(user)
+
+      await user.type(screen.getByLabelText(/^name/i), 'forever')
+      await user.click(screen.getByLabelText('Never expires'))
+      expect(screen.getByText(/stays valid until someone revokes it/i)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Create key' }))
+
+      await waitFor(() => expect(api.createOperatorKey).toHaveBeenCalledWith({ name: 'forever' }))
+    })
+
+    it('refuses to create a key with the date cleared unless never is ticked', async () => {
+      const { api, user } = setup([])
+      await open(user)
+
+      await user.type(screen.getByLabelText(/^name/i), 'no date')
+      await user.clear(screen.getByLabelText(/^expires/i))
+      await user.click(screen.getByRole('button', { name: 'Create key' }))
+
+      expect(await screen.findByText(/Never expires/)).toBeInTheDocument()
+      expect(api.createOperatorKey).not.toHaveBeenCalled()
+    })
+
     it('creates a key with a name and shows the secret once, with a copy button', async () => {
       const { api, user } = setup([])
       await open(user)
@@ -91,7 +140,8 @@ describe('OperatorKeysPage', () => {
       await user.type(screen.getByLabelText(/^name/i), '  deploy script ')
       await user.click(screen.getByRole('button', { name: 'Create key' }))
 
-      await waitFor(() => expect(api.createOperatorKey).toHaveBeenCalledWith({ name: 'deploy script' }))
+      await waitFor(() => expect(api.createOperatorKey).toHaveBeenCalled())
+      expect(api.createOperatorKey.mock.calls[0]![0]).toMatchObject({ name: 'deploy script' })
       expect(await screen.findByTestId('new-operator-key')).toHaveTextContent('nxop_secret')
       expect(screen.getByText(/only time the key is shown/i)).toBeInTheDocument()
       await waitFor(() => expect(api.listOperatorKeys).toHaveBeenCalledTimes(2)) // the list is reloaded
@@ -102,7 +152,7 @@ describe('OperatorKeysPage', () => {
       await open(user)
 
       await user.type(screen.getByLabelText(/^name/i), 'temp')
-      await user.type(screen.getByLabelText(/expires/i), '2099-06-30')
+      fireEvent.change(screen.getByLabelText(/^expires/i), { target: { value: '2099-06-30' } })
       await user.click(screen.getByRole('button', { name: 'Create key' }))
 
       await waitFor(() => expect(api.createOperatorKey).toHaveBeenCalled())

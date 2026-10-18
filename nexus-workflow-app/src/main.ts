@@ -192,6 +192,7 @@ app.route('/users', createUsersRouter({
 app.route('/operator-keys', createOperatorKeysRouter({
   keys: operatorKeys,
   audit: auditLog,
+  ...(config.operatorKeyMaxDays !== undefined ? { maxDays: config.operatorKeyMaxDays } : {}),
   guard: createOperatorKeyAdminGuard({
     adminApiKey: config.adminApiKey,
     sessions: sessionStore,
