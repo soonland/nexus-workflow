@@ -9,15 +9,18 @@ export interface OperatorKeysRouterDeps {
   /** createOperatorKeyAdminGuard: operators and the admin key, not operator keys. Sets the principal. */
   guard: MiddlewareHandler<{ Variables: AppVariables }>
   audit?: AuditLog
+  /** OPERATOR_KEY_MAX_DAYS: when set, a key must expire within this many days ("never" is refused). */
+  maxDays?: number
 }
 
 const invalid = (message: string) => ({ error: 'VALIDATION_ERROR', message })
 const MAX_NAME = 255
+const DAY_MS = 86_400_000
 
 /**
  * /operator-keys: named, revocable credentials for programs that administer the platform.
  *  - GET /               every key (revoked and expired ones too), never a secret
- *  - POST /  {name, expiresAt?}   creates one; the plaintext is in this answer only
+ *  - POST /  {name, expiresAt?}   creates one (expiresAt is required when OPERATOR_KEY_MAX_DAYS is set); the plaintext is in this answer only
  *  - DELETE /:id         revokes
  */
 export function createOperatorKeysRouter(deps: OperatorKeysRouterDeps): Hono<{ Variables: AppVariables }> {
@@ -49,6 +52,11 @@ export function createOperatorKeysRouter(deps: OperatorKeysRouterDeps): Hono<{ V
       expires = typeof expiresAt === 'string' ? new Date(expiresAt) : new Date(Number.NaN)
       if (Number.isNaN(expires.getTime())) return c.json(invalid('"expiresAt" must be a date, e.g. 2027-01-31T00:00:00Z'), 400)
       if (expires.getTime() <= Date.now()) return c.json(invalid('"expiresAt" must be in the future'), 400)
+    }
+    if (deps.maxDays !== undefined) {
+      const limit = Date.now() + deps.maxDays * DAY_MS
+      if (expires === null) return c.json(invalid(`"expiresAt" is required: operator keys must expire within ${deps.maxDays} days`), 400)
+      if (expires.getTime() > limit) return c.json(invalid(`"expiresAt" must be within ${deps.maxDays} days from now`), 400)
     }
 
     const principal = c.get('principal')

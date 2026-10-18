@@ -161,6 +161,29 @@ describe('operator keys (Postgres, real guards)', () => {
       }
     })
 
+    it('with a maximum lifetime configured, refuses a key that never expires or expires too far out', async () => {
+      const limited = new Hono<{ Variables: AppVariables }>()
+      limited.route('/operator-keys', createOperatorKeysRouter({ keys: store, maxDays: 30, guard: createOperatorKeyAdminGuard({ adminApiKey: ADMIN_KEY, sessions, users, operatorKeys: store }) }))
+      const post = async (body: Record<string, unknown>) => {
+        const res = await limited.fetch(
+          new Request('http://localhost/operator-keys', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Nexus-Console': '1', Origin: 'http://localhost', Cookie: `nexus_session=${token['operator']}` },
+            body: JSON.stringify({ name: `${prefix} limited`, ...body }),
+          }),
+        )
+        return { status: res.status, body: (await res.json()) as Record<string, any> }
+      }
+      const inDays = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString()
+
+      expect((await post({})).status).toBe(400)
+      expect((await post({ expiresAt: null })).status).toBe(400)
+      const tooFar = await post({ expiresAt: inDays(31) })
+      expect(tooFar.status).toBe(400)
+      expect(tooFar.body['message']).toMatch(/30 days/)
+      expect((await post({ expiresAt: inDays(29) })).status).toBe(201)
+    })
+
     it('revokes a key, and a second revoke is a 404', async () => {
       const { key } = await create('to revoke')
 

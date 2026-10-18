@@ -17,6 +17,12 @@ function parseTrustedProxies(value: string | undefined): number {
   return /^\d+$/.test(value) ? Number(value) : Number.NaN
 }
 
+/** OPERATOR_KEY_MAX_DAYS: undefined when unset (no ceiling), NaN when it is not a positive whole number. */
+function parseMaxDays(value: string | undefined): number | undefined {
+  if (value === undefined || value.trim() === '') return undefined
+  return /^\d+$/.test(value.trim()) && Number(value) > 0 ? Number(value) : Number.NaN
+}
+
 /** Shortest ADMIN_API_KEY accepted in production. */
 export const ADMIN_API_KEY_MIN_LENGTH = 16
 
@@ -34,6 +40,11 @@ export const config = {
    * sign in; the normal way in is a person or a named, revocable operator key.
    */
   adminApiKey: process.env['ADMIN_API_KEY'] ?? '',
+  /**
+   * Longest life, in days, an operator key may be given. Unset: no ceiling. Set: a key must have an
+   * expiry no further away than this, so "never expires" is refused.
+   */
+  operatorKeyMaxDays: parseMaxDays(process.env['OPERATOR_KEY_MAX_DAYS']),
   /** HMAC-SHA256 secret used to hash API keys before storing/comparing. Must be set in production. */
   apiKeyHmacSecret: process.env['API_KEY_HMAC_SECRET'] ?? '',
   /** Directory with the built operator console, served at /console when it exists. */
@@ -96,6 +107,11 @@ export function assertConfigValid(cfg: typeof config) {
     console.error(
       `[config] PUBLIC_ORIGIN must be an http(s) origin such as https://workflow.example.com, got "${cfg.publicOriginInvalid}". Exiting.`,
     )
+    process.exit(1)
+  }
+
+  if (cfg.operatorKeyMaxDays !== undefined && !Number.isFinite(cfg.operatorKeyMaxDays)) {
+    console.error('[config] OPERATOR_KEY_MAX_DAYS must be a positive whole number of days. Exiting.')
     process.exit(1)
   }
 

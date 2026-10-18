@@ -72,3 +72,27 @@ describe('assertConfigValid: ADMIN_API_KEY', () => {
     expect(warn.mock.calls.flat().join(' ')).not.toContain('set in production')
   })
 })
+
+describe('assertConfigValid: OPERATOR_KEY_MAX_DAYS', () => {
+  const base = { ...config, publicOriginInvalid: undefined, trustedProxies: 0, apiKeyHmacSecret: 'secret' }
+  let exit: ReturnType<typeof vi.spyOn>
+  let error: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    exit = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never)
+    error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('accepts it unset or a positive number', () => {
+    assertConfigValid({ ...base, operatorKeyMaxDays: undefined })
+    assertConfigValid({ ...base, operatorKeyMaxDays: 90 })
+    expect(exit).not.toHaveBeenCalled()
+  })
+
+  it('exits with a message that names the setting when it is not a positive whole number', () => {
+    assertConfigValid({ ...base, operatorKeyMaxDays: Number.NaN })
+    expect(exit).toHaveBeenCalledWith(1)
+    expect(error.mock.calls.flat().join(' ')).toContain('OPERATOR_KEY_MAX_DAYS')
+  })
+})

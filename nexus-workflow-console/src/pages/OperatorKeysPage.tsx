@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   CircularProgress,
   Dialog,
@@ -10,6 +11,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  FormControlLabel,
   IconButton,
   Paper,
   Snackbar,
@@ -35,10 +37,32 @@ import { formatDate } from '../format'
 import { ListFooter, ListToolbar, SortHeader } from '../list/ListControls'
 import { useListView } from '../list/useListView'
 
-type KeyState = 'active' | 'expired' | 'revoked'
+type KeyState = 'active' | 'expiring' | 'expired' | 'revoked'
 
-const stateOf = (key: OperatorKey, now = Date.now()): KeyState =>
-  key.revokedAt ? 'revoked' : key.expiresAt && new Date(key.expiresAt).getTime() <= now ? 'expired' : 'active'
+/** How long a new key lives unless the person chooses otherwise. */
+export const DEFAULT_EXPIRY_DAYS = 90
+/** A key that expires within this many days is flagged in the list. */
+const EXPIRING_SOON_DAYS = 7
+const DAY_MS = 86_400_000
+
+/**
+ * The pre-filled last day. The key works through the end of that day, so one day short of the
+ * nominal period keeps the default inside a 90-day OPERATOR_KEY_MAX_DAYS ceiling.
+ */
+const defaultExpiry = (): string => dayInputValue(DEFAULT_EXPIRY_DAYS - 1)
+
+/** A `date` input value (YYYY-MM-DD, local) for `days` from now. */
+const dayInputValue = (days: number): string => {
+  const d = new Date(Date.now() + days * DAY_MS)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const stateOf = (key: OperatorKey, now = Date.now()): KeyState => {
+  if (key.revokedAt) return 'revoked'
+  if (!key.expiresAt) return 'active'
+  const left = new Date(key.expiresAt).getTime() - now
+  return left <= 0 ? 'expired' : left <= EXPIRING_SOON_DAYS * DAY_MS ? 'expiring' : 'active'
+}
 
 // What the search looks in, and what each sortable column sorts by (module level: stable between renders)
 const keyText = (k: OperatorKey) => `${k.name} ${stateOf(k)}`
@@ -64,6 +88,7 @@ export function OperatorKeysPage({ api }: { api: AdminApi }) {
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [expires, setExpires] = useState('')
+  const [never, setNever] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [secret, setSecret] = useState<string | null>(null)
@@ -89,19 +114,26 @@ export function OperatorKeysPage({ api }: { api: AdminApi }) {
     void load()
   }, [load])
 
+  function openForm() {
+    setExpires(defaultExpiry()) // fresh each time, so a page left open past midnight is not stale
+    setNever(false)
+    setCreating(true)
+  }
+
   function closeForm() {
     if (busy) return // a request is in flight: its answer must land in an open dialog
     setCreating(false)
     setName('')
     setExpires('')
+    setNever(false)
     setFormError(null)
   }
 
   async function create(event: FormEvent) {
     event.preventDefault()
-    const expiresAt = endOfDay(expires)
-    if (expires && !expiresAt) {
-      setFormError('That is not a date.')
+    const expiresAt = never ? undefined : endOfDay(expires)
+    if (!never && !expiresAt) {
+      setFormError('Pick the last day the key works, or tick “Never expires”.')
       return
     }
     setBusy(true)
@@ -112,6 +144,7 @@ export function OperatorKeysPage({ api }: { api: AdminApi }) {
       setCreating(false)
       setName('')
       setExpires('')
+      setNever(false)
       setSecret(created.plaintext)
       setCopied(false)
       await load()
@@ -149,7 +182,7 @@ export function OperatorKeysPage({ api }: { api: AdminApi }) {
             <RefreshRoundedIcon />
           </IconButton>
         </Tooltip>
-        <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setCreating(true)}>
+        <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openForm}>
           New operator key
         </Button>
       </PageHeader>
@@ -195,17 +228,22 @@ export function OperatorKeysPage({ api }: { api: AdminApi }) {
                 {view.rows.map((key) => {
                   const state = stateOf(key)
                   return (
-                    <TableRow key={key.id} hover sx={state === 'active' ? undefined : { opacity: 0.65 }}>
+                    <TableRow key={key.id} hover sx={state === 'active' || state === 'expiring' ? undefined : { opacity: 0.65 }}>
                       <TableCell sx={{ fontWeight: 600 }}>{key.name}</TableCell>
                       <TableCell>
-                        <Chip size="small" label={state} color={state === 'active' ? 'success' : 'default'} variant={state === 'active' ? 'filled' : 'outlined'} />
+                        <Chip
+                          size="small"
+                          label={state === 'expiring' ? 'expires soon' : state}
+                          color={state === 'active' ? 'success' : state === 'expiring' ? 'warning' : 'default'}
+                          variant={state === 'active' || state === 'expiring' ? 'filled' : 'outlined'}
+                        />
                       </TableCell>
                       <TableCell>{key.expiresAt ? formatDate(key.expiresAt) : 'never'}</TableCell>
                       <TableCell>{formatDate(key.lastUsedAt)}</TableCell>
                       <TableCell>{formatDate(key.createdAt)}</TableCell>
                       <TableCell align="right">
                         {/* An expired key is already refused, so only a key that still works needs revoking */}
-                        {state === 'active' && (
+                        {(state === 'active' || state === 'expiring') && (
                           <Button size="small" color="error" onClick={() => setRevoking(key)} aria-label={`Revoke operator key ${key.name}`}>
                             Revoke
                           </Button>
@@ -237,13 +275,25 @@ export function OperatorKeysPage({ api }: { api: AdminApi }) {
                 slotProps={{ htmlInput: { maxLength: 255 } }}
               />
               <TextField
-                label="Expires (optional)"
+                label="Expires"
                 type="date"
                 value={expires}
                 onChange={(e) => setExpires(e.target.value)}
-                helperText="Last day it works. Leave empty for a key that does not expire."
+                disabled={never}
+                required={!never}
+                helperText={`Last day it works. Defaults to about ${DEFAULT_EXPIRY_DAYS} days from today.`}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
+              <FormControlLabel
+                control={<Checkbox checked={never} onChange={(e) => setNever(e.target.checked)} />}
+                label="Never expires"
+              />
+              {never && (
+                <Alert severity="warning">
+                  A key that never expires stays valid until someone revokes it. It may end up in scripts, CI variables or shell
+                  history. Prefer an expiry, and rotate the key.
+                </Alert>
+              )}
             </Stack>
           </DialogContent>
           <DialogActions>
