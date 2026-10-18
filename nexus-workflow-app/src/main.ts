@@ -26,6 +26,7 @@ import { createForceRouter } from './http/force.js'
 import { createUsersRouter } from './http/users.js'
 import { mountConsole } from './http/console.js'
 import { createTenantsRouter } from './http/tenants.js'
+import { purgeHistorySnapshots } from './db/historyRetention.js'
 import { createAuthMiddleware, type AppVariables } from './http/middleware/auth.js'
 import { createKeyRoleMiddleware } from './http/middleware/keyRole.js'
 import { createOperatorGuard, createOperatorKeyAdminGuard, createPeopleAdminGuard } from './http/middleware/operator.js'
@@ -178,6 +179,34 @@ const purgeSessions = () =>
 void purgeSessions()
 const sessionPurgeTimer = setInterval(() => void purgeSessions(), 10 * MINUTE_MS)
 sessionPurgeTimer.unref()
+
+// Optional retention (HISTORY_SNAPSHOT_RETENTION_DAYS, off by default): drop the variable snapshots
+// from the step history of instances that finished long enough ago. Hourly, one tenant at a time.
+if (config.historySnapshotRetentionDays !== undefined) {
+  const retentionDays = config.historySnapshotRetentionDays
+  const purgeSnapshots = async () => {
+    try {
+      const tenants = await authSql<{ id: string }[]>`
+        SELECT t.id FROM public.tenants t
+        WHERE EXISTS (SELECT 1 FROM pg_namespace n WHERE n.nspname = 'tenant_' || t.id)
+      `
+      for (const { id } of tenants) {
+        if (schemaHealth.isBehind(id)) continue
+        try {
+          const n = await purgeHistorySnapshots(authSql, id, retentionDays)
+          if (n > 0) console.log(`[retention] removed variable snapshots from ${n} step(s) of tenant ${id}`)
+        } catch (err) {
+          console.error(`[retention] failed for tenant ${id}:`, err)
+        }
+      }
+    } catch (err) {
+      console.error('[retention] failed to list tenants:', err)
+    }
+  }
+  void purgeSnapshots()
+  const retentionTimer = setInterval(() => void purgeSnapshots(), 60 * MINUTE_MS)
+  retentionTimer.unref()
+}
 
 // People: operators administer everyone, tenant managers only their own tenants' people (UserAdmin
 // holds the rules). Same credentials as /tenants, but tenant managers are let in too.

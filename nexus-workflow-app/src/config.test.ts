@@ -96,3 +96,29 @@ describe('assertConfigValid: OPERATOR_KEY_MAX_DAYS', () => {
     expect(error.mock.calls.flat().join(' ')).toContain('OPERATOR_KEY_MAX_DAYS')
   })
 })
+
+describe('assertConfigValid: HISTORY_SNAPSHOT_RETENTION_DAYS', () => {
+  const base = { ...config, publicOriginInvalid: undefined, trustedProxies: 0, apiKeyHmacSecret: 'secret' }
+
+  beforeEach(() => {
+    vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it('is off by default and accepts a positive whole number of days', () => {
+    expect(config.historySnapshotRetentionDays).toBeUndefined()
+    assertConfigValid({ ...base, historySnapshotRetentionDays: undefined })
+    assertConfigValid({ ...base, historySnapshotRetentionDays: 30 })
+    expect(process.exit).not.toHaveBeenCalled()
+  })
+
+  it('exits, naming the setting, when it is not a positive whole number', () => {
+    assertConfigValid({ ...base, historySnapshotRetentionDays: Number.NaN })
+
+    expect(process.exit).toHaveBeenCalledWith(1)
+    expect(vi.mocked(console.error).mock.calls.flat().join(' ')).toContain('HISTORY_SNAPSHOT_RETENTION_DAYS')
+  })
+})
