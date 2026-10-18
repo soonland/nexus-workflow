@@ -17,8 +17,8 @@ const OPTIONS: Array<{ mode: Mode; label: string; icon: ReactNode }> = [
 export function ThemeMenu() {
   const { mode, setMode } = useColorScheme()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
-  if (!mode) return null
-  const current = OPTIONS.find((o) => o.mode === mode) ?? OPTIONS[0]!
+  const current = OPTIONS.find((o) => o.mode === mode)
+  if (!current) return null
 
   return (
     <>

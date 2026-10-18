@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { ThemeProvider } from '@mui/material'
+import { theme } from '../theme'
 import { AppShell, type Screen } from './AppShell'
 
 function setup(screens: Screen[] = ['definitions', 'instances', 'tenants', 'users'], overrides = {}) {
@@ -8,6 +10,7 @@ function setup(screens: Screen[] = ['definitions', 'instances', 'tenants', 'user
   const onSignOut = vi.fn()
   const onSelectTenant = vi.fn()
   render(
+    <ThemeProvider theme={theme}>
     <AppShell
       screens={screens}
       screen={screens[0]}
@@ -20,7 +23,8 @@ function setup(screens: Screen[] = ['definitions', 'instances', 'tenants', 'user
       {...overrides}
     >
       <p>page content</p>
-    </AppShell>,
+    </AppShell>
+    </ThemeProvider>,
   )
   return { onSelect, onSignOut, onSelectTenant, user: userEvent.setup() }
 }
@@ -28,6 +32,12 @@ function setup(screens: Screen[] = ['definitions', 'instances', 'tenants', 'user
 const nav = () => within(screen.getByRole('navigation', { name: 'Main' }))
 
 describe('AppShell', () => {
+  it('has a theme control in the top bar', () => {
+    setup()
+
+    expect(screen.getByRole('button', { name: 'Theme' })).toBeInTheDocument()
+  })
+
   it('groups the sidebar by area and shows only the screens it is given', () => {
     setup(['definitions', 'instances', 'users'])
 
