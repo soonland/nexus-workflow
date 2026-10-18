@@ -121,6 +121,7 @@ export function makeFakeTenantApi(): { [K in keyof TenantApi]: ReturnType<typeof
     forceStep: vi.fn().mockResolvedValue({ instanceStatus: 'active' }),
     getInstanceHistory: vi.fn().mockResolvedValue([]),
     getInstanceEvents: vi.fn().mockResolvedValue([]),
+    getDefinition: vi.fn().mockResolvedValue({ id: 'approval', version: 1, startEventId: 'start', elements: [] }),
     getDefinitionXml: vi.fn().mockResolvedValue('<definitions/>'),
     listTasks: vi.fn().mockResolvedValue({ items: [], total: 0, page: 0, pageSize: 20 }),
     claimTask: vi.fn().mockResolvedValue(undefined),

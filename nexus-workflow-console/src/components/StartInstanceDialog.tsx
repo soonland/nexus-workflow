@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from '@mui/material'
 import type { TenantApi } from '../api/client'
-import type { DefinitionSummary } from '../api/types'
+import type { DefinitionSummary, StartInput } from '../api/types'
 import { parseJsonObject } from '../jsonObject'
+import { buildStartTemplate, startInputsOf } from '../startTemplate'
 
 interface Props {
   /** The definition to start; the dialog is open while this is set. */
@@ -18,8 +19,31 @@ export function StartInstanceDialog({ definition, api, onClose, onStarted }: Pro
   const [variablesError, setVariablesError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [inputs, setInputs] = useState<StartInput[]>([])
+  const variablesTouched = useRef(false)
+
+  // The workflow may declare what it expects; a failed lookup just leaves the dialog as it was.
+  const definitionId = definition?.id
+  useEffect(() => {
+    if (!definitionId) return
+    let cancelled = false
+    api
+      .getDefinition(definitionId)
+      .then((detail) => {
+        if (cancelled) return
+        const declared = startInputsOf(detail)
+        setInputs(declared)
+        if (declared.length > 0 && !variablesTouched.current) setVariables(buildStartTemplate(declared))
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+      setInputs([])
+    }
+  }, [api, definitionId])
 
   function reset() {
+    variablesTouched.current = false
     setBusinessKey('')
     setVariables('')
     setVariablesError(null)
@@ -71,15 +95,25 @@ export function StartInstanceDialog({ definition, api, onClose, onStarted }: Pro
               label="Variables (JSON, optional)"
               value={variables}
               onChange={(e) => {
+                variablesTouched.current = true
                 setVariables(e.target.value)
                 setVariablesError(null)
               }}
               error={variablesError !== null}
-              helperText={variablesError ?? 'The workflow starts with these, e.g. {"amount": 120}'}
+              helperText={variablesError ?? (inputs.length === 0 ? 'The workflow starts with these, e.g. {"amount": 120}' : 'The workflow starts with these')}
               multiline
               minRows={3}
               slotProps={{ htmlInput: { spellCheck: false } }}
             />
+            {inputs.length > 0 && (
+              <Stack component="ul" spacing={0.5} sx={{ m: 0, pl: 2.5 }}>
+                {inputs.map((input) => (
+                  <Typography key={input.name} component="li" variant="body2" color="text.secondary">
+                    {input.hint ? `${input.name}: ${input.hint}` : input.name}
+                  </Typography>
+                ))}
+              </Stack>
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>
