@@ -1,5 +1,6 @@
-import { execute, RuntimeError, type StateStore, type EventBus, type Scheduler, type EngineState, type VariableScope, type GatewayJoinState, type StoreOperation, type ExecutionEvent, type ScheduledTimer, type IntermediateCatchEventElement, type BoundaryEventElement } from 'nexus-workflow-core'
+import { execute, RuntimeError, ConcurrentModificationError, type StateStore, type EventBus, type Scheduler, type EngineState, type VariableScope, type GatewayJoinState, type StoreOperation, type ExecutionEvent, type ScheduledTimer, type IntermediateCatchEventElement, type BoundaryEventElement } from 'nexus-workflow-core'
 import { historyOps } from '../historyOps.js'
+import { MAX_COMMIT_ATTEMPTS } from '../http/conflict.js'
 import { parseTimerExpression } from './parseTimerExpression.js'
 
 /**
@@ -94,35 +95,45 @@ export class TimerCoordinator {
   }
 
   private async onTimerFired(timer: ScheduledTimer): Promise<void> {
-    const state = await this.loadEngineState(timer.instanceId)
-    if (!state) return
+    // If someone else changes the instance between our load and our write, the write is refused;
+    // re-load and look again (the timer may no longer be due, or the instance may be gone).
+    for (let attempt = 1; ; attempt++) {
+      const state = await this.loadEngineState(timer.instanceId)
+      if (!state) return
 
-    // Idempotency: if the token is no longer waiting, skip
-    const token = state.tokens.find(t => t.id === timer.tokenId && t.status === 'waiting')
-    if (!token) return
+      // Idempotency: if the token is no longer waiting, skip
+      const token = state.tokens.find(t => t.id === timer.tokenId && t.status === 'waiting')
+      if (!token) return
 
-    const definition = await this.store.getDefinition(
-      state.instance.definitionId,
-      state.instance.definitionVersion,
-    )
-    if (!definition) return
+      const definition = await this.store.getDefinition(
+        state.instance.definitionId,
+        state.instance.definitionVersion,
+      )
+      if (!definition) return
 
-    let result
-    try {
-      result = execute(definition, { type: 'FireTimer', tokenId: timer.tokenId }, state)
-    } catch (e) {
-      if (e instanceof RuntimeError) return  // token no longer actionable
-      throw e
+      let result
+      try {
+        result = execute(definition, { type: 'FireTimer', tokenId: timer.tokenId }, state)
+      } catch (e) {
+        if (e instanceof RuntimeError) return  // token no longer actionable
+        throw e
+      }
+
+      try {
+        await this.store.executeTransaction(buildStoreOps(state, result.newState, result.events))
+      } catch (e) {
+        if (e instanceof ConcurrentModificationError && attempt < MAX_COMMIT_ATTEMPTS) continue
+        throw e
+      }
+      await this.eventBus.publish({
+        type: 'TimerFired',
+        instanceId: timer.instanceId,
+        tokenId: timer.tokenId,
+        timerId: timer.id,
+      })
+      await this.eventBus.publishMany(result.events)
+      return
     }
-
-    await this.store.executeTransaction(buildStoreOps(state, result.newState, result.events))
-    await this.eventBus.publish({
-      type: 'TimerFired',
-      instanceId: timer.instanceId,
-      tokenId: timer.tokenId,
-      timerId: timer.id,
-    })
-    await this.eventBus.publishMany(result.events)
   }
 
   private async loadEngineState(instanceId: string): Promise<EngineState | null> {

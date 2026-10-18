@@ -4,11 +4,13 @@ import { keyMayRunCommand } from '../auth/keyPermissions.js'
 import { loadEngineState, computeStoreOps, buildUserTaskCreationOps, normalizeVariables, unwrapVariables } from './engineHelpers.js'
 import { validationError, startInstanceBodySchema, listInstancesQuerySchema, instanceStatusSchema, commandBodySchema } from './validation.js'
 import type { AppVariables } from './middleware/auth.js'
+import { conflictAwareErrorHandler } from './conflict.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export function createInstancesRouter(storeFactory: (tenantId: string) => StateStore, eventBusFor: (tenantId: string) => EventBus): Hono<{ Variables: AppVariables }> {
   const app = new Hono<{ Variables: AppVariables }>()
+  app.onError(conflictAwareErrorHandler)
 
   // POST /definitions/:definitionId/instances — start a new instance
   app.post('/definitions/:definitionId/instances', async (c) => {

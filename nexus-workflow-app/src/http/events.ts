@@ -1,13 +1,15 @@
 import { Hono } from 'hono'
-import { execute, RuntimeError, type StateStore, type VariableValue, type EventBus } from 'nexus-workflow-core'
+import { execute, RuntimeError, ConcurrentModificationError, type StateStore, type VariableValue, type EventBus } from 'nexus-workflow-core'
 import { loadEngineState, computeStoreOps, buildUserTaskCreationOps } from './engineHelpers.js'
 import { validationError, deliverMessageBodySchema, broadcastSignalBodySchema } from './validation.js'
 import type { AppVariables } from './middleware/auth.js'
+import { conflictAwareErrorHandler, MAX_COMMIT_ATTEMPTS } from './conflict.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export function createEventsRouter(storeFactory: (tenantId: string) => StateStore, eventBusFor: (tenantId: string) => EventBus): Hono<{ Variables: AppVariables }> {
   const app = new Hono<{ Variables: AppVariables }>()
+  app.onError(conflictAwareErrorHandler)
 
   // POST /messages — deliver a message to the subscribed instance
   app.post('/messages', async (c) => {
@@ -87,35 +89,45 @@ export function createEventsRouter(storeFactory: (tenantId: string) => StateStor
     const results: Array<{ instanceId: string; events: string[] }> = []
 
     for (const sub of subscriptions) {
-      const state = await loadEngineState(store, sub.instanceId)
-      if (!state) continue
+      // A signal fans out to many instances, so one that changes under us must not fail the
+      // whole broadcast: re-load it and try again (its subscription may be gone by then).
+      for (let attempt = 1; attempt <= MAX_COMMIT_ATTEMPTS; attempt++) {
+        const state = await loadEngineState(store, sub.instanceId)
+        if (!state) break
 
-      const definition = await store.getDefinition(state.instance.definitionId, state.instance.definitionVersion)
-      if (!definition) continue
+        const definition = await store.getDefinition(state.instance.definitionId, state.instance.definitionVersion)
+        if (!definition) break
 
-      let result
-      try {
-        result = execute(
-          definition,
-          {
-            type: 'BroadcastSignal',
-            signalName,
-            ...(variables !== undefined ? { variables: variables as Record<string, VariableValue> } : {}),
-          },
-          state,
-        )
-      } catch {
-        continue
+        let result
+        try {
+          result = execute(
+            definition,
+            {
+              type: 'BroadcastSignal',
+              signalName,
+              ...(variables !== undefined ? { variables: variables as Record<string, VariableValue> } : {}),
+            },
+            state,
+          )
+        } catch {
+          break
+        }
+
+        const ops = [
+          ...computeStoreOps(false, state, result.newState, result.events),
+          ...buildUserTaskCreationOps(result.events, definition, result.newState),
+        ]
+        try {
+          await store.executeTransaction(ops)
+        } catch (e) {
+          if (e instanceof ConcurrentModificationError && attempt < MAX_COMMIT_ATTEMPTS) continue
+          throw e
+        }
+        await eventBusFor(c.get('tenantId')).publishMany(result.events)
+
+        results.push({ instanceId: sub.instanceId, events: result.events.map(ev => ev.type) })
+        break
       }
-
-      const ops = [
-        ...computeStoreOps(false, state, result.newState, result.events),
-        ...buildUserTaskCreationOps(result.events, definition, result.newState),
-      ]
-      await store.executeTransaction(ops)
-      await eventBusFor(c.get('tenantId')).publishMany(result.events)
-
-      results.push({ instanceId: sub.instanceId, events: result.events.map(ev => ev.type) })
     }
 
     return c.json({ delivered: results.length, results })

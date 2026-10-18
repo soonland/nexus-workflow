@@ -5,6 +5,7 @@ import { canUseTenant } from '../auth/principal.js'
 import type { AuditLog } from '../db/AuditLog.js'
 import { buildUserTaskCreationOps, computeStoreOps, loadEngineState, normalizeVariables } from './engineHelpers.js'
 import type { AppVariables } from './middleware/auth.js'
+import { conflictAwareErrorHandler } from './conflict.js'
 
 const ACTIONS: readonly ForcedAction[] = ['completeServiceTask', 'failServiceTask', 'fireTimer', 'completeUserTask']
 const MAX_REASON = 500
@@ -40,6 +41,7 @@ export function createForceRouter(
   audit?: AuditLog,
 ): Hono<{ Variables: AppVariables }> {
   const app = new Hono<{ Variables: AppVariables }>()
+  app.onError(conflictAwareErrorHandler)
 
   app.post('/instances/:id/force', async (c) => {
     const principal = c.get('principal')

@@ -3,6 +3,7 @@ import { buildDefinition, buildSimpleSequenceDefinition } from '../../tests/fixt
 import { buildInstance } from '../../tests/fixtures/builders/ProcessInstanceBuilder.js'
 import { buildToken } from '../../tests/fixtures/builders/TokenBuilder.js'
 import type { VariableScope, EventSubscription, UserTaskRecord, HistoryEntry, ScheduledTimer } from '../model/types.js'
+import { ConcurrentModificationError } from '../model/errors.js'
 import { InMemoryStateStore } from './InMemoryStateStore.js'
 
 describe('InMemoryStateStore', () => {
@@ -65,7 +66,7 @@ describe('InMemoryStateStore', () => {
     it('creates and retrieves an instance', async () => {
       const inst = buildInstance()
       await store.createInstance(inst)
-      expect(await store.getInstance(inst.id)).toEqual(inst)
+      expect(await store.getInstance(inst.id)).toEqual({ ...inst, version: 1 })
     })
 
     it('overwrites on update', async () => {
@@ -272,7 +273,7 @@ describe('InMemoryStateStore', () => {
         { op: 'saveTokens', tokens: [token] },
       ])
 
-      expect(await store.getInstance(inst.id)).toEqual(inst)
+      expect(await store.getInstance(inst.id)).toEqual({ ...inst, version: 1 })
       expect(await store.getActiveTokens(inst.id)).toHaveLength(1)
     })
   })
@@ -773,6 +774,22 @@ describe('InMemoryStateStore', () => {
       store.reset()
       expect(await store.getInstance('inst-1')).toBeNull()
       expect(await store.getActiveTokens('inst-1')).toEqual([])
+    })
+  })
+
+  describe('Optimistic concurrency', () => {
+    it('rejects an update made from a stale version and keeps the first write', async () => {
+      await store.createInstance(buildInstance({ id: 'inst-1' }))
+      const a = (await store.getInstance('inst-1'))!
+      const b = (await store.getInstance('inst-1'))!
+      expect(a.version).toBe(1)
+
+      await store.updateInstance({ ...a, status: 'suspended' })
+      await expect(store.updateInstance({ ...b, status: 'terminated' })).rejects.toBeInstanceOf(ConcurrentModificationError)
+
+      const now = (await store.getInstance('inst-1'))!
+      expect(now.status).toBe('suspended')
+      expect(now.version).toBe(2)
     })
   })
 })

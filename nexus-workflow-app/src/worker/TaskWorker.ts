@@ -1,4 +1,5 @@
-import { execute, RuntimeError ,type 
+import { execute, RuntimeError, ConcurrentModificationError, type 
+  EngineCommand,type 
   StateStore,type 
   EventBus,type 
   ServiceTaskHandler,type 
@@ -11,6 +12,7 @@ import { execute, RuntimeError ,type
   ExecutionEvent,
 } from 'nexus-workflow-core'
 import { historyOps } from '../historyOps.js'
+import { MAX_COMMIT_ATTEMPTS } from '../http/conflict.js'
 
 // ─── Options ──────────────────────────────────────────────────────────────────
 
@@ -167,26 +169,11 @@ export class TaskWorker {
     state: EngineState,
     outputVariables?: Record<string, VariableValue>,
   ): Promise<void> {
-    const definition = await this.store.getDefinition(
-      state.instance.definitionId,
-      state.instance.definitionVersion,
-    )
-    if (!definition) return
-
-    let result
-    try {
-      result = execute(
-        definition,
-        { type: 'CompleteServiceTask', tokenId, ...(outputVariables ? { outputVariables } : {}) },
-        state,
-      )
-    } catch (e) {
-      if (e instanceof RuntimeError) return  // token no longer actionable
-      throw e
-    }
-
-    await this.store.executeTransaction(buildStoreOps(state, result.newState, result.events))
-    await this.eventBus.publishMany(result.events)
+    await this.runCommand(instanceId, state, {
+      type: 'CompleteServiceTask',
+      tokenId,
+      ...(outputVariables ? { outputVariables } : {}),
+    })
   }
 
   private async fail(
@@ -195,22 +182,44 @@ export class TaskWorker {
     state: EngineState,
     error: { code: string; message: string },
   ): Promise<void> {
-    const definition = await this.store.getDefinition(
-      state.instance.definitionId,
-      state.instance.definitionVersion,
-    )
-    if (!definition) return
+    await this.runCommand(instanceId, state, { type: 'FailServiceTask', tokenId, error })
+  }
 
-    let result
-    try {
-      result = execute(definition, { type: 'FailServiceTask', tokenId, error }, state)
-    } catch (e) {
-      if (e instanceof RuntimeError) return
-      throw e
+  /**
+   * Runs one engine command against `state` and persists it. The state may be old (the handler can
+   * run for a while), so if someone changed the instance in the meantime the write is refused;
+   * the instance is then re-loaded and the command run again against what it is now. If the token
+   * is no longer actionable by then (the instance was cancelled, say) the command is dropped.
+   */
+  private async runCommand(instanceId: string, firstState: EngineState, command: EngineCommand): Promise<void> {
+    let state = firstState
+    for (let attempt = 1; ; attempt++) {
+      const definition = await this.store.getDefinition(
+        state.instance.definitionId,
+        state.instance.definitionVersion,
+      )
+      if (!definition) return
+
+      let result
+      try {
+        result = execute(definition, command, state)
+      } catch (e) {
+        if (e instanceof RuntimeError) return  // token no longer actionable
+        throw e
+      }
+
+      try {
+        await this.store.executeTransaction(buildStoreOps(state, result.newState, result.events))
+      } catch (e) {
+        if (!(e instanceof ConcurrentModificationError) || attempt >= MAX_COMMIT_ATTEMPTS) throw e
+        const fresh = await this.loadEngineState(instanceId)
+        if (!fresh) return
+        state = fresh
+        continue
+      }
+      await this.eventBus.publishMany(result.events)
+      return
     }
-
-    await this.store.executeTransaction(buildStoreOps(state, result.newState, result.events))
-    await this.eventBus.publishMany(result.events)
   }
 
   private async loadEngineState(instanceId: string): Promise<EngineState | null> {

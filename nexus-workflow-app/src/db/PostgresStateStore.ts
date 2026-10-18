@@ -1,23 +1,24 @@
 import postgres from 'postgres'
-import type {
-  StateStore,
-  InstanceQuery,
-  UserTaskQuery,
-  SubscriptionFilter,
-  PagedResult,
-  ProcessDefinitionSummary,
-  ProcessInstanceSummary,
-  StoreOperation,
-  ProcessDefinition,
-  ProcessInstance,
-  Token,
-  VariableScope,
-  UserTaskRecord,
-  EventSubscription,
-  GatewayJoinState,
-  HistoryEntry,
-  ScheduledTimer,
-  CompensationRecord,
+import {
+  ConcurrentModificationError,
+  type StateStore,
+  type InstanceQuery,
+  type UserTaskQuery,
+  type SubscriptionFilter,
+  type PagedResult,
+  type ProcessDefinitionSummary,
+  type ProcessInstanceSummary,
+  type StoreOperation,
+  type ProcessDefinition,
+  type ProcessInstance,
+  type Token,
+  type VariableScope,
+  type UserTaskRecord,
+  type EventSubscription,
+  type GatewayJoinState,
+  type HistoryEntry,
+  type ScheduledTimer,
+  type CompensationRecord,
 } from 'nexus-workflow-core'
 
 // ─── Internal SQL alias ───────────────────────────────────────────────────────
@@ -59,6 +60,11 @@ function reviveDefinition(raw: RawProcessDefinition): ProcessDefinition {
 type RawProcessInstance = Omit<ProcessInstance, 'startedAt' | 'completedAt'> & {
   startedAt: string
   completedAt?: string | null
+}
+
+function withoutVersion(instance: ProcessInstance): Omit<ProcessInstance, 'version'> {
+  const { version: _version, ...rest } = instance
+  return rest
 }
 
 function reviveInstance(raw: RawProcessInstance): ProcessInstance {
@@ -340,7 +346,7 @@ export class PostgresStateStore implements StateStore {
       business_key: instance.businessKey ?? null,
       started_at: instance.startedAt,
       completed_at: instance.completedAt ?? null,
-      data: sql.json(instance as unknown as postgres.JSONValue),
+      data: sql.json(withoutVersion(instance) as unknown as postgres.JSONValue),
     }
     await sql`INSERT INTO instances ${sql(row)}`
   }
@@ -349,25 +355,39 @@ export class PostgresStateStore implements StateStore {
     await this.updateInstanceWith(this.sql, instance)
   }
 
+  /**
+   * Optimistic concurrency: an instance read through getInstance carries its `version`, and the
+   * update only applies while the row is still at that version (then bumps it). If someone else
+   * wrote in between, nothing is written and ConcurrentModificationError is thrown. An instance
+   * without a version (not read from the store) is written unconditionally.
+   */
   private async updateInstanceWith(db: AnySql, instance: ProcessInstance): Promise<void> {
     const sql = db as postgres.Sql
-    await sql`
+    const expected = instance.version ?? null
+    const rows = await sql`
       UPDATE instances
       SET status          = ${instance.status},
           correlation_key = ${instance.correlationKey ?? null},
           business_key    = ${instance.businessKey ?? null},
           completed_at    = ${instance.completedAt ?? null},
-          data            = ${sql.json(instance as unknown as postgres.JSONValue)}
+          data            = ${sql.json(withoutVersion(instance) as unknown as postgres.JSONValue)},
+          version         = version + 1
       WHERE id = ${instance.id}
+        AND (${expected}::int IS NULL OR version = ${expected}::int)
+      RETURNING version
     `
+    if (rows.length === 0) {
+      const exists = await sql`SELECT 1 FROM instances WHERE id = ${instance.id}`
+      if (exists.length > 0) throw new ConcurrentModificationError(instance.id)
+    }
   }
 
   async getInstance(id: string): Promise<ProcessInstance | null> {
-    type Row = { data: RawProcessInstance }
-    const rows = await this.sql<Row[]>`SELECT data FROM instances WHERE id = ${id}`
+    type Row = { data: RawProcessInstance; version: number }
+    const rows = await this.sql<Row[]>`SELECT data, version FROM instances WHERE id = ${id}`
     if (rows.length === 0) return null
     const row = rows[0] as Row
-    return reviveInstance(row.data)
+    return { ...reviveInstance(row.data), version: row.version }
   }
 
   async findInstances(query: InstanceQuery): Promise<PagedResult<ProcessInstanceSummary>> {

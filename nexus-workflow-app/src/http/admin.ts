@@ -2,11 +2,13 @@ import { Hono } from 'hono'
 import { execute, RuntimeError, type StateStore, type EventBus } from 'nexus-workflow-core'
 import { loadEngineState, computeStoreOps, buildUserTaskCreationOps } from './engineHelpers.js'
 import type { AppVariables } from './middleware/auth.js'
+import { conflictAwareErrorHandler } from './conflict.js'
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export function createAdminRouter(storeFactory: (tenantId: string) => StateStore, eventBusFor: (tenantId: string) => EventBus): Hono<{ Variables: AppVariables }> {
   const app = new Hono<{ Variables: AppVariables }>()
+  app.onError(conflictAwareErrorHandler)
 
   // POST /instances/:id/suspend — suspend an active instance
   app.post('/instances/:id/suspend', async (c) => {

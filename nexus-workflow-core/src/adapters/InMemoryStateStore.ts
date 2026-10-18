@@ -1,3 +1,4 @@
+import { ConcurrentModificationError } from '../model/errors.js'
 import type {
   ProcessDefinition,
   ProcessInstance,
@@ -80,15 +81,20 @@ export class InMemoryStateStore implements StateStore {
   // ─── Instances ───────────────────────────────────────────────────────────────
 
   async createInstance(instance: ProcessInstance): Promise<void> {
-    this.instances.set(instance.id, { ...instance })
+    this.instances.set(instance.id, { ...instance, version: 1 })
   }
 
   async updateInstance(instance: ProcessInstance): Promise<void> {
-    this.instances.set(instance.id, { ...instance })
+    const current = this.instances.get(instance.id)
+    if (instance.version !== undefined && current && (current.version ?? 1) !== instance.version) {
+      throw new ConcurrentModificationError(instance.id)
+    }
+    this.instances.set(instance.id, { ...instance, version: (current?.version ?? 0) + 1 })
   }
 
   async getInstance(id: string): Promise<ProcessInstance | null> {
-    return this.instances.get(id) ?? null
+    const inst = this.instances.get(id)
+    return inst ? { ...inst } : null
   }
 
   async findInstances(query: InstanceQuery): Promise<PagedResult<ProcessInstanceSummary>> {

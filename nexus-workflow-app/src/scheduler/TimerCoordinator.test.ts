@@ -499,6 +499,32 @@ describe('TimerCoordinator', () => {
       expect(inMemoryScheduler.getAll()).toHaveLength(0)
     })
   })
+
+  // ─── Concurrent writers ────────────────────────────────────────────────────
+
+  describe('when someone else changes the instance as the timer fires', () => {
+    it('re-loads the instance and still fires the timer', async () => {
+      coordinator.start()
+      await seedDefinition(store, INTERMEDIATE_TIMER_BPMN)
+      const { instanceId } = await startInstance(store, eventBus, 'timer-proc')
+
+      const realCommit = store.executeTransaction.bind(store)
+      let rivalPending = true
+      store.executeTransaction = async (ops) => {
+        if (rivalPending) {
+          rivalPending = false
+          const current = (await store.getInstance(instanceId))!
+          await store.updateInstance({ ...current })
+        }
+        return realCommit(ops)
+      }
+
+      vi.advanceTimersByTime(ADVANCE_PAST_5M)
+      await inMemoryScheduler.tickDue()
+
+      expect((await store.getInstance(instanceId))!.status).toBe('completed')
+    })
+  })
 })
 
 // ─── Helper: load engine state from InMemoryStateStore ─────────────────────

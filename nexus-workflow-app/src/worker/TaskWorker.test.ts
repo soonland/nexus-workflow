@@ -562,4 +562,56 @@ describe('TaskWorker', () => {
       expect(handler.calls).toHaveLength(1)
     })
   })
+
+  // ─── Concurrent writers ────────────────────────────────────────────────────
+
+  describe('when someone else changes the instance while the handler runs', () => {
+    it('re-loads the instance and still completes the task', async () => {
+      const worker = new TaskWorker(store, eventBus)
+      let instanceId = ''
+      worker.register({
+        taskType: 'my-handler',
+        async execute(): Promise<TaskResult> {
+          // A concurrent actor writes the instance after the worker loaded it.
+          const current = (await store.getInstance(instanceId))!
+          await store.updateInstance({ ...current })
+          return { status: 'completed' }
+        },
+      })
+      worker.start()
+
+      await seedDefinition(store, SERVICE_TASK_BPMN)
+      instanceId = (await startInstance(store, eventBus, 'svc-proc')).instanceId
+      await new Promise(r => setTimeout(r, 20))
+
+      expect((await store.getInstance(instanceId))!.status).toBe('completed')
+    })
+
+    it('does not complete a task whose instance was cancelled in the meantime', async () => {
+      const worker = new TaskWorker(store, eventBus)
+      let instanceId = ''
+      worker.register({
+        taskType: 'my-handler',
+        async execute(): Promise<TaskResult> {
+          // A person cancels the instance (the real CancelInstance command, committed in full).
+          const instance = (await store.getInstance(instanceId))!
+          const tokens = await store.getAllTokens(instanceId)
+          const scopes = (await Promise.all(tokens.map(t => store.getScope(t.scopeId)))).filter(sc => sc !== null)
+          const definition = (await store.getDefinition(instance.definitionId))!
+          const cancelled = execute(definition, { type: 'CancelInstance' }, {
+            instance, tokens, scopes, gatewayJoinStates: [], compensationRecords: [],
+          })
+          await store.executeTransaction(computeStoreOps(false, [], cancelled.newState))
+          return { status: 'completed' }
+        },
+      })
+      worker.start()
+
+      await seedDefinition(store, SERVICE_TASK_BPMN)
+      instanceId = (await startInstance(store, eventBus, 'svc-proc')).instanceId
+      await new Promise(r => setTimeout(r, 20))
+
+      expect((await store.getInstance(instanceId))!.status).toBe('terminated')
+    })
+  })
 })

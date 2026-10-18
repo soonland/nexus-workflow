@@ -25,6 +25,13 @@ export const TENANT_MIGRATIONS: readonly TenantMigration[] = [
     version: '001_baseline',
     run: (tx, schemaName) => createTenantSchema(tx, schemaName),
   },
+  {
+    // Optimistic concurrency (#465): existing instances start at version 1.
+    version: '002_instance_version',
+    run: async (tx) => {
+      await tx.unsafe('ALTER TABLE instances ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1')
+    },
+  },
 ]
 
 /** Arbitrary constant namespacing the per-tenant migration advisory locks. */
