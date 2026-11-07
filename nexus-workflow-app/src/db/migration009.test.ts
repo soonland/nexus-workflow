@@ -60,7 +60,9 @@ describe('migration 009 (tenant-scoped events and webhooks)', () => {
     await provisionTenantSchema('acme', sql)
     await provisionTenantSchema('globex', sql)
     for (const [schema, id] of [['tenant_default', 'inst-default'], ['tenant_acme', 'inst-acme'], ['tenant_globex', 'inst-globex']] as const) {
-      await sql`INSERT INTO ${sql(schema)}.instances ${sql(instanceRow(id))}`
+      const row = instanceRow(id)
+      await sql`INSERT INTO ${sql(schema)}.instances (id, definition_id, definition_version, status, started_at, data)
+                VALUES (${row.id}, ${row.definition_id}, ${row.definition_version}, ${row.status}, ${row.started_at}, ${row.data})`
     }
     // (provisionTenantSchema created the new-style tables too; drop them so the schemas
     // look like they did before migration 009)
