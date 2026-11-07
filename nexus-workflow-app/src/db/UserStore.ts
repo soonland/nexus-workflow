@@ -94,15 +94,15 @@ async function assertNotLastAdmin(tx: postgres.Sql, userId: string, removal: { e
     SELECT
       EXISTS (
         SELECT 1 FROM public.memberships m JOIN public.users u ON u.id = m.user_id
-        WHERE m.user_id = ${userId} AND m.role = ANY(${tx.array([...PLATFORM_ROLES])}) AND u.status = 'active'
+        WHERE m.user_id = ${userId} AND m.role = ANY(${[...PLATFORM_ROLES]}::text[]) AND u.status = 'active'
       ) AS "isActiveAdmin",
       EXISTS (
         SELECT 1 FROM public.memberships m
-        WHERE m.user_id = ${userId} AND m.role = ANY(${tx.array([...PLATFORM_ROLES])}) AND m.id IS DISTINCT FROM ${removal.exceptMembershipId ?? null}
+        WHERE m.user_id = ${userId} AND m.role = ANY(${[...PLATFORM_ROLES]}::text[]) AND m.id IS DISTINCT FROM ${removal.exceptMembershipId ?? null}
       ) AS "keepsRole",
       (
         SELECT count(DISTINCT m.user_id)::int FROM public.memberships m JOIN public.users u ON u.id = m.user_id
-        WHERE m.user_id <> ${userId} AND m.role = ANY(${tx.array([...PLATFORM_ROLES])}) AND u.status = 'active'
+        WHERE m.user_id <> ${userId} AND m.role = ANY(${[...PLATFORM_ROLES]}::text[]) AND u.status = 'active'
       ) AS "otherActiveAdmins"
   `
   if (row?.isActiveAdmin && row.otherActiveAdmins === 0 && !(removal.exceptMembershipId !== undefined && row.keepsRole)) throw new LastOperatorError()
@@ -253,7 +253,7 @@ export class UserStore {
       AND NOT EXISTS (
         SELECT 1 FROM public.memberships m
         WHERE m.user_id = u.id
-          AND NOT (m.role = 'tenant_manager' AND m.tenant_id = ANY(${this.sql.array(tenantIds)}))
+          AND NOT (m.role = 'tenant_manager' AND m.tenant_id = ANY(${tenantIds}::text[]))
       )`
   }
 
@@ -261,7 +261,7 @@ export class UserStore {
     if (users.length === 0) return []
     const memberships = await this.sql<Membership[]>`
       SELECT ${this.sql.unsafe(MEMBERSHIP_COLUMNS)} FROM public.memberships
-      WHERE user_id = ANY(${this.sql.array(users.map((u) => u.id))})
+      WHERE user_id = ANY(${users.map((u) => u.id)}::text[])
       ORDER BY created_at ASC, id ASC`
     const byUser = new Map<string, Membership[]>()
     for (const m of memberships) byUser.set(m.userId, [...(byUser.get(m.userId) ?? []), m])
