@@ -20,11 +20,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.6",
-    "hono": "^4.13.16",
+    "@hono/node-server": "^2.1.8",
+    "hono": "^4.13.19",
     "ioredis": "^6.0.0",
     "nexus-workflow-core": "workspace:*",
-    "postgres": "^4.1.0",
+    "postgres": "^4.1.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -32,14 +32,14 @@
     "@types/node": "^26.6.6",
     "@vitest/coverage-v8": "^5.1.0",
     "@vitest/eslint-plugin": "^1.6.28",
-    "eslint": "^10.14.0",
+    "eslint": "^10.15.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import-x": "^4.18.1",
-    "prettier": "^3.9.10",
+    "prettier": "^3.10.1",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.72.1",
+    "typescript-eslint": "^8.73.0",
     "vitest": "^5.1.0"
   }
 }
