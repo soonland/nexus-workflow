@@ -39,7 +39,7 @@
     "ioredis": "^6.0.0",
     "next": "^16.4.6",
     "next-auth": "^5.0.0-beta.32",
-    "next-intl": "^4.14.9",
+    "next-intl": "^4.15.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "zod": "^4.6.7"
