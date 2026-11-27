@@ -4,12 +4,13 @@ RUN npm install -g pnpm@12.6.0
 WORKDIR /monorepo
 # Manifests first so the install layer is cached until dependencies change.
 # nexus-erp/package.json must be present (see .dockerignore): the lockfile
-# lists it as a workspace project even though it is not built here.
+# lists it as a workspace project even though it is not built here. Same for examples/*.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY nexus-workflow-core/package.json nexus-workflow-core/
 COPY nexus-workflow-app/package.json nexus-workflow-app/
 COPY nexus-erp/package.json nexus-erp/
 COPY nexus-workflow-console/package.json nexus-workflow-console/
+COPY examples/approvals/package.json examples/approvals/
 RUN pnpm install --frozen-lockfile --filter nexus-workflow-app... --filter nexus-workflow-console
 
 COPY nexus-workflow-core/src nexus-workflow-core/src
